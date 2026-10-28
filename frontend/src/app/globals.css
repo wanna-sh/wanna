@@ -1,0 +1,140 @@
+@import "tailwindcss";
+
+/*
+  wanna.sh tokens. Monochrome on purpose: the paintings carry the colour.
+  fog: page ground   paper: raised surfaces   well: insets and hovers   line: hairlines
+  ink: text           slate: secondary text    accent: primary actions (ink, inverted)
+  marigold: "running right now" only. ok / caution / danger: model ratings and errors.
+  Dark is the default; [data-theme="light"] switches.
+*/
+:root {
+  --fog: #0b0b0c;
+  --paper: #161618;
+  --well: #222225;
+  --line: #2e2e32;
+  --ink: #ececee;
+  --slate: #a8a8ae;
+  --accent: #ececee;
+  --accent-ink: #0a0a0a;
+  --accent-soft: #262626;
+  --marigold: #e8b23a;
+  --danger: #f08a8a;
+  --ok: #7fcf9f;
+  --caution: #e6b566;
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --fog: #fafafa;
+  --paper: #ffffff;
+  --well: #f0f0f0;
+  --line: #e4e4e4;
+  --ink: #18181b;
+  --slate: #5f5f66;
+  --accent: #18181b;
+  --accent-ink: #fafafa;
+  --accent-soft: #ececec;
+  --marigold: #c98f00;
+  --danger: #b4233c;
+  --ok: #1d7a4f;
+  --caution: #9a5a06;
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-fog: var(--fog);
+  --color-paper: var(--paper);
+  --color-well: var(--well);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-slate: var(--slate);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-marigold: var(--marigold);
+  --color-danger: var(--danger);
+  --color-ok: var(--ok);
+  --color-caution: var(--caution);
+  --font-sans: var(--font-body);
+  --font-display: var(--font-body);
+  --font-mono: var(--font-code);
+}
+
+html {
+  background: var(--fog);
+  color: var(--ink);
+}
+
+body {
+  background: var(--fog);
+  color: var(--ink);
+  font-family: var(--font-body), system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Headings: Inter, semibold, slightly tightened. */
+.font-display {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+/* In the base layer so components (e.g. the prompt bar's text box) can opt out with utilities. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Markdown inside chat replies */
+.prose-chat p { margin: 0 0 0.8em; }
+.prose-chat p:last-child { margin-bottom: 0; }
+.prose-chat ul, .prose-chat ol { margin: 0 0 0.8em; padding-left: 1.4em; }
+.prose-chat ul { list-style: disc; }
+.prose-chat ol { list-style: decimal; }
+.prose-chat li { margin: 0.25em 0; }
+.prose-chat h1, .prose-chat h2, .prose-chat h3 { font-weight: 600; margin: 1.1em 0 0.4em; }
+.prose-chat h1 { font-size: 1.25em; }
+.prose-chat h2 { font-size: 1.12em; }
+.prose-chat code { font-family: var(--font-code); font-size: 0.86em; background: var(--well); padding: 0.1em 0.35em; border-radius: 5px; }
+.prose-chat pre { background: var(--well); border: 1px solid var(--line); padding: 0.9em 1em; border-radius: 12px; overflow-x: auto; margin: 0 0 0.8em; }
+.prose-chat pre code { background: none; padding: 0; }
+.prose-chat a { text-decoration: underline; text-underline-offset: 2px; }
+.prose-chat table { border-collapse: collapse; margin: 0 0 0.8em; }
+.prose-chat th, .prose-chat td { border: 1px solid var(--line); padding: 0.3em 0.6em; }
+.prose-chat blockquote { border-left: 2px solid var(--line); padding-left: 0.9em; color: var(--slate); }
+
+/* The "I wanna" sentence: the one loud moment in the app */
+@keyframes caret {
+  50% { opacity: 0; }
+}
+.wanna-caret {
+  display: inline-block;
+  width: 2px;
+  height: 0.85em;
+  margin-left: 0.08em;
+  background: currentColor;
+  vertical-align: -0.06em;
+  animation: caret 1.1s steps(1) infinite;
+}
+
+/* Painting crossfade on the home page */
+.art-fade {
+  transition: opacity 450ms ease;
+}
