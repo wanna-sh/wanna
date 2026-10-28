@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .downloads import manager as downloads
-from .api import native, openai
+from .api import code, native, openai
 from .config import OUTPUTS_DIR
 from .workers.manager import manager
 
@@ -64,6 +64,7 @@ async def validation_error(request: Request, exc: RequestValidationError):
 
 app.include_router(openai.router)
 app.include_router(native.router)
+app.include_router(code.router)
 app.mount("/files", StaticFiles(directory=OUTPUTS_DIR), name="files")
 
 

@@ -17,6 +17,7 @@ import {
   Moon,
   Music,
   Settings,
+  SquareTerminal,
   Sun,
   X,
   type LucideIcon,
@@ -82,6 +83,9 @@ export default function Shell({ children }: { children: ReactNode }) {
                   {TASKS[t].label}
                 </NavItem>
               ))}
+              <NavItem href="/code/" active={path.startsWith("/code")} icon={SquareTerminal}>
+                Code
+              </NavItem>
             </NavGroup>
             <NavGroup title="Library">
               {LIBRARY.map((l) => (

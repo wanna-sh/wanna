@@ -39,6 +39,12 @@ export const api = {
       headers: { ...HEADERS, "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }).then(handle<T>),
+  patch: <T>(path: string, body: unknown) =>
+    fetch(API_BASE + path, {
+      method: "PATCH",
+      headers: { ...HEADERS, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then(handle<T>),
   del: <T>(path: string) => fetch(API_BASE + path, { method: "DELETE", headers: HEADERS }).then(handle<T>),
   upload: <T>(path: string, file: Blob, filename = "upload") => {
     const fd = new FormData();
@@ -267,4 +273,81 @@ export interface Generation {
   params: Record<string, unknown>;
   files: string[];
   created_at: number;
+}
+
+// --- Code projects ------------------------------------------------------------------------------
+
+export type ApprovalMode = "ask_commands" | "ask_all" | "auto";
+
+export interface CodeProject {
+  id: string;
+  name: string;
+  description: string;
+  created: number;
+  updated: number;
+  approval: ApprovalMode;
+  model: string | null;
+  context: number;
+  always_allow: string[];
+  files?: number;
+  running?: boolean;
+  /** Sandbox port -> port on this computer, for previews. */
+  ports?: Record<string, number>;
+  shells?: { shell_id: string; command: string }[];
+}
+
+export interface CodeEvent {
+  id: string;
+  type: "user" | "assistant" | "tool" | "notice" | "error";
+  time: number;
+  text?: string;
+  thinking?: string;
+  name?: string;
+  args?: Record<string, unknown>;
+  status?: "running" | "awaiting_approval" | "done" | "error" | "denied" | "stopped";
+  result?: string;
+  diff?: string;
+  ports?: Record<string, number>;
+}
+
+export interface Todo {
+  content: string;
+  status: "pending" | "in_progress" | "completed";
+}
+
+export type CodeStreamMessage =
+  | { type: "snapshot"; events: CodeEvent[]; todos: Todo[]; running: boolean }
+  | { type: "upsert"; event: CodeEvent }
+  | { type: "todos"; todos: Todo[] }
+  | { type: "status"; running: boolean };
+
+/** Follow a project's agent events (Server-Sent Events over fetch, so the UI header is sent). */
+export function followCode(pid: string, onMessage: (m: CodeStreamMessage) => void, signal: AbortSignal) {
+  const connect = async () => {
+    while (!signal.aborted) {
+      try {
+        const r = await fetch(`${API_BASE}/api/code/projects/${pid}/events`, { headers: HEADERS, signal });
+        if (!r.ok || !r.body) throw new Error(String(r.status));
+        const reader = r.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = "";
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const parts = buf.split("\n\n");
+          buf = parts.pop() ?? "";
+          for (const part of parts) {
+            const line = part.split("\n").find((l) => l.startsWith("data:"));
+            if (line) onMessage(JSON.parse(line.slice(5)));
+          }
+        }
+      } catch {
+        if (signal.aborted) return;
+      }
+      // The connection dropped (e.g. the server restarted): try again shortly.
+      await new Promise((res) => setTimeout(res, 1500));
+    }
+  };
+  connect();
 }
