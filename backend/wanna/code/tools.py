@@ -6,11 +6,16 @@ Every path is resolved inside the project folder; anything that escapes it is re
 from __future__ import annotations
 
 import fnmatch
+import io
+import ipaddress
 import json
 import re
+import socket
+import subprocess
 import threading
 from html.parser import HTMLParser
 from pathlib import Path
+from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import httpx
 
@@ -89,7 +94,8 @@ SCHEMAS = [
             "status": {"type": "string", "enum": ["pending", "in_progress", "completed"]}},
             "required": ["content", "status"]}}},
         ["todos"]),
-    _fn("web_fetch", "Fetch a web page and return its text, e.g. documentation or an API reference.",
+    _fn("web_fetch", "Fetch a web page or PDF and return its text, e.g. documentation or an API reference. "
+        "To check the project's own app, fetch http://localhost:<port> for a server running in the sandbox.",
         {"url": {"type": "string"}}, ["url"]),
     _fn("web_search", "Search the web. Returns titles, links and snippets.",
         {"query": {"type": "string"}, "max_results": {"type": "integer", "description": "Default 8."}},
@@ -338,29 +344,116 @@ class _Text(HTMLParser):
     def text(self):
         t = "".join(self.out)
         t = re.sub(r"[ \t]+", " ", t)
+        # Icons, images and menus leave bullets and headings with nothing in them; they only waste the model's memory.
+        t = re.sub(r"(?m)^ ?(-|#+) ?$", "", t)
         return re.sub(r"\n\s*\n+", "\n\n", t).strip()
 
 
-def web_fetch(pid, url):
-    if not re.match(r"^https?://", url):
+# An honest name with a link: sites like Wikipedia refuse clients that pretend to be a browser.
+FETCH_HEADERS = {"User-Agent": "wanna.sh-code-agent/0.1 (+https://github.com/surajkumar/wanna.sh)"}
+FETCH_MAX_BYTES = 25 * 1024 * 1024
+FETCH_MAX_CHARS = 20_000
+FETCH_MAX_REDIRECTS = 5
+
+
+def _fetch_target(pid, url):
+    """Check where a link points before fetching it.
+
+    web_fetch runs on this computer, not in the sandbox, so local and private-network addresses (wanna.sh's own
+    API, a router page) are refused. The one exception is the project's own app: "localhost:3000" is sent to the
+    port its sandbox publishes, so the agent can check what it built.
+    """
+    parts = urlsplit(url)
+    if parts.scheme not in ("http", "https") or not parts.hostname:
         raise ToolError("Only http and https links can be fetched.")
+    host = parts.hostname
+    port = parts.port or (443 if parts.scheme == "https" else 80)
     try:
-        r = httpx.get(url, follow_redirects=True, timeout=30, headers={"User-Agent": "Mozilla/5.0 (wanna.sh code agent)"})
+        addrs = {ipaddress.ip_address(a[4][0].split("%")[0]) for a in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)}
+    except (socket.gaierror, UnicodeError):
+        raise ToolError(f"Couldn't find the website {host}. Check the link.")
+    addrs = {a.ipv4_mapped or a if isinstance(a, ipaddress.IPv6Address) else a for a in addrs}
+    if all(a.is_global for a in addrs):
+        return url
+    if all(a.is_loopback for a in addrs):
+        try:
+            published = sandbox.ports(pid)  # container port -> port on this computer
+        except (OSError, subprocess.SubprocessError):
+            published = {}
+        host_port = published.get(port) or (port if port in published.values() else None)
+        if host_port:
+            return urlunsplit((parts.scheme, f"127.0.0.1:{host_port}", parts.path, parts.query, ""))
+        open_ports = ", ".join(str(p) for p in sorted(published)) or "none yet"
+        raise ToolError(
+            f"web_fetch can only reach this computer through the project's own app ports ({open_ports}). "
+            "Start a server on one of 3000, 5173, 8000 or 8080 in the sandbox, or use bash with curl inside it."
+        )
+    raise ToolError(f"{host} is a local or private network address, which web_fetch doesn't open.")
+
+
+def _pdf_text(data: bytes) -> str:
+    from pypdf import PdfReader
+    from pypdf.errors import PdfReadError
+
+    try:
+        reader = PdfReader(io.BytesIO(data))
+        if reader.is_encrypted:
+            raise ToolError("That PDF is password protected.")
+        parts, total = [], 0
+        for i, page in enumerate(reader.pages, 1):
+            t = (page.extract_text() or "").strip()
+            parts.append(f"[page {i}]\n{t}")
+            total += len(t)
+            if total > FETCH_MAX_CHARS:
+                break
+    except PdfReadError as e:
+        raise ToolError(f"Couldn't read that PDF: {e}")
+    text = "\n\n".join(parts)
+    if total == 0:
+        raise ToolError("That PDF has no selectable text (it may be scanned pictures of pages).")
+    return f"PDF, {len(reader.pages)} pages\n\n{text}"
+
+
+def web_fetch(pid, url):
+    url = (url or "").strip()
+    try:
+        with httpx.Client(timeout=30, headers=FETCH_HEADERS) as client:
+            # Redirects are followed by hand so every hop gets the same address check.
+            for _ in range(FETCH_MAX_REDIRECTS + 1):
+                target = _fetch_target(pid, url)
+                with client.stream("GET", target) as r:
+                    if r.is_redirect and "location" in r.headers:
+                        url = urljoin(url, r.headers["location"])
+                        continue
+                    data = b""
+                    for chunk in r.iter_bytes():
+                        data += chunk
+                        if len(data) > FETCH_MAX_BYTES:
+                            raise ToolError(f"{url} is over 25 MB, too big to read.")
+                    break
+            else:
+                raise ToolError(f"{url} redirects too many times.")
     except httpx.HTTPError as e:
         raise ToolError(f"Couldn't fetch {url}: {e}")
-    ctype = r.headers.get("content-type", "")
     if r.status_code >= 400:
-        raise ToolError(f"{url} returned HTTP {r.status_code}.")
-    if "html" in ctype:
-        parser = _Text()
-        parser.feed(r.text)
-        body = parser.text()
-    elif ctype.startswith("text/") or "json" in ctype or "xml" in ctype:
-        body = r.text
+        raise ToolError(f"{url} returned HTTP {r.status_code}." + (
+            " The site blocks automated visitors; try another source." if r.status_code in (401, 403, 429) else ""))
+    ctype = r.headers.get("content-type", "").lower()
+    if "pdf" in ctype or data[:5] == b"%PDF-":
+        body = _pdf_text(data)
     else:
-        raise ToolError(f"{url} isn't a text page ({ctype or 'unknown type'}).")
-    clipped = body[:20_000]
-    return f"URL: {r.url}\n\n{clipped}" + ("\n\n[page cut off at 20,000 characters]" if len(body) > 20_000 else "")
+        text = data.decode(r.encoding or "utf-8", errors="replace")
+        if "html" in ctype:
+            parser = _Text()
+            parser.feed(text)
+            body = parser.text()
+        elif ctype.startswith("text/") or "json" in ctype or "xml" in ctype or "javascript" in ctype:
+            body = text
+        else:
+            raise ToolError(f"{url} isn't a text page or PDF ({ctype or 'unknown type'}).")
+    clipped = body[:FETCH_MAX_CHARS]
+    return f"URL: {url}\n\n{clipped}" + (
+        f"\n\n[page cut off at {FETCH_MAX_CHARS:,} characters]" if len(body) > FETCH_MAX_CHARS else "")
 
 
 def web_search(pid, query, max_results=8):
