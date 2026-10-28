@@ -22,6 +22,8 @@ for _d in (MODELS_DIR, OUTPUTS_DIR, UPLOADS_DIR, ENGINES_DIR, LOGS_DIR):
 DEFAULT_SETTINGS = {
     # Hugging Face token, needed for gated models (e.g. FLUX.1).
     "hf_token": "",
+    # Optional Brave Search API key; Code's web search uses it before the local SearXNG.
+    "brave_api_key": "",
     # When true, /v1 and /api require a valid API key (except from the bundled UI on localhost).
     "require_api_key": False,
     # Unload a model automatically after this many idle minutes. 0 disables.

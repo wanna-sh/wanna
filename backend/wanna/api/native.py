@@ -335,6 +335,9 @@ def _public_settings(s: dict) -> dict:
     tok = s.get("hf_token") or ""
     s["hf_token"] = (tok[:6] + "…" + tok[-4:]) if tok else ""
     s["hf_token_set"] = bool(tok)
+    brave = s.get("brave_api_key") or ""
+    s["brave_api_key"] = (brave[:4] + "…" + brave[-4:]) if brave else ""
+    s["brave_api_key_set"] = bool(brave)
     return s
 
 
@@ -345,8 +348,9 @@ def get_settings():
 
 @router.put("/settings")
 def put_settings(patch: dict):
-    if "hf_token" in patch and "…" in (patch["hf_token"] or ""):
-        patch.pop("hf_token")  # unchanged masked value
+    for k in ("hf_token", "brave_api_key"):
+        if k in patch and "…" in (patch[k] or ""):
+            patch.pop(k)  # unchanged masked value
     s = save_settings(patch)
     hub._model_info.cache_clear()
     return _public_settings(s)

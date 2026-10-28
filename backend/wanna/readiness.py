@@ -21,7 +21,7 @@ import httpx
 import psutil
 
 from . import gpu
-from .config import LOGS_DIR, MODELS_DIR
+from .config import LOGS_DIR, MODELS_DIR, load_settings
 from .engines import llamacpp
 
 log = logging.getLogger("wanna.readiness")
@@ -342,16 +342,23 @@ def system_check(refresh: bool = False) -> list[dict]:
     except httpx.HTTPError:
         add("hf", "Hugging Face", "warn", "Can't reach huggingface.co. Installed models still work; finding new ones needs internet.")
 
-    from .code import tools as code_tools
+    from .code import search
 
-    ws = code_tools.search_status
-    if ws["blocked_at"] and time.time() - ws["blocked_at"] < 3600:
-        add("search", "Web search for Code", "warn",
-            "DuckDuckGo is asking for a human check after many searches. Searches should work again later.")
-    elif ws["ok_at"]:
-        add("search", "Web search for Code", "ok", "Working.")
+    if (load_settings().get("brave_api_key") or "").strip():
+        add("search", "Web search for Code", "ok", "Brave Search, using your API key, with local SearXNG as backup.")
     else:
-        add("search", "Web search for Code", "ok", "Not used yet.")
+        sx = search.searxng_state()
+        last = search.status
+        if sx == "no-docker":
+            add("search", "Web search for Code", "warn", "Local search needs Docker. Until then searches fall back to "
+                "DuckDuckGo, which blocks after bursts of searches. Or add a Brave Search key below.")
+        elif last["error"] and not last["ok_at"]:
+            add("search", "Web search for Code", "warn", f"Last search failed: {last['error'][:160]}")
+        elif sx == "running":
+            add("search", "Web search for Code", "ok", "SearXNG is running privately on this computer.")
+        else:
+            add("search", "Web search for Code", "ok", "SearXNG starts on the first search (the first time it "
+                "downloads about 100 MB).")
 
     _check_cache = (time.time(), checks)
     return checks

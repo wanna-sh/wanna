@@ -6,13 +6,11 @@ Every path is resolved inside the project folder; anything that escapes it is re
 from __future__ import annotations
 
 import fnmatch
-import html
 import json
 import re
 import threading
 from html.parser import HTMLParser
 from pathlib import Path
-from urllib.parse import parse_qs, unquote, urlparse
 
 import httpx
 
@@ -365,39 +363,16 @@ def web_fetch(pid, url):
     return f"URL: {r.url}\n\n{clipped}" + ("\n\n[page cut off at 20,000 characters]" if len(body) > 20_000 else "")
 
 
-# When search last worked or was blocked, for the system check.
-search_status = {"ok_at": None, "blocked_at": None}
-
-
 def web_search(pid, query, max_results=8):
-    """Keyless search via DuckDuckGo's HTML results page."""
-    import time
+    """Brave (with a key), local SearXNG, or DuckDuckGo as a last resort. See code/search.py."""
+    from . import search
+
     try:
-        r = httpx.post("https://html.duckduckgo.com/html/", data={"q": query}, timeout=20,
-                       headers={"User-Agent": "Mozilla/5.0"}, follow_redirects=True)
-    except httpx.HTTPError as e:
-        raise ToolError(f"Search failed: {e}")
-    if r.status_code == 202 or "anomaly" in r.text[:20000].lower():
-        search_status["blocked_at"] = time.time()
-        # DuckDuckGo shows a bot check after many searches from one address.
-        raise ToolError("Web search is temporarily unavailable: DuckDuckGo is asking for a human check after too many "
-                        "searches. Try again in a while, or use web_fetch on a documentation page you know.")
-    results = []
-    for m in re.finditer(r'class="result__a" href="([^"]+)"[^>]*>(.*?)</a>.*?class="result__snippet"[^>]*>(.*?)</a>',
-                         r.text, re.S):
-        href, title, snippet = m.groups()
-        q = parse_qs(urlparse(html.unescape(href)).query)
-        link = unquote(q["uddg"][0]) if "uddg" in q else html.unescape(href)
-        if "duckduckgo.com/y.js" in link:
-            continue  # ads
-        clean = lambda s: html.unescape(re.sub(r"<[^>]+>", "", s)).strip()
-        results.append(f"{clean(title)}\n{link}\n{clean(snippet)}")
-        if len(results) >= max(1, min(int(max_results or 8), 15)):
-            break
-    if not results:
-        raise ToolError("No results. The search service may be busy; try again or rephrase.")
-    search_status["ok_at"], search_status["blocked_at"] = time.time(), None
-    return "\n\n".join(results)
+        results, provider = search.search(query, max_results)
+    except search.SearchError as e:
+        raise ToolError(f"{e} You can still use web_fetch on a documentation page you know.")
+    lines = [f"{r['title']}\n{r['url']}\n{r['snippet']}".strip() for r in results]
+    return f"Results from {provider}:\n\n" + "\n\n".join(lines)
 
 
 # --- dispatch ----------------------------------------------------------------------------------------------------

@@ -10,6 +10,8 @@ import { Button, Field, Notice, PageHeader, Panel, inputClass } from "@/componen
 interface Settings {
   hf_token: string;
   hf_token_set: boolean;
+  brave_api_key: string;
+  brave_api_key_set: boolean;
   require_api_key: boolean;
   idle_unload_minutes: number;
   default_context: number;
@@ -18,6 +20,7 @@ interface Settings {
 export default function SettingsPage() {
   const [s, setS] = useState<Settings | null>(null);
   const [token, setToken] = useState("");
+  const [brave, setBrave] = useState("");
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { data: sys } = useSystem(5000);
@@ -75,6 +78,44 @@ export default function SettingsPage() {
               </Button>
               {s.hf_token_set && (
                 <Button tone="quiet" type="button" onClick={() => save({ hf_token: "" })}>
+                  Remove
+                </Button>
+              )}
+            </form>
+          </Panel>
+
+          <Panel>
+            <h2 className="font-display text-[1.25rem] leading-snug mb-1">Web search for Code</h2>
+            <p className="text-slate text-[15px] mb-4">
+              Code searches the web through a private search engine (SearXNG) that wanna.sh runs on this computer, so
+              no account is needed. If you have a{" "}
+              <a className="text-accent underline" href="https://brave.com/search/api/" target="_blank">
+                Brave Search API
+              </a>{" "}
+              key, paste it here and Code will use it first. Optional.
+            </p>
+            <form
+              className="flex gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                save({ brave_api_key: brave });
+                setBrave("");
+              }}
+            >
+              <input
+                className={inputClass}
+                type="password"
+                autoComplete="off"
+                placeholder={s.brave_api_key_set ? `Saved (${s.brave_api_key})` : "Brave Search API key"}
+                value={brave}
+                onChange={(e) => setBrave(e.target.value)}
+                aria-label="Brave Search API key"
+              />
+              <Button type="submit" disabled={!brave}>
+                Save
+              </Button>
+              {s.brave_api_key_set && (
+                <Button tone="quiet" type="button" onClick={() => save({ brave_api_key: "" })}>
                   Remove
                 </Button>
               )}
