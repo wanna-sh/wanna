@@ -42,8 +42,10 @@ SCHEMAS = [
          "offset": {"type": "integer", "description": "Line number to start at (1-based)."},
          "limit": {"type": "integer", "description": f"How many lines to read (default {READ_LIMIT})."}},
         ["path"]),
-    _fn("write_file", "Create a file or replace its whole contents. Prefer edit_file for changes to existing files.",
-        {"path": {"type": "string"}, "content": {"type": "string", "description": "The full file contents."}},
+    _fn("write_file", "Create a file or replace its whole contents. Prefer edit_file for changes to existing files. "
+        "For long files (over about 150 lines), write the first part, then add the rest with append set to true.",
+        {"path": {"type": "string"}, "content": {"type": "string", "description": "The file contents (or the part to add)."},
+         "append": {"type": "boolean", "description": "Add content to the end of the file instead of replacing it."}},
         ["path", "content"]),
     _fn("edit_file", "Replace exact text in a file. old_string must match the file exactly, including indentation, "
         "and appear once unless replace_all is true. Read the file first.",
@@ -153,10 +155,15 @@ def read_file(pid, path, offset=None, limit=None):
     return body + (f"\n\n[{more} more lines. Read again with offset={start + len(chunk)}.]" if more > 0 else "")
 
 
-def write_file(pid, path, content):
+def write_file(pid, path, content, append=False):
     p = _resolve(pid, path)
     existed = p.exists()
     p.parent.mkdir(parents=True, exist_ok=True)
+    if append and existed:
+        with open(p, "a") as f:
+            f.write(content)
+        total = len(p.read_text(errors="replace").splitlines())
+        return f"Added {len(content.splitlines())} lines to {_rel(pid, p)} (now {total} lines)."
     p.write_text(content)
     return f"{'Updated' if existed else 'Created'} {_rel(pid, p)} ({len(content.splitlines())} lines)."
 
@@ -358,14 +365,20 @@ def web_fetch(pid, url):
     return f"URL: {r.url}\n\n{clipped}" + ("\n\n[page cut off at 20,000 characters]" if len(body) > 20_000 else "")
 
 
+# When search last worked or was blocked, for the system check.
+search_status = {"ok_at": None, "blocked_at": None}
+
+
 def web_search(pid, query, max_results=8):
     """Keyless search via DuckDuckGo's HTML results page."""
+    import time
     try:
         r = httpx.post("https://html.duckduckgo.com/html/", data={"q": query}, timeout=20,
                        headers={"User-Agent": "Mozilla/5.0"}, follow_redirects=True)
     except httpx.HTTPError as e:
         raise ToolError(f"Search failed: {e}")
     if r.status_code == 202 or "anomaly" in r.text[:20000].lower():
+        search_status["blocked_at"] = time.time()
         # DuckDuckGo shows a bot check after many searches from one address.
         raise ToolError("Web search is temporarily unavailable: DuckDuckGo is asking for a human check after too many "
                         "searches. Try again in a while, or use web_fetch on a documentation page you know.")
@@ -383,6 +396,7 @@ def web_search(pid, query, max_results=8):
             break
     if not results:
         raise ToolError("No results. The search service may be busy; try again or rephrase.")
+    search_status["ok_at"], search_status["blocked_at"] = time.time(), None
     return "\n\n".join(results)
 
 

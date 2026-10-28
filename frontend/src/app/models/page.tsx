@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
-import { api, type Gpu, type InstalledModel } from "@/lib/api";
-import { useModels, useSystem } from "@/lib/hooks";
+import { api, type Gpu, type InstalledModel, type MemoryOptions } from "@/lib/api";
+import { useModels, usePoll, useSystem } from "@/lib/hooks";
 import { TASKS, TASK_ORDER } from "@/lib/tasks";
 import { ago, bytes, gpuName, prettyName } from "@/lib/format";
 import { Button, Field, LinkButton, LiveDot, Notice, PageHeader, inputClass } from "@/components/ui";
@@ -137,9 +137,14 @@ function ModelRow({ m, gpus, onChange }: { m: InstalledModel; gpus: Gpu[]; onCha
   const on = w?.gpus.length
     ? w.gpus.map((i) => gpuName(gpus.find((g) => g.index === i)?.name ?? `GPU ${i}`)).join(" + ")
     : "the processor";
+  const spill = w?.gpu_layers != null && w?.total_layers ? w.total_layers - w.gpu_layers : 0;
   const status = w
-    ? `${w.status === "loading" ? "Starting on" : "Running on"} ${on}${w.offload ? ", memory saver on" : ""}`
+    ? `${w.status === "loading" ? "Starting on" : "Running on"} ${on}${w.offload ? ", memory saver on" : ""}` +
+      (spill > 0 ? `, ${spill} of ${w.total_layers} layers on the processor (slower)` : "")
     : "Not running";
+  const speed = m.speed ? `About ${Math.round(m.speed)} tokens a second here. ` : "";
+  // How each memory size would run here, from llama.cpp's planner (fetched when Options opens).
+  const memory = usePoll<MemoryOptions>(open && m.task === "chat" ? `/api/models/${m.id}/memory` : null);
   const problem = error ?? w?.error ?? m.last_error;
 
   return (
@@ -152,7 +157,7 @@ function ModelRow({ m, gpus, onChange }: { m: InstalledModel; gpus: Gpu[]; onCha
             {m.meta.quant && <span className="text-[13px] text-slate">{m.meta.quant}</span>}
           </div>
           <div className="text-[14px] text-slate mt-0.5">
-            {status}. {bytes(m.size_bytes)}
+            {status}. {speed}{bytes(m.size_bytes)}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -187,15 +192,22 @@ function ModelRow({ m, gpus, onChange }: { m: InstalledModel; gpus: Gpu[]; onCha
             </select>
           </Field>
           {m.task === "chat" && (
-            <Field label="Memory for conversation" hint="Longer memory uses more graphics memory.">
+            <Field
+              label="Memory for conversation"
+              hint={
+                memory.data
+                  ? `Recommended here: ${Math.round(memory.data.recommended / 1024)}K, the most that fits fully on your graphics cards.`
+                  : "Checking what fits on this computer…"
+              }
+            >
               <select
                 className={`${inputClass} h-10 py-0`}
                 value={context}
                 onChange={(e) => setContext(Number(e.target.value))}
               >
-                {CONTEXTS.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
+                {(memory.data?.options ?? CONTEXTS.map((c) => ({ context: c.value, label: c.label, rating: "unknown" }))).map((o) => (
+                  <option key={o.context} value={o.context}>
+                    {Math.round(o.context / 1024)}K{o.rating !== "unknown" ? `: ${o.label}` : ""}
                   </option>
                 ))}
               </select>

@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
-from .. import catalog, db, gpu, hub, jobs, presets, samplers
+from .. import catalog, db, gpu, hub, jobs, presets, readiness, samplers
 from ..config import MODELS_DIR, OUTPUTS_DIR, UPLOADS_DIR, load_settings, save_settings
 from ..downloads import manager as downloads
 from ..engines import llamacpp
@@ -37,6 +37,12 @@ def system():
     info["disk_free"] = shutil.disk_usage(MODELS_DIR).free
     info["tasks"] = hub.TASKS
     return info
+
+
+@router.get("/system/check")
+def system_check(refresh: bool = False):
+    """Is this computer ready? One line per area, each ok / warn / fail."""
+    return readiness.system_check(refresh)
 
 
 @router.post("/engines/llamacpp/install")
@@ -133,6 +139,9 @@ def list_models():
         m["last_error"] = manager.last_error(m["id"])
         m["task_label"] = hub.TASKS.get(m["task"], {}).get("label")
         m["defaults"] = presets.for_model(m)
+        if m["engine"] == "llamacpp":
+            m["abilities"] = readiness.abilities(m)
+            m["speed"] = readiness.measured_speed(m["id"])
         if m["task"] == "image":
             m["samplers"] = samplers.options_for(m["repo_id"], m["path"])
         out.append(m)
@@ -173,6 +182,15 @@ def delete_model(model_id: str):
         shutil.rmtree(target, ignore_errors=True)
     db.delete_model(model_id)
     return {"ok": True}
+
+
+@router.get("/models/{model_id}/memory")
+def model_memory(model_id: str):
+    """How each conversation-memory size would run on this computer, with a recommendation."""
+    m = db.get_model(model_id)
+    if not m or m["engine"] != "llamacpp":
+        raise HTTPException(404, "Only chat models have memory options")
+    return readiness.memory_options(m)
 
 
 @router.get("/models/{model_id}/log", response_class=PlainTextResponse)

@@ -450,11 +450,14 @@ export function ModelMenu({
   value,
   onChange,
   task,
+  note,
 }: {
   models: InstalledModel[];
   value: string;
   onChange: (id: string) => void;
   task: Task;
+  /** Extra words for each model's status line, e.g. "Can use tools". */
+  note?: (m: InstalledModel) => string | null;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useDismiss(open, () => setOpen(false));
@@ -509,6 +512,7 @@ export function ModelMenu({
                       <LiveDot status={m.loaded?.status} />
                       {where(m)}
                       {task === "chat" && m.meta.mmproj ? ". Sees pictures" : ""}
+                      {note?.(m) ? `. ${note(m)}` : ""}
                     </span>
                   </span>
                 </button>

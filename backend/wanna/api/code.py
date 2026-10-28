@@ -70,6 +70,22 @@ def delete_project(pid: str):
     return {"ok": True}
 
 
+@router.get("/projects/{pid}/memory")
+def project_memory(pid: str):
+    """Memory options for this project's model on this computer."""
+    from .. import readiness
+    from ..workers.manager import ModelNotFound, manager
+
+    meta = _project(pid)
+    try:
+        model = manager.resolve(meta.get("model"), "chat")
+    except ModelNotFound as e:
+        raise HTTPException(404, str(e))
+    if model["engine"] != "llamacpp":
+        raise HTTPException(400, "This project's model isn't a GGUF chat model")
+    return {"model": model["id"], **readiness.memory_options(model)}
+
+
 @router.get("/projects/{pid}/files")
 def list_files(pid: str):
     _project(pid)

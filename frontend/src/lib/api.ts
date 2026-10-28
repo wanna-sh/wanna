@@ -129,6 +129,9 @@ export interface Worker {
   offload: boolean;
   /** Chat models: conversation memory in tokens (null = the default from Settings). */
   context: number | null;
+  /** Chat models placed by llama.cpp's planner: layers on the graphics cards / in total. */
+  gpu_layers?: number | null;
+  total_layers?: number | null;
   title: string;
 }
 
@@ -155,6 +158,10 @@ export interface InstalledModel {
   loaded: Worker | null;
   last_error: string | null;
   defaults: Record<string, number>;
+  /** Chat models: what the model file says it can do. */
+  abilities?: { tools: boolean; thinks: boolean; vision: boolean; trained_context: number | null; layers: number | null };
+  /** Chat models: measured tokens per second on this computer, once it has run. */
+  speed?: number | null;
   /** Picture models only: samplers this model can switch between (empty when it can't). */
   samplers?: { samplers: { id: string; label: string }[]; default: string | null };
   created_at: number;
@@ -287,7 +294,8 @@ export interface CodeProject {
   updated: number;
   approval: ApprovalMode;
   model: string | null;
-  context: number;
+  /** Conversation memory in tokens; null = automatic. */
+  context: number | null;
   always_allow: string[];
   files?: number;
   running?: boolean;
@@ -350,4 +358,27 @@ export function followCode(pid: string, onMessage: (m: CodeStreamMessage) => voi
     }
   };
   connect();
+}
+
+// --- readiness ------------------------------------------------------------------------------------
+
+export interface SystemCheckItem {
+  id: string;
+  label: string;
+  status: "ok" | "warn" | "fail";
+  detail: string;
+}
+
+export interface MemoryOption {
+  context: number;
+  rating: "fast" | "ok" | "slow" | "unknown";
+  label: string;
+}
+
+export interface MemoryOptions {
+  options: MemoryOption[];
+  recommended: number;
+  trained_context: number | null;
+  /** Models that were loaded while measuring; live figures then understate what this computer can do. */
+  measured_with_loaded: string[];
 }

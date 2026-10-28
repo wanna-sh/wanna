@@ -58,7 +58,7 @@ def create(name: str, description: str = "") -> dict:
             "updated": time.time(),
             "approval": "ask_commands",
             "model": None,
-            "context": 16384,
+            "context": None,  # None = automatic: the most that runs fully on the graphics cards
             "always_allow": [],  # exact commands the user said to always allow
         }
         _meta_path(pid).write_text(json.dumps(meta, indent=2))
@@ -88,8 +88,12 @@ def update(pid: str, patch: dict) -> dict:
             meta[k] = patch[k]
     if patch.get("approval") in APPROVAL_MODES:
         meta["approval"] = patch["approval"]
-    if "context" in patch and int(patch["context"]) in (8192, 16384, 32768, 65536):
-        meta["context"] = int(patch["context"])
+    if "context" in patch:
+        c = patch["context"]
+        if c in (None, 0, "auto"):
+            meta["context"] = None
+        elif int(c) in (8192, 16384, 32768, 65536, 131072):
+            meta["context"] = int(c)
     return save(meta)
 
 

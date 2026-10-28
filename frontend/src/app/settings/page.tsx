@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
-import { useSystem } from "@/lib/hooks";
+import { CircleAlert, CircleCheck, CircleX, Loader2 } from "lucide-react";
+import { api, type SystemCheckItem } from "@/lib/api";
+import { usePoll, useSystem } from "@/lib/hooks";
 import { bytes, gpuName, mem } from "@/lib/format";
 import { Button, Field, Notice, PageHeader, Panel, inputClass } from "@/components/ui";
 
@@ -42,6 +43,7 @@ export default function SettingsPage() {
       {error && <Notice tone="error">{error}</Notice>}
       {s && (
         <div className="grid gap-5 max-w-[760px]">
+          <SystemCheck />
           <Panel>
             <h2 className="font-display text-[1.25rem] leading-snug mb-1">Hugging Face account</h2>
             <p className="text-slate text-[15px] mb-4">
@@ -155,5 +157,46 @@ function Row({ k, v }: { k: string; v: string }) {
       <dt className="text-slate">{k}</dt>
       <dd>{v}</dd>
     </>
+  );
+}
+
+/** Is this computer ready? One row per area, checked by the server. */
+function SystemCheck() {
+  const [refresh, setRefresh] = useState(0);
+  const { data, error } = usePoll<SystemCheckItem[]>(`/api/system/check?refresh=${refresh > 0}&n=${refresh}`);
+  const icon = (st: SystemCheckItem["status"]) =>
+    st === "ok" ? (
+      <CircleCheck size={18} className="text-ok shrink-0" aria-label="Ready" />
+    ) : st === "warn" ? (
+      <CircleAlert size={18} className="text-caution shrink-0" aria-label="Needs attention" />
+    ) : (
+      <CircleX size={18} className="text-danger shrink-0" aria-label="Not working" />
+    );
+  const problems = (data ?? []).filter((c) => c.status !== "ok").length;
+  return (
+    <Panel>
+      <div className="flex items-center justify-between gap-3 mb-1">
+        <h2 className="font-display text-[1.25rem] leading-snug">System check</h2>
+        <button className="text-[14px] underline underline-offset-2 text-slate hover:text-ink" onClick={() => setRefresh((n) => n + 1)}>
+          Check again
+        </button>
+      </div>
+      <p className="text-slate text-[15px] mb-4">
+        {!data ? "Checking this computer…" : problems ? `${problems} thing${problems > 1 ? "s" : ""} to look at.` : "Everything is ready."}
+      </p>
+      {error && <Notice tone="error">{error}</Notice>}
+      {!data && !error && <Loader2 size={18} className="animate-spin text-slate" aria-hidden />}
+      <ul className="flex flex-col divide-y divide-line">
+        {(data ?? []).map((c) => (
+          <li key={c.id} className="flex gap-3 py-3 first:pt-0">
+            {icon(c.status)}
+            <div className="min-w-0">
+              <div className="font-medium text-[15px]">{c.label}</div>
+              <div className="text-[14px] text-slate">{c.detail}</div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </Panel>
   );
 }

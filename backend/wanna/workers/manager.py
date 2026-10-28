@@ -27,16 +27,29 @@ PID_FILE = HOME / "workers.pid"
 
 
 def _record_pids(pids: list[int]) -> None:
-    PID_FILE.write_text("\n".join(map(str, pids)))
+    # First line: the server that owns these workers.
+    PID_FILE.write_text("\n".join(map(str, [os.getpid(), *pids])))
 
 
 def _kill_orphans() -> None:
-    """Stop workers left behind by a previous run that didn't shut down cleanly."""
+    """Stop workers left behind by a previous run that didn't shut down cleanly.
+
+    Only when the server that started them is gone, so a second process importing wanna.sh
+    (a script, a test) never stops a running server's models.
+    """
     import psutil
 
     if not PID_FILE.exists():
         return
-    for line in PID_FILE.read_text().split():
+    lines = PID_FILE.read_text().split()
+    if lines:
+        try:
+            owner = psutil.Process(int(lines[0]))
+            if owner.is_running() and "wanna" in " ".join(owner.cmdline()) and owner.pid != os.getpid():
+                return
+        except (ValueError, psutil.Error):
+            pass
+    for line in lines[1:]:
         try:
             p = psutil.Process(int(line))
             cmd = " ".join(p.cmdline())
@@ -82,6 +95,7 @@ class Worker:
         self.ready = threading.Event()
         self.progress: dict = {}
         self.estimated_bytes = model.get("size_bytes", 0)
+        self.plan: dict | None = None  # llama-fit-params result used for this load
 
     @property
     def url(self) -> str:
@@ -93,6 +107,7 @@ class Worker:
             cmd, env = llamacpp.server_command(
                 self.model["path"], self.port, self.context or load_settings()["default_context"],
                 self.gpus, self.split, mmproj=meta.get("mmproj"), alias=self.id,
+                gpu_layers=(self.plan or {}).get("gpu_layers") if self.plan else None,
             )
         else:
             meta = self.model.get("meta") or {}
@@ -174,6 +189,8 @@ class Worker:
             "split": self.split,
             "offload": self.offload,
             "context": self.context,
+            "gpu_layers": (self.plan or {}).get("gpu_layers"),
+            "total_layers": (self.plan or {}).get("total_layers"),
             "started_at": self.started_at,
             "last_used": self.last_used,
             "title": (self.model.get("meta") or {}).get("title") or self.id,
@@ -255,6 +272,19 @@ class ModelManager:
                 raise LoadError("The chat engine is still being set up. This happens once; please try again shortly.")
 
             need = self._estimate(model, context)
+            if model["engine"] == "llamacpp" and gpus != []:
+                planned = self._plan_llama(model, context or load_settings()["default_context"], gpus)
+                if planned:
+                    worker = Worker(model, planned["gpus"], planned["split"] if len(planned["gpus"]) > 1 else None,
+                                    context, False)
+                    worker.plan, worker.estimated_bytes = planned, need
+                    self.workers[model_id] = worker
+                    worker.start()
+                    _record_pids([w.proc.pid for w in self.workers.values() if w.proc and w.proc.poll() is None])
+                    spill = planned["total_layers"] - planned["gpu_layers"]
+                    self._log(f"Loading {model_id} on {_gpu_label(planned['gpus'])}"
+                              + (f" with {spill} of {planned['total_layers']} layers on the processor (slower)." if spill > 0 else "."))
+                    return worker
             if gpus == []:
                 plan = {"gpus": [], "split": None, "fits": True, "reason": "Running on the processor, as requested."}
             else:
@@ -318,6 +348,23 @@ class ModelManager:
         return w
 
     # --- internals --------------------------------------------------------
+
+    def _plan_llama(self, model: dict, context: int, gpus: list[int] | None) -> dict | None:
+        """Place a chat model with llama.cpp's own planner: one card if it fits fully (smallest first, keeping
+        the others free), otherwise across the requested or all cards."""
+        from .. import readiness
+
+        if gpus:
+            return readiness.fit_plan(model, context, gpus)
+        cards = sorted(gpu.list_gpus(), key=lambda g: g["memory_free"])
+        if not cards:
+            return None
+        if len(cards) > 1:
+            for g in cards:
+                p = readiness.fit_plan(model, context, [g["index"]])
+                if p and p["full_gpu"]:
+                    return p
+        return readiness.fit_plan(model, context, sorted(g["index"] for g in cards))
 
     def _estimate(self, model: dict, context: int | None) -> int:
         size = int((model.get("meta") or {}).get("vram_bytes") or model.get("size_bytes") or 0)

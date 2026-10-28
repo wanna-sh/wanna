@@ -188,6 +188,7 @@ def _extract_flat(buf: io.BytesIO, name: str, dest: Path) -> None:
 def server_command(
     model_path: str, port: int, context: int, gpus: list[int], split: list[float] | None,
     mmproj: str | None = None, alias: str | None = None, extra: list[str] | None = None,
+    gpu_layers: int | None = None,
 ) -> tuple[list[str], dict]:
     """Build the llama-server command line and environment for a model placement."""
     cmd = [
@@ -209,7 +210,10 @@ def server_command(
     env["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     if gpus:
         env["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, gpus))
-        # GPU layers default to "auto" with --fit on, so oversized models spill to the CPU instead of failing.
+        # With a plan from llama-fit-params we pass its layer count; otherwise "auto" with --fit on lets
+        # oversized models spill to the CPU instead of failing.
+        if gpu_layers is not None:
+            cmd += ["--n-gpu-layers", str(gpu_layers)]
         if len(gpus) > 1 and split:
             cmd += ["--split-mode", "layer", "--tensor-split", ",".join(str(s) for s in split)]
     else:

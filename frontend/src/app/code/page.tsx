@@ -36,6 +36,8 @@ import {
   type ApprovalMode,
   type CodeEvent,
   type CodeProject,
+  type InstalledModel,
+  type MemoryOptions,
   type Todo,
 } from "@/lib/api";
 import { useModels, usePoll } from "@/lib/hooks";
@@ -240,6 +242,7 @@ function Workspace({ pid, status }: { pid: string; status: DockerStatus | null }
   }
 
   const model = p?.model ?? models.find((m) => m.loaded?.status === "ready")?.id ?? models[0]?.id ?? "";
+  const currentModel = models.find((m) => m.id === model);
   const patch = async (body: Partial<CodeProject>) => {
     await api.patch(`/api/code/projects/${pid}`, body);
     project.refresh();
@@ -291,6 +294,14 @@ function Workspace({ pid, status }: { pid: string; status: DockerStatus | null }
           </div>
         </div>
         <DockerNotice status={status} />
+        {currentModel?.abilities && !currentModel.abilities.tools && (
+          <div className="mb-3">
+            <Notice tone="error">
+              {currentModel.meta.title || currentModel.id} can&apos;t use tools, so it can&apos;t work on code. Pick a model
+              marked &ldquo;Can use tools&rdquo; in the model menu below.
+            </Notice>
+          </div>
+        )}
 
         <div ref={scroller} className="flex-1 overflow-y-auto min-h-0 pr-1" aria-live="polite">
           {events.length === 0 ? (
@@ -349,7 +360,7 @@ function Workspace({ pid, status }: { pid: string; status: DockerStatus | null }
             tools={
               <>
                 {models.length > 0 && (
-                  <ModelMenu models={models} value={model} onChange={(id) => patch({ model: id })} task="chat" />
+                  <ModelMenu models={models} value={model} onChange={(id) => patch({ model: id })} task="chat" note={codeNote} />
                 )}
                 {p && (
                   <OptionChip
@@ -804,18 +815,7 @@ function ProjectSettings({
       <Field label="What it is" hint="The agent sees this at the start of every request.">
         <textarea className={`${inputClass} min-h-20`} value={description} onChange={(e) => setDescription(e.target.value)} />
       </Field>
-      <Field label="Memory for coding" hint="More memory lets the agent keep more of the project in mind, but uses more graphics memory.">
-        <select
-          className={`${inputClass} h-10 py-0`}
-          value={project.context}
-          onChange={(e) => onSave({ context: Number(e.target.value) })}
-        >
-          <option value={8192}>Small (8K)</option>
-          <option value={16384}>Standard (16K)</option>
-          <option value={32768}>Large (32K)</option>
-          <option value={65536}>Very large (64K)</option>
-        </select>
-      </Field>
+      <MemoryPicker project={project} onSave={onSave} open={open} />
       {project.always_allow.length > 0 && (
         <div>
           <span className="block text-[13px] font-medium mb-1.5">Commands you always allow</span>
@@ -843,5 +843,56 @@ function ProjectSettings({
         </button>
       </div>
     </SidePanel>
+  );
+}
+
+/** "Can use tools" and measured speed, shown for each model in Code's model menu. */
+function codeNote(m: InstalledModel): string | null {
+  if (!m.abilities) return null;
+  const parts = [m.abilities.tools ? "Can use tools" : "Can't use tools"];
+  if (m.speed) parts.push(`about ${Math.round(m.speed)} tokens a second here`);
+  return parts.join(", ");
+}
+
+const K = (n: number) => `${Math.round(n / 1024)}K`;
+
+/** Memory sizes rated for this computer by llama.cpp's planner, with "Automatic" as the default. */
+function MemoryPicker({
+  project,
+  onSave,
+  open,
+}: {
+  project: CodeProject;
+  onSave: (patch: Partial<CodeProject>) => Promise<void>;
+  open: boolean;
+}) {
+  const { data, error } = usePoll<MemoryOptions & { model: string }>(open ? `/api/code/projects/${project.id}/memory` : null);
+  return (
+    <Field
+      label="Memory for coding"
+      hint="More memory lets the agent keep more of the project in mind. Too much for your graphics cards makes it slower."
+    >
+      <select
+        className={`${inputClass} h-10 py-0`}
+        value={project.context ?? "auto"}
+        onChange={(e) => onSave({ context: e.target.value === "auto" ? null : Number(e.target.value) })}
+      >
+        <option value="auto">
+          Automatic{data ? ` (${K(data.recommended)} on this computer)` : ""}
+        </option>
+        {(data?.options ?? [8192, 16384, 32768, 65536].map((c) => ({ context: c, label: "", rating: "unknown" as const }))).map((o) => (
+          <option key={o.context} value={o.context}>
+            {K(o.context)}
+            {o.label ? `: ${o.label}` : ""}
+          </option>
+        ))}
+      </select>
+      {!data && !error && open && <span className="block text-[13px] text-slate mt-1">Checking what fits on this computer…</span>}
+      {data && data.measured_with_loaded.length > 0 && (
+        <span className="block text-[13px] text-caution mt-1">
+          Measured while other models were running, so these are cautious. Stop them in My models for an exact check.
+        </span>
+      )}
+    </Field>
   );
 }

@@ -16,12 +16,14 @@ import uuid
 
 import httpx
 
+from .. import readiness
 from ..workers.manager import LoadError, ModelNotFound, manager
 from . import projects, sandbox, tools
 
 log = logging.getLogger("wanna.code.agent")
 
 MAX_STEPS = 50  # tool-using steps per request before the agent must stop and report
+MAX_CUTOFFS = 3  # replies cut off for length in one request before giving up
 TOOL_RESULT_EVENT_LIMIT = 20_000  # characters of a tool result kept for display
 SCHEMA_TOKENS = 2500  # rough size of the tool definitions in the prompt
 
@@ -36,6 +38,7 @@ How to work
 - Understand before changing: use list_files, glob, grep and read_file. Read a file before editing it.
 - For work with 3 or more steps, plan it with todo_write and keep the list current: mark one item in_progress at a time and complete items as soon as they are done.
 - Prefer edit_file for small changes and write_file for new files. Keep changes focused on what was asked; follow the project's existing style.
+- Your memory is limited. Keep thinking short and put code in files, not in your thoughts. Write one file per step, and split long files: write_file the first part (up to about 150 lines), then write_file with append=true for the rest.
 - After changing code, check it works: run it, its tests, or a build. If something fails, read the error and fix it.
 - Don't run destructive commands (deleting files or history, force pushes) unless the user asked for that.
 - If the request is unclear or a decision is the user's to make, ask a short question instead of guessing.
@@ -61,6 +64,7 @@ class Session:
         self.approvals: dict[str, asyncio.Future] = {}
         self.listeners: set[asyncio.Queue] = set()
         self.task: asyncio.Task | None = None
+        self._compaction_noted: set[str] = set()  # kinds of compaction already announced this request
         # Anything left mid-flight by a restart can't continue.
         for e in self.events:
             if e.get("status") in ("running", "awaiting_approval"):
@@ -103,6 +107,7 @@ class Session:
         import threading
 
         self.cancel = threading.Event()
+        self._compaction_noted = set()
         self.set_running(True)
         self.emit({"type": "user", "text": text})
         self.messages.append({"role": "user", "content": text})
@@ -125,8 +130,19 @@ class Session:
 
     async def _loop(self) -> None:
         meta = projects.get(self.pid) or {}
-        context = int(meta.get("context") or 16384)
         model = manager.resolve(meta.get("model"), "chat")
+        if model["engine"] != "llamacpp":
+            raise LoadError("Code needs a GGUF chat model (the kind that runs on llama.cpp). Pick one in the model menu.")
+        ab = readiness.abilities(model)
+        if ab and not ab.get("tools"):
+            raise LoadError(f"{model['id']} can't use tools, so it can't work on code. Pick a model marked "
+                            "\"Can use tools\" in the model menu, such as Qwen, Gemma 4 or Llama 3.")
+        if meta.get("context"):
+            context = int(meta["context"])
+        else:
+            # Automatic: the biggest memory that still runs fully on the graphics cards (planned once, then remembered).
+            worker = manager.get(model["id"])
+            context = worker.context if worker and worker.context else await asyncio.to_thread(readiness.recommended_context, model)
         worker = manager.get(model["id"])
         if worker and worker.context != context:
             self.emit({"type": "notice", "text": f"Restarting {model['id']} with more memory for coding "
@@ -134,15 +150,35 @@ class Session:
         if not worker or worker.context != context:
             worker = await asyncio.to_thread(manager.load, model["id"], None, context)
         worker = await manager.ensure_ready(model)
-        if model["engine"] != "llamacpp":
-            raise LoadError("Code needs a GGUF chat model (the kind that runs on llama.cpp). Pick one in the model menu.")
 
+        cutoffs = 0
         for step in range(MAX_STEPS):
             if self.cancel.is_set():
                 self.emit({"type": "notice", "text": "Stopped."})
                 return
             reply = await self._call_model(worker.url, model["id"], context)
             content, calls, thinking = reply["content"], reply["tool_calls"], reply["thinking"]
+            if reply["finish"] == "length":
+                # The reply ran past the model's memory. Throw away a half-written tool call, explain, and retry.
+                cutoffs += 1
+                cut_tool = calls[-1]["name"] if calls else None
+                if content.strip():
+                    self.messages.append({"role": "assistant", "content": content})
+                note = (f"Your last reply was cut off because it ran out of memory while writing a {cut_tool} call, so "
+                        "nothing was saved. Write long files in parts: write_file with the first part (up to about 150 "
+                        "lines), then write_file with append=true for each further part."
+                        if cut_tool else
+                        "Your last reply was cut off because it ran out of memory before you acted. Keep thinking short "
+                        "and don't draft code in your thoughts: use the tools, one file at a time.")
+                self.messages.append({"role": "user", "content": f"[wanna.sh] {note}"})
+                self.save()
+                if cutoffs >= MAX_CUTOFFS:
+                    self.emit({"type": "error", "text": "The model kept running out of memory before finishing a step. "
+                                                        "Raise Memory in project settings, or ask for a smaller piece of work."})
+                    return
+                self.emit({"type": "notice", "text": "The model ran out of memory mid-reply"
+                                                     f"{' while writing a file' if cut_tool else ''}. Asking it to work in smaller pieces."})
+                continue
             assistant = {"role": "assistant", "content": content or None}
             if calls:
                 assistant["tool_calls"] = [
@@ -152,8 +188,8 @@ class Session:
             self.messages.append(assistant)
             self.save()
             if not calls:
-                if not content.strip() and not thinking:
-                    self.emit({"type": "notice", "text": "The model stopped without a reply."})
+                if not content.strip():
+                    self.emit({"type": "notice", "text": "The model stopped without a reply. Try asking again, or rephrase."})
                 return
             for c in calls:
                 if self.cancel.is_set():
@@ -166,14 +202,26 @@ class Session:
 
     async def _call_model(self, url: str, model_id: str, context: int) -> dict:
         """One streamed request. Text appears live; tool calls are collected from their deltas."""
+        fitted, info = self._fit(context)
+        log.info("code %s: %d messages, %d of %d chars budget%s", self.pid, len(fitted), info["after"], info["budget"],
+                 f" (trimmed {info['trimmed']} outputs, dropped {info['dropped']} messages)" if info["trimmed"] or info["dropped"] else "")
+        if info["dropped"] and "dropped" not in self._compaction_noted:
+            self._compaction_noted.add("dropped")
+            self.emit({"type": "notice", "text": "The conversation is longer than the model's memory, so its oldest part "
+                                                 "was set aside. Raise Memory in project settings to keep more."})
+        elif info["trimmed"] and "trimmed" not in self._compaction_noted:
+            self._compaction_noted.add("trimmed")
+            self.emit({"type": "notice", "text": "Older tool output was shortened to fit the model's memory."})
         payload = {
             "model": model_id,
-            "messages": [{"role": "system", "content": self._system()}] + self._fit(context),
+            "messages": [{"role": "system", "content": self._system()}] + fitted,
             "tools": tools.SCHEMAS,
             "stream": True,
             "temperature": 0.3,
+            # Cap private reasoning so one step can't spend the whole memory thinking (llama.cpp honours this per request).
+            "thinking_budget_tokens": max(512, min(4096, context // 8)),
         }
-        content, thinking = "", ""
+        content, thinking, finish = "", "", None
         calls: dict[int, dict] = {}
         event = None
         last_push = 0.0
@@ -196,7 +244,9 @@ class Session:
                         continue
                     if chunk.get("error"):
                         raise RuntimeError(_model_error(json.dumps(chunk)))
-                    delta = (chunk.get("choices") or [{}])[0].get("delta") or {}
+                    choice = (chunk.get("choices") or [{}])[0]
+                    finish = choice.get("finish_reason") or finish
+                    delta = choice.get("delta") or {}
                     if delta.get("reasoning_content"):
                         thinking += delta["reasoning_content"]
                     if delta.get("content"):
@@ -220,7 +270,7 @@ class Session:
         for slot in calls.values():
             if slot["name"]:
                 out.append({"id": slot["id"] or f"call_{_id()}", "name": slot["name"], "arguments": slot["arguments"] or "{}"})
-        return {"content": content, "thinking": thinking, "tool_calls": out, "event": event}
+        return {"content": content, "thinking": thinking, "tool_calls": out, "event": event, "finish": finish}
 
     async def _run_tool(self, call: dict, meta: dict) -> str:
         name = call["name"]
@@ -315,22 +365,26 @@ class Session:
             extra += "\nThe project folder is empty."
         return SYSTEM_PROMPT + extra
 
-    def _fit(self, context: int) -> list[dict]:
+    def _fit(self, context: int) -> tuple[list[dict], dict]:
         """Keep the conversation within the model's memory: shrink old tool output first, then drop old turns."""
         budget = int((context - SCHEMA_TOKENS - 2000) * 0.8 * 3.5)  # characters, leaving room for the reply
         msgs = [dict(m) for m in self.messages]
         size = lambda: sum(len(m.get("content") or "") + len(json.dumps(m.get("tool_calls", ""))) for m in msgs)
+        before, trimmed, dropped = size(), 0, 0
         for m in msgs[:-6]:
             if size() <= budget:
                 break
             if m["role"] == "tool" and len(m.get("content") or "") > 300:
                 m["content"] = m["content"][:300] + "\n[older output removed to save memory]"
+                trimmed += 1
         while size() > budget and len(msgs) > 4:
             # Drop from the oldest, never leaving a tool result without the call that made it.
             msgs.pop(0)
+            dropped += 1
             while msgs and msgs[0]["role"] == "tool":
                 msgs.pop(0)
-        return msgs
+                dropped += 1
+        return msgs, {"before": before, "after": size(), "budget": budget, "trimmed": trimmed, "dropped": dropped}
 
 
 def _model_error(body: str) -> str:

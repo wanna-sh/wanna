@@ -92,6 +92,15 @@ def add_model(**m) -> dict:
     return get_model(m["id"])
 
 
+def update_model_meta(model_id: str, patch: dict) -> None:
+    m = get_model(model_id)
+    if m is None:
+        return
+    meta = {**(m.get("meta") or {}), **patch}
+    with cursor() as c:
+        c.execute("UPDATE models SET meta=? WHERE id=?", (json.dumps(meta), model_id))
+
+
 def get_model(model_id: str) -> dict | None:
     with cursor() as c:
         return _row(c.execute("SELECT * FROM models WHERE id=?", (model_id,)).fetchone())
