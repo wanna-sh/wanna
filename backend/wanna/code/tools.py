@@ -361,7 +361,7 @@ def _fetch_target(pid, url):
 
     web_fetch runs on this computer, not in the sandbox, so local and private-network addresses (wanna.sh's own
     API, a router page) are refused. The one exception is the project's own app: "localhost:3000" is sent to the
-    port its sandbox publishes, so the agent can check what it built.
+    port its sandbox publishes, so the agent can check what it built. Without a project (chat), there's no exception.
     """
     parts = urlsplit(url)
     if parts.scheme not in ("http", "https") or not parts.hostname:
@@ -375,7 +375,7 @@ def _fetch_target(pid, url):
     addrs = {a.ipv4_mapped or a if isinstance(a, ipaddress.IPv6Address) else a for a in addrs}
     if all(a.is_global for a in addrs):
         return url
-    if all(a.is_loopback for a in addrs):
+    if pid and all(a.is_loopback for a in addrs):
         try:
             published = sandbox.ports(pid)  # container port -> port on this computer
         except (OSError, subprocess.SubprocessError):

@@ -10,8 +10,10 @@ others and have their own licences, shown on their Hugging Face pages. Check the
 
 ### Does anything I type leave my computer?
 
-No. Prompts, chats, documents and everything you make stay on your computer. wanna.sh connects to the internet to find
-and download models and the chat engine, and Code's web tools fetch the pages and searches the agent asks for.
+Prompts, chats, documents and everything you make stay on your computer. wanna.sh connects to the internet to find
+and download models and the chat engine, and to search the web when a model asks to: the searches it makes and the
+pages it reads (in Chat with **Web** on, and in Code). The searches are words the model chose, not your chat. Turn
+**Web** off in a chat to keep it entirely on your computer.
 
 ### Does it work offline?
 

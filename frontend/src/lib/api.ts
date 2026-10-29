@@ -64,11 +64,18 @@ export const fileUrl = (name: string) => `${API_BASE}/files/${name}`;
 /** Stream an OpenAI-style chat completion, calling onDelta with each visible text piece.
  *  Reasoning models stream hidden "thinking" first (reasoning_content); it isn't shown, but it counts
  *  towards the token total, so `firstTokenAt` marks the first token of either kind for speed figures. */
+/** A tool the model asked to use, with its arguments as JSON text. */
+export interface ToolCall {
+  id: string;
+  name: string;
+  arguments: string;
+}
+
 export async function streamChat(
   body: Record<string, unknown>,
   onDelta: (text: string) => void,
   signal?: AbortSignal,
-): Promise<{ usage?: { completion_tokens?: number }; firstTokenAt?: number; thought: boolean }> {
+): Promise<{ usage?: { completion_tokens?: number }; firstTokenAt?: number; thought: boolean; toolCalls: ToolCall[] }> {
   const r = await fetch(API_BASE + "/v1/chat/completions", {
     method: "POST",
     headers: { ...HEADERS, "Content-Type": "application/json" },
@@ -82,6 +89,8 @@ export async function streamChat(
   let usage;
   let firstTokenAt: number | undefined;
   let thought = false;
+  // Tool calls arrive in pieces: the first piece of each has its id and name, the rest add to its arguments.
+  const toolCalls: ToolCall[] = [];
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -100,13 +109,20 @@ export async function streamChat(
         if (delta.reasoning_content) thought = true;
         if ((delta.content || delta.reasoning_content) && firstTokenAt === undefined) firstTokenAt = performance.now();
         if (delta.content) onDelta(delta.content);
+        for (const tc of delta.tool_calls ?? []) {
+          const i = tc.index ?? toolCalls.length;
+          toolCalls[i] ??= { id: tc.id ?? `call_${i}`, name: "", arguments: "" };
+          if (tc.id) toolCalls[i].id = tc.id;
+          if (tc.function?.name) toolCalls[i].name += tc.function.name;
+          if (tc.function?.arguments) toolCalls[i].arguments += tc.function.arguments;
+        }
         if (j.usage) usage = j.usage;
       } catch (e) {
         if (e instanceof ApiError) throw e;
       }
     }
   }
-  return { usage, firstTokenAt, thought };
+  return { usage, firstTokenAt, thought, toolCalls: toolCalls.filter(Boolean) };
 }
 
 // --- types -------------------------------------------------------------------

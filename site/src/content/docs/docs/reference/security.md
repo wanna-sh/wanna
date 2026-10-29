@@ -14,7 +14,7 @@ protects you, what each setting changes, and what wanna.sh does *not* protect ag
 - **Code's commands run in a locked-down Docker container** that can reach the internet, but not your computer, your
   local network or wanna.sh.
 - **Nothing you make or type is sent anywhere.** wanna.sh only goes online to find and download models, download its
-  chat engine and run Code's web tools.
+  chat engine, and search the web and read pages when a model asks to (Chat with **Web** on, and Code).
 
 ## Who can use wanna.sh
 
@@ -124,8 +124,10 @@ Models are downloaded from Hugging Face, and anyone can publish one, so wanna.sh
 - Chats are stored in your browser. Everything else is in your [data folder](/docs/reference/files/), including the
   documents you add to [Knowledge](/docs/tutorials/knowledge/), which are read and searched on this computer only.
 - wanna.sh connects to Hugging Face (finding and downloading models), GitHub (downloading the chat engine), Docker Hub
-  (Code's sandbox and search images) and, for Code, to the websites the agent searches and reads. Searches go through a private SearXNG on your computer, which
-  forwards them to public search engines; with a Brave Search key, they go to Brave.
+  (Code's sandbox and search images) and, for Chat with **Web** on and for Code, to the websites the model searches
+  and reads. Searches go to Brave if you added a Brave Search key, otherwise through a private SearXNG on your
+  computer (when Docker is running), which forwards them to public search engines, otherwise to DuckDuckGo. Pages are
+  read from this computer, and local and private-network addresses are never opened.
 - wanna.sh has no telemetry or analytics of its own.
 
 ## Settings that affect security

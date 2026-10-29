@@ -18,7 +18,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .downloads import manager as downloads
-from .api import code, knowledge, native, openai
+from .api import code, knowledge, native, openai, web
 from .config import DOCKER_NETWORK, OUTPUTS_DIR
 from .workers.manager import manager
 
@@ -169,6 +169,7 @@ app.include_router(openai.router)
 app.include_router(native.router)
 app.include_router(knowledge.router)
 app.include_router(code.router)
+app.include_router(web.router)
 app.mount("/files", StaticFiles(directory=OUTPUTS_DIR), name="files")
 
 

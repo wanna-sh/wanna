@@ -3,16 +3,17 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Archive, ArchiveRestore, FileText, History, Loader2, Mic, Paperclip, Plus, Search, Square, Trash2, X } from "lucide-react";
+import { Archive, ArchiveRestore, FileText, Globe, History, Loader2, Mic, Paperclip, Plus, Search, Square, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { api, streamChat, type KnowledgeDoc, type KnowledgeLibrary, type KnowledgeResult, type KnowledgeStatus } from "@/lib/api";
 import { useDictation } from "@/lib/dictation";
 import { useModels, usePoll, useStored } from "@/lib/hooks";
 import { NoModelYet, useTaskModel } from "@/components/models";
-import { ChipButton, ModelMenu, PromptBar, ToggleChip, modelName } from "@/components/studio";
+import { ChipButton, ModelMenu, PromptBar, ToggleChip, chipClass, modelName } from "@/components/studio";
 import { Notice, PageHeader, Segmented, inputClass } from "@/components/ui";
 import { KnowledgeMenu, Sources } from "@/components/knowledge";
 import { ago } from "@/lib/format";
+import { WEB_TOOLS, describeCall, hostOf, runCall, webInstructions, type WebSource } from "@/lib/web";
 
 type Part = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
 /** A document attached to a message. Its text is sent to the model; the bubble shows a chip. */
@@ -32,6 +33,8 @@ interface Message {
   stats?: string;
   /** Passages from the user's documents that the answer was given, numbered like its [1] citations. */
   sources?: KnowledgeResult[];
+  /** Web pages the model read while answering. */
+  web?: WebSource[];
 }
 interface Conversation {
   id: string;
@@ -44,7 +47,12 @@ interface Conversation {
   knowledge?: string[];
   /** The chat's own hidden library, for attachments too long to send whole. */
   attachLib?: string;
+  /** Whether the model may search the web and read pages (on unless turned off). */
+  web?: boolean;
 }
+
+// Rounds of searching and reading before the model must answer with what it has.
+const MAX_WEB_ROUNDS = 5;
 
 const SUGGESTIONS = [
   "Explain how a rainbow forms, like I'm ten",
@@ -99,6 +107,8 @@ export default function ChatPage() {
   const [showSettings, setShowSettings] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [webStep, setWebStep] = useState<string | null>(null);
+  const [draftWeb, setDraftWeb] = useStored<boolean>("wanna.chat.web", true);
   // Knowledge for a chat that hasn't started yet; once it starts, the conversation keeps its own choice.
   const [draftKnowledge, setDraftKnowledge] = useStored<string[]>("wanna.chat.knowledge", []);
   const [draftAttachLib, setDraftAttachLib] = useState<string | null>(null);
@@ -113,6 +123,7 @@ export default function ChatPage() {
   const messages = convo?.messages ?? [];
   const current = models.find((m) => m.id === model);
   const canSee = !!current?.meta.mmproj;
+  const canUseTools = !!current?.abilities?.tools;
   const seeing = models.filter((m) => m.meta.mmproj);
   const blockedByPictures = images.length > 0 && !canSee;
   const { data: settings } = usePoll<{ default_context: number }>("/api/settings");
@@ -125,6 +136,8 @@ export default function ChatPage() {
   const searchReady = !!kStatus?.default;
   const knowledge = (convo ? convo.knowledge ?? [] : draftKnowledge).filter((id) => libraries?.some((l) => l.id === id));
   const setKnowledge = (ids: string[]) => (convo ? update(convo.id, (c) => ({ ...c, knowledge: ids })) : setDraftKnowledge(ids));
+  const webOn = convo ? convo.web ?? true : draftWeb;
+  const setWeb = (on: boolean) => (convo ? update(convo.id, (c) => ({ ...c, web: on })) : setDraftWeb(on));
   const attachLib = convo?.attachLib ?? draftAttachLib;
   const pendingIndex = docs.filter((d) => d.indexed && indexing[d.indexed.document]?.status !== "ready");
 
@@ -156,7 +169,7 @@ export default function ChatPage() {
     if (!convo) {
       id = crypto.randomUUID();
       const title = text.slice(0, 60) || docs[0]?.name || "Picture chat";
-      const extra = { knowledge: draftKnowledge, ...(draftAttachLib ? { attachLib: draftAttachLib } : {}) };
+      const extra = { knowledge: draftKnowledge, web: draftWeb, ...(draftAttachLib ? { attachLib: draftAttachLib } : {}) };
       setConvos((cs) => [{ id, title, messages: [], updated: Date.now(), ...extra }, ...cs]);
       setActiveId(id);
       setDraftAttachLib(null);
@@ -184,6 +197,8 @@ export default function ChatPage() {
     let t0 = now();
     let out = "";
     let sources: KnowledgeResult[] | undefined;
+    const web: WebSource[] = [];
+    const useWeb = webOn && canUseTools;
     try {
       // Knowledge: find the passages that match this message (with the previous one, for short follow-ups).
       let instructions = system.trim();
@@ -203,22 +218,56 @@ export default function ChatPage() {
         setSearching(false);
         t0 = now();
       }
-      const payload = [
+      if (useWeb) instructions = [instructions, webInstructions()].filter(Boolean).join("\n\n");
+      const payload: Record<string, unknown>[] = [
         ...(instructions ? [{ role: "system", content: instructions }] : []),
         ...history.map((m) => ({ role: m.role, content: apiContent(m) })),
       ];
-      const { usage, firstTokenAt, thought } = await streamChat(
-        { model, messages: payload },
-        (piece) => {
-          out += piece;
-          update(id, (c) => {
-            const ms = [...c.messages];
-            ms[ms.length - 1] = { role: "assistant", content: out };
-            return { ...c, messages: ms };
-          });
-        },
-        ctrl.signal,
-      );
+      const show = (content: string) =>
+        update(id, (c) => {
+          const ms = [...c.messages];
+          ms[ms.length - 1] = { role: "assistant", content };
+          return { ...c, messages: ms };
+        });
+      // With the web on, the model may ask to search or read pages; run those, give it the results, and go again
+      // until it answers. The last round has no tools, so it answers with what it found.
+      let round: Awaited<ReturnType<typeof streamChat>>;
+      let usedWeb = false;
+      for (let n = 0; ; n++) {
+        out = "";
+        const tools = useWeb && n < MAX_WEB_ROUNDS ? { tools: WEB_TOOLS } : {};
+        round = await streamChat(
+          { model, messages: payload, ...tools },
+          (piece) => {
+            out += piece;
+            show(out);
+          },
+          ctrl.signal,
+        );
+        if (!round.toolCalls.length || !tools.tools) {
+          // After reading, a model now and then stops without writing its answer. Ask once more, without tools.
+          if (!out.trim() && usedWeb && n < MAX_WEB_ROUNDS) {
+            n = MAX_WEB_ROUNDS - 1;
+            continue;
+          }
+          break;
+        }
+        usedWeb = true;
+        show("");
+        payload.push({
+          role: "assistant",
+          content: out || null,
+          tool_calls: round.toolCalls.map((c) => ({ id: c.id, type: "function", function: { name: c.name, arguments: c.arguments } })),
+        });
+        for (const call of round.toolCalls) {
+          setWebStep(describeCall(call));
+          payload.push({ role: "tool", tool_call_id: call.id, content: await runCall(call, web) });
+        }
+        setWebStep(null);
+        t0 = now();
+      }
+      const { usage, firstTokenAt, thought } = round;
+      if (!out.trim()) throw new Error("The model finished without writing an answer. Try asking again.");
       const secs = (now() - (firstTokenAt ?? t0)) / 1000;
       const tokens = usage?.completion_tokens;
       const stats =
@@ -227,7 +276,7 @@ export default function ChatPage() {
           : undefined;
       update(id, (c) => {
         const ms = [...c.messages];
-        ms[ms.length - 1] = { role: "assistant", content: out, stats, ...(sources ? { sources } : {}) };
+        ms[ms.length - 1] = { role: "assistant", content: out, stats, ...(sources ? { sources } : {}), ...(web.length ? { web } : {}) };
         return { ...c, messages: ms };
       });
     } catch (e) {
@@ -235,6 +284,7 @@ export default function ChatPage() {
       if (!out) update(id, (c) => ({ ...c, messages: c.messages.slice(0, -1) }));
     } finally {
       setSearching(false);
+      setWebStep(null);
       setBusy(false);
       abort.current = null;
     }
@@ -423,7 +473,9 @@ export default function ChatPage() {
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>{textOf(m.content)}</ReactMarkdown>
                         ) : (
                           <span className="text-slate">
-                            {searching
+                            {webStep
+                              ? webStep
+                              : searching
                               ? "Searching your documents…"
                               : busy && current?.loaded?.status !== "ready"
                                 ? "Starting the model…"
@@ -433,6 +485,7 @@ export default function ChatPage() {
                       </div>
                       {m.stats && <div className="text-[12px] text-slate mt-1">{m.stats}</div>}
                       {!!m.sources?.length && textOf(m.content) && <Sources sources={m.sources} answer={textOf(m.content)} />}
+                      {!!m.web?.length && textOf(m.content) && <WebPages pages={m.web} />}
                     </div>
                   )}
                 </li>
@@ -585,6 +638,7 @@ export default function ChatPage() {
                 <Paperclip size={15} aria-hidden /> Attach
               </ChipButton>
               <KnowledgeMenu libraries={libraries ?? []} value={knowledge} onChange={setKnowledge} ready={searchReady} />
+              <WebToggle on={webOn} onChange={setWeb} supported={canUseTools || !current} />
               <ToggleChip on={showSettings} onChange={setShowSettings}>
                 Instructions{system.trim() && !showSettings ? " (on)" : ""}
               </ToggleChip>
@@ -873,5 +927,45 @@ function MicButton({
     >
       <Mic size={18} />
     </button>
+  );
+}
+
+/** Turns the web on or off for this chat. Models that can't use tools can't search, so it's off and says why. */
+function WebToggle({ on, onChange, supported }: { on: boolean; onChange: (on: boolean) => void; supported: boolean }) {
+  const active = on && supported;
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      disabled={!supported}
+      onClick={() => onChange(!on)}
+      title={
+        supported
+          ? active
+            ? "The model can search the web and read pages when a question needs it. Click to keep this chat offline."
+            : "This chat stays offline. Click to let the model search the web."
+          : "This model can't use tools, so it can't search the web. Most recent models can, such as Qwen 3 or Llama 3.1."
+      }
+      className={`${chipClass} disabled:opacity-50 ${active ? "bg-well border-slate/50" : "text-slate"}`}
+    >
+      <Globe size={14} aria-hidden /> Web{active ? "" : supported ? " off" : ""}
+    </button>
+  );
+}
+
+/** The web pages an answer drew on. */
+function WebPages({ pages }: { pages: WebSource[] }) {
+  return (
+    <div className="mt-2 text-[13px] text-slate">
+      <span className="font-medium">Read on the web: </span>
+      {pages.map((p, i) => (
+        <span key={p.url}>
+          {i > 0 && ", "}
+          <a href={p.url} target="_blank" rel="noreferrer" title={p.title} className="underline hover:text-ink">
+            {hostOf(p.url)}
+          </a>
+        </span>
+      ))}
+    </div>
   );
 }
