@@ -26,8 +26,11 @@ Each model is rated against your computer's graphics cards and memory:
 | **Runs, but slowly** | Part of it runs on the processor or streams from system memory. It works, but replies and results come slowly. |
 | **Too big for this computer** | Needs more memory than you have. |
 
-The estimate includes room for the model to work, not just the size of its files. Ratings are worked out for *your*
-computer, so the same model can be rated differently on another one.
+The rating says how much graphics memory the model needs **while it runs**, for example *Needs about 9.3 GB of
+graphics memory to run*. That's more than its download size, because a model needs working room as well as its
+weights: a picture model that downloads as 6.9 GB needs about 9.3 GB to make 1024 px pictures. The download size is on
+the **Download** button. Ratings are worked out for *your* computer, so the same model can be rated differently on
+another one.
 
 ## Choosing a version
 

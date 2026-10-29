@@ -95,23 +95,23 @@ def rate(task: str, weights: int | None, b: dict | None = None) -> dict:
             return {**out, "level": "slow", "label": "Runs, but slowly",
                     "detail": "No graphics card found, so it will run on the processor."}
         return {**out, "level": "no", "label": "Too big for this computer",
-                "detail": f"Needs about {_gb(weights * 1.2)} of memory; this computer has {_gb(b['ram'])}."}
+                "detail": f"Needs about {_gb(weights * 1.2)} of system memory to run; this computer has {_gb(b['ram'])}."}
     if need <= b["best_gpu"]:
         return {**out, "level": "great", "label": "Runs great here",
-                "detail": f"Needs about {_gb(need)}. Fits on your {b['best_gpu_name']}."}
+                "detail": f"Needs about {_gb(need)} of graphics memory to run. Fits on your {b['best_gpu_name']}."}
     if splits and len(b["gpus"]) > 1 and need <= b["all_gpus"]:
         return {**out, "level": "good", "label": "Runs well here",
-                "detail": f"Needs about {_gb(need)}, so it shares the work between your graphics cards."}
+                "detail": f"Needs about {_gb(need)} of graphics memory to run, so it shares the work between your graphics cards."}
     if task == "chat" and need <= b["all_gpus"] + b["ram"] * 0.5:
         return {**out, "level": "slow", "label": "Runs, but slowly",
-                "detail": f"Needs about {_gb(need)}. Part of it runs on the processor, so replies come slowly."}
+                "detail": f"Needs about {_gb(need)} of graphics memory to run. Part of it runs on the processor, so replies come slowly."}
     if task != "chat" and weights * 1.15 <= b["ram"] * 0.6:
         return {**out, "level": "slow", "label": "Runs, but slowly",
-                "detail": f"Needs about {_gb(need)}, more than your graphics cards have. "
+                "detail": f"Needs about {_gb(need)} of graphics memory to run, more than your graphics cards have. "
                           "It streams from system memory, which is much slower."}
     room = b["all_gpus"] if splits else b["best_gpu"]
     return {**out, "level": "no", "label": "Too big for this computer",
-            "detail": f"Needs about {_gb(need)}; your graphics memory is {_gb(room)}."}
+            "detail": f"Needs about {_gb(need)} of graphics memory to run; you have {_gb(room)}."}
 
 
 def _gb(n: float) -> str:
