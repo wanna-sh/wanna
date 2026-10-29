@@ -35,7 +35,7 @@ CI (`.github/workflows/ci.yml`) runs these; running them first saves a round tri
 
 ```bash
 cd backend && uvx ruff check --isolated --select E9,F wanna
-cd frontend && npx tsc --noEmit && npx eslint src && npm run build
+cd frontend && npx eslint src && npm run build && npx tsc --noEmit
 cd site && npm ci && npm run build
 shellcheck install.sh docker/entrypoint.sh
 ```

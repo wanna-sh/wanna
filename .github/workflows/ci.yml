@@ -22,7 +22,7 @@ jobs:
         working-directory: backend
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.3.3
       - name: Install (chat only, no AI libraries)
         run: |
           uv venv --python 3.13 .venv
@@ -64,9 +64,10 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci --no-fund --no-audit
-      - run: npx tsc --noEmit
       - run: npx eslint src
+      # The build generates the route types (LayoutProps...) that the type check needs.
       - run: npm run build
+      - run: npx tsc --noEmit
 
   site:
     runs-on: ubuntu-latest
@@ -87,7 +88,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.3.3
       - name: Shell scripts
         run: shellcheck install.sh docker/entrypoint.sh
       - name: Workflows
