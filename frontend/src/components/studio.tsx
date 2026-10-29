@@ -14,6 +14,7 @@ import { useSystem } from "@/lib/hooks";
 import { gpuName, prettyName } from "@/lib/format";
 import { TASKS } from "@/lib/tasks";
 import { LiveDot, Progress } from "./ui";
+import { MlAddon } from "./addons";
 
 // --- page frame -----------------------------------------------------------------
 
@@ -43,6 +44,7 @@ export function StudioPage({
       <header className="sticky top-14 lg:top-0 z-20 -mx-1 px-1 flex flex-wrap items-center justify-between gap-3 py-3 bg-fog/90 backdrop-blur-md">
         <h1 className="font-display text-[1.25rem]">{title}</h1>
       </header>
+      <MlAddon />
       <div className="flex-1">{hasItems ? feed : empty}</div>
       <div className="sticky bottom-0 z-10 pt-6 pb-3 lg:pb-5 bg-gradient-to-t from-fog from-70% to-transparent">
         {bar}

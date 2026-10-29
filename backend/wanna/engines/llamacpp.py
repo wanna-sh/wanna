@@ -82,6 +82,16 @@ class Installer:
                 timeout=30, follow_redirects=True,
             ).json()
             assets = rel.get("assets", [])
+            try:
+                patterns = _pin_cuda(patterns, [a["name"] for a in assets])
+            except RuntimeError as e:
+                # Driver too old for every CUDA build: Vulkan still uses the graphics card on Windows.
+                log.warning("%s Falling back.", e)
+                tag, arch = re.escape(DEFAULT_TAG), _arch()
+                if platform.system() == "Windows":
+                    backend, patterns = "vulkan (driver too old for CUDA)", [rf"llama-{tag}-bin-win-vulkan-{arch}\.zip"]
+                else:
+                    backend, patterns = "cpu (driver too old for CUDA)", [rf"llama-{tag}-bin-ubuntu-{arch}\.tar\.gz"]
             chosen = []
             for pat in patterns:
                 a = next((a for a in assets if re.fullmatch(pat, a["name"])), None)
@@ -120,11 +130,38 @@ class Installer:
             self.status, self.error, self.message = "error", str(e), "Install failed"
 
 
+CUDA_IN_NAME = r"(\d+\.\d+)"
+
+
+def _pin_cuda(patterns: list[str], names: list[str]) -> list[str]:
+    """Replace the CUDA version placeholder with the newest build this driver can run.
+
+    A CUDA 13.4 build needs a driver that supports CUDA 13.4 or newer; older drivers get the newest build they support.
+    """
+    if not any(CUDA_IN_NAME in p for p in patterns):
+        return patterns
+    drv = gpu.cuda_driver_version() or (0, 0)
+    found = set()
+    for name in names:
+        m = re.fullmatch(patterns[0].replace(CUDA_IN_NAME, r"(\d+)\.(\d+)"), name)
+        if m:
+            found.add((int(m.group(1)), int(m.group(2))))
+    usable = sorted(v for v in found if v <= tuple(drv))
+    if not usable:
+        raise RuntimeError(f"Your graphics driver supports CUDA {drv[0]}.{drv[1]}, older than any llama.cpp build "
+                           f"({', '.join(f'{a}.{b}' for a, b in sorted(found))}). Update your NVIDIA driver.")
+    v = re.escape(f"{usable[-1][0]}.{usable[-1][1]}")
+    return [p.replace(CUDA_IN_NAME, v) for p in patterns]
+
+
+def _arch() -> str:
+    return "arm64" if platform.machine().lower() in ("arm64", "aarch64") else "x64"
+
+
 def _pick_backend() -> tuple[str, list[str]]:
     """Return (backend label, asset name regexes) for this OS, CPU and GPU driver."""
     system = platform.system()
-    machine = platform.machine().lower()
-    arch = "arm64" if machine in ("arm64", "aarch64") else "x64"
+    arch = _arch()
     drv = gpu.cuda_driver_version()
     has_nvidia = bool(gpu.list_gpus())
     tag = re.escape(DEFAULT_TAG)
@@ -134,24 +171,19 @@ def _pick_backend() -> tuple[str, list[str]]:
 
     if system == "Windows":
         if has_nvidia and drv:
-            cuda = r"13\.\d+" if drv >= (13, 1) else r"12\.\d+"
+            # The CUDA version is filled in from the release's builds by _pin_cuda.
             return f"cuda (driver {drv[0]}.{drv[1]})", [
-                rf"llama-{tag}-bin-win-cuda-{cuda}-{arch}\.zip",
-                rf"cudart-llama-bin-win-cuda-{cuda}-{arch}\.zip",
+                rf"llama-{tag}-bin-win-cuda-{CUDA_IN_NAME}-{arch}\.zip",
+                rf"cudart-llama-bin-win-cuda-{CUDA_IN_NAME}-{arch}\.zip",
             ]
         return "cpu", [rf"llama-{tag}-bin-win-cpu-{arch}\.zip"]
 
     # Linux
     if has_nvidia and drv:
-        # Prefer CUDA 13 only when the driver is new enough for the build's minor version,
-        # otherwise the CUDA 12.8 build works on any 12.8+ driver.
-        if drv >= (13, 4):
-            cuda = r"13\.\d+"
-        else:
-            cuda = r"12\.\d+"
+        # The CUDA version is filled in from the release's builds by _pin_cuda.
         return f"cuda (driver {drv[0]}.{drv[1]})", [
-            rf"llama-{tag}-bin-ubuntu-cuda-{cuda}-{arch}\.tar\.gz",
-            rf"cudart-llama-{tag}-bin-ubuntu-cuda-{cuda}-{arch}\.tar\.gz",
+            rf"llama-{tag}-bin-ubuntu-cuda-{CUDA_IN_NAME}-{arch}\.tar\.gz",
+            rf"cudart-llama-{tag}-bin-ubuntu-cuda-{CUDA_IN_NAME}-{arch}\.tar\.gz",
         ]
     return "cpu", [rf"llama-{tag}-bin-ubuntu-{arch}\.tar\.gz"]
 

@@ -1,0 +1,24 @@
+[package]
+name = "wanna-desktop"
+version = "0.1.0"
+description = "wanna.sh desktop app"
+authors = ["Suraj Kumar"]
+license = "MIT"
+repository = "https://github.com/wanna-sh/wanna"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2.7.4", features = [] }
+
+[dependencies]
+tauri = { version = "2.12.5", features = [] }
+tauri-plugin-opener = "2.7.2"
+tauri-plugin-single-instance = "2.5.5"
+serde = { version = "1", features = ["derive"] }
+dunce = "1"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

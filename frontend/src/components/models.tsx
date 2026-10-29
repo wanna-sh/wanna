@@ -16,6 +16,7 @@ import { usePoll } from "@/lib/hooks";
 import { bytes, compact } from "@/lib/format";
 import { TASKS } from "@/lib/tasks";
 import { Button, Notice, Progress, VerdictBadge } from "./ui";
+import { MlAddon } from "./addons";
 
 /** Pick the model to use on a task page: remembers the last choice, prefers a running model. */
 export function useTaskModel(task: Task, models: InstalledModel[]) {
@@ -47,6 +48,7 @@ export function NoModelYet({ task, onInstalled }: { task: Task; onInstalled: () 
   const picks = [...(data?.results ?? [])].sort((a, b) => Number(!!b.tested) - Number(!!a.tested)).slice(0, 4);
   return (
     <div className="max-w-[720px]">
+      {task !== "chat" && task !== "embed" && <MlAddon />}
       <p className="text-[17px] mb-6">
         You don&apos;t have a {TASKS[task].noun} yet. Pick one to download. It stays on your computer and works
         without the internet afterwards.

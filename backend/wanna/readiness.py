@@ -312,9 +312,12 @@ def system_check(refresh: bool = False) -> list[dict]:
 
     t = _torch_status()
     if not t.get("installed"):
+        from . import addons
+
+        ok, reason = addons.can_install()
         add("python", "Pictures, video, voices and music", "warn",
-            "Not included in the chat-only image. Use ghcr.io/wanna-sh/wanna:latest for these." if os.environ.get("WANNA_IN_DOCKER")
-            else "Not installed (chat-only install). Run the installer again without --chat-only to add them.")
+            "Not installed yet. Open Pictures, Videos, Read aloud, Transcribe or Music to add them (a one-time download, "
+            "about 3 GB)." if ok else reason)
     elif t.get("cuda"):
         add("python", "Pictures, video, voices and music", "ok", f"PyTorch {t.get('version')} with GPU support.")
     else:

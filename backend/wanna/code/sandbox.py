@@ -187,7 +187,8 @@ def ensure(pid: str) -> str:
         cmd = [
             # --init reaps finished processes, so background jobs report "finished" correctly.
             "docker", "run", "-d", "--init", "--name", name,
-            "--user", f"{os.getuid()}:{os.getgid()}",
+            # Your own user ID, so files stay yours. Windows has none; Docker Desktop handles ownership there.
+            *(["--user", f"{os.getuid()}:{os.getgid()}"] if hasattr(os, "getuid") else []),
             "-v", f"{host_path(folder(pid))}:{WORKDIR}",
             "-w", WORKDIR,
             "--memory", "4g", "--cpus", "4", "--pids-limit", "512",

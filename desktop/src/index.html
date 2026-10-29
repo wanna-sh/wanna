@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>wanna.sh</title>
+    <style>
+      :root {
+        --fog: #0b0b0c; --paper: #161618; --line: #2e2e32; --ink: #ececee; --slate: #a8a8ae; --danger: #f08a8a;
+        color-scheme: dark;
+      }
+      @media (prefers-color-scheme: light) {
+        :root { --fog: #fafafa; --paper: #ffffff; --line: #e4e4e4; --ink: #18181b; --slate: #5f5f66; --danger: #b4233c; color-scheme: light; }
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; background: var(--fog); color: var(--ink); }
+      body {
+        font-family: "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
+        display: grid; place-items: center; padding: 24px;
+      }
+      main { width: 100%; max-width: 520px; }
+      .logo { font-size: 30px; font-weight: 700; letter-spacing: -0.03em; }
+      .logo span { color: var(--slate); }
+      .status { margin-top: 28px; display: flex; align-items: center; gap: 12px; font-size: 16px; min-height: 24px; }
+      .spinner {
+        width: 18px; height: 18px; flex: none; border-radius: 50%;
+        border: 2px solid var(--line); border-top-color: var(--ink); animation: spin 0.9s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .note { margin-top: 10px; color: var(--slate); font-size: 14px; line-height: 1.55; }
+      .error { display: none; margin-top: 24px; border: 1px solid var(--line); background: var(--paper); border-radius: 14px; padding: 16px; }
+      .error h2 { margin: 0; font-size: 16px; color: var(--danger); }
+      .error pre {
+        margin: 12px 0 0; max-height: 180px; overflow: auto; white-space: pre-wrap; font-size: 12.5px;
+        color: var(--slate); font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+      }
+      .buttons { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px; }
+      button {
+        font: inherit; font-size: 14px; height: 36px; padding: 0 16px; border-radius: 999px; cursor: pointer;
+        border: 1px solid var(--line); background: transparent; color: var(--ink);
+      }
+      button.primary { background: var(--ink); color: var(--fog); border-color: var(--ink); }
+      body.failed .spinner, body.failed .note { display: none; }
+      body.failed .error { display: block; }
+      @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 3s; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="logo">wanna<span>.sh</span></div>
+      <div class="status" role="status" aria-live="polite">
+        <div class="spinner" aria-hidden="true"></div>
+        <span id="message">Starting…</span>
+      </div>
+      <p class="note">
+        The first start downloads Python and wanna.sh's core parts (about 100 MB), so it takes a minute or two. After
+        that, wanna.sh opens in a few seconds.
+      </p>
+      <section class="error" aria-live="assertive">
+        <h2>wanna.sh couldn't start</h2>
+        <pre id="error"></pre>
+        <div class="buttons">
+          <button class="primary" id="retry">Try again</button>
+          <button id="logs">Open the log folder</button>
+        </div>
+        <p class="note" style="display: block">
+          Setting up needs an internet connection the first time. If it keeps failing, please report it at
+          github.com/wanna-sh/wanna/issues with the files from the log folder.
+        </p>
+      </section>
+    </main>
+    <script>
+      const invoke = window.__TAURI__.core.invoke;
+      const message = document.getElementById("message");
+      const error = document.getElementById("error");
+      async function poll() {
+        try {
+          const s = await invoke("setup_state");
+          if (s.message) message.textContent = s.message;
+          document.body.classList.toggle("failed", !!s.error);
+          if (s.error) error.textContent = s.error;
+        } catch (e) {
+          message.textContent = String(e);
+        }
+      }
+      setInterval(poll, 400);
+      poll();
+      document.getElementById("retry").addEventListener("click", () => {
+        document.body.classList.remove("failed");
+        invoke("retry");
+      });
+      document.getElementById("logs").addEventListener("click", () => invoke("open_logs"));
+    </script>
+  </body>
+</html>

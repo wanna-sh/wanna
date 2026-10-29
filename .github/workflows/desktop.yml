@@ -1,0 +1,113 @@
+# Builds the Windows desktop app installer (Tauri, NSIS), tests it on a clean Windows machine, and attaches it to the
+# GitHub release when a version tag is pushed. Pull requests that touch the app build and test it too.
+#
+# Code signing switches on when these repository secrets exist (otherwise the installer is unsigned):
+#   WINDOWS_CERTIFICATE           a code-signing certificate (.pfx), base64-encoded
+#   WINDOWS_CERTIFICATE_PASSWORD  its password
+name: Desktop app
+
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths: ["desktop/**", "backend/**", "frontend/**", ".github/workflows/desktop.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write  # to attach the installer to the release
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            desktop/package-lock.json
+
+      - name: Build the interface
+        working-directory: frontend
+        run: npm ci --no-fund --no-audit && npm run build
+
+      - name: Stage what the app bundles
+        run: python desktop/scripts/stage.py --target windows
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2.9.3
+        with:
+          workspaces: desktop/src-tauri
+
+      - name: Version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then version="${GITHUB_REF_NAME#v}"
+          else version=$(python -c "import tomllib; print(tomllib.load(open('backend/pyproject.toml','rb'))['project']['version'])"); fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Signing certificate (if configured)
+        env:
+          CERT: ${{ secrets.WINDOWS_CERTIFICATE }}
+          CERT_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        shell: pwsh
+        run: |
+          if (-not $env:CERT) { "No certificate configured: the installer will be unsigned."; exit 0 }
+          $pfx = Join-Path $env:RUNNER_TEMP "cert.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:CERT))
+          $password = ConvertTo-SecureString $env:CERT_PASSWORD -AsPlainText -Force
+          $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $password
+          Remove-Item $pfx
+          "SIGN_CONFIG={""bundle"":{""windows"":{""certificateThumbprint"":""$($cert.Thumbprint)"",""digestAlgorithm"":""sha256"",""timestampUrl"":""http://timestamp.digicert.com""}}}" | Out-File -Append $env:GITHUB_ENV
+
+      - name: Build the installer
+        working-directory: desktop
+        run: |
+          npm ci --no-fund --no-audit
+          npx tauri build --config "{\"version\":\"$VERSION\"}" ${SIGN_CONFIG:+--config "$SIGN_CONFIG"}
+          ls src-tauri/target/release/bundle/nsis/
+
+      - name: Install it and check wanna.sh starts
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem desktop/src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          Start-Process $installer.FullName -ArgumentList "/S" -Wait
+          $dir = Join-Path $env:LOCALAPPDATA "wanna.sh"
+          $app = Get-ChildItem $dir -Filter *.exe | Where-Object { $_.Name -notlike "uninstall*" } | Select-Object -First 1
+          "Installed: $($app.FullName)"
+          $proc = Start-Process $app.FullName -PassThru
+          $ok = $false
+          for ($i = 0; $i -lt 120 -and -not $ok; $i++) {
+            Start-Sleep 5
+            try { $ok = (Invoke-WebRequest -UseBasicParsing http://127.0.0.1:7860/healthz -TimeoutSec 3).StatusCode -eq 200 } catch {}
+          }
+          $logs = Join-Path $env:LOCALAPPDATA "sh.wanna.desktop\logs"
+          if (-not $ok) {
+            Get-ChildItem $logs -ErrorAction SilentlyContinue | ForEach-Object { "--- $($_.Name)"; Get-Content $_.FullName -Tail 40 }
+            throw "wanna.sh didn't start from the installed app"
+          }
+          "wanna.sh is up after about $($i * 5) seconds"
+          $ui = Invoke-WebRequest -UseBasicParsing http://127.0.0.1:7860/
+          if ($ui.Content -notmatch "<title>wanna.sh") { throw "The interface didn't load" }
+          Invoke-RestMethod http://127.0.0.1:7860/api/system/check | ForEach-Object { "{0,-5} {1}" -f $_.status, $_.label }
+          Stop-Process -Id $proc.Id -Force
+          Get-Process python -ErrorAction SilentlyContinue | Stop-Process -Force
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wanna.sh-windows-installer
+          path: desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The release is created by release.yml from the same tag; wait for it.
+          for _ in $(seq 1 60); do gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 && break; sleep 10; done
+          gh release upload "$GITHUB_REF_NAME" desktop/src-tauri/target/release/bundle/nsis/*-setup.exe --clobber
