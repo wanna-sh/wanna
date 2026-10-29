@@ -37,6 +37,17 @@ export PATH="$HOME/.local/bin:$PATH"
 ```
 :::
 
+### A specific version
+
+The command above installs the latest version. To install a particular release instead, give its version (see
+[releases](https://github.com/wanna-sh/wanna/releases)):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/wanna-sh/wanna/main/install.sh | WANNA_BRANCH=v0.1.0 bash
+```
+
+Running the installer again with another version switches to it. Running it without one updates to the latest.
+
 ### Installer options
 
 Pass options after `bash -s --`:

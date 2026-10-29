@@ -1,4 +1,4 @@
-# wanna.sh in Docker. Full guide, including security: https://wanna-sh.github.io/wanna/docs/start/docker/
+# wanna.sh in Docker. Full guide, including security: https://wanna.sh/docs/start/docker/
 #
 #   mkdir -p ~/.wanna
 #   docker compose up -d            # then open http://localhost:7860

@@ -1,0 +1,61 @@
+# Publishes a GitHub release when a version tag is pushed:
+#   1. bump "version" in backend/pyproject.toml and add a "## <version>" section to CHANGELOG.md
+#   2. git tag v<version> && git push origin v<version>
+# The release notes are that CHANGELOG.md section. The Docker image workflow runs on the same tag.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check the tag matches the version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          version=$(python3 -c "import tomllib; print(tomllib.load(open('backend/pyproject.toml', 'rb'))['project']['version'])")
+          if [ "$tag" != "$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match backend/pyproject.toml (version $version)."
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Write the release notes
+        run: |
+          python3 - <<'PY'
+          import os, re
+          version = os.environ["VERSION"]
+          text = open("CHANGELOG.md").read()
+          m = re.search(rf"^## {re.escape(version)}\b[^\n]*\n(.*?)(?=^## |\Z)", text, re.M | re.S)
+          if not m:
+              raise SystemExit(f"::error::CHANGELOG.md has no '## {version}' section.")
+          repo = os.environ["GITHUB_REPOSITORY"]
+          notes = m.group(1).strip() + f"""
+
+          ## Get it
+
+          ```bash
+          curl -fsSL https://raw.githubusercontent.com/{repo}/main/install.sh | WANNA_BRANCH=v{version} bash
+          ```
+
+          Or with Docker: `ghcr.io/{repo}:{version}` (everything) or `ghcr.io/{repo}:{version}-chat` (chat and Code only).
+          See the [install guide](https://wanna.sh/docs/start/install/) and [Docker guide](https://wanna.sh/docs/start/docker/).
+          """
+          open("notes.md", "w").write(re.sub(r"^ {10}", "", notes, flags=re.M))
+          PY
+          cat notes.md
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          flags=""
+          case "$VERSION" in *-*) flags="--prerelease" ;; esac  # e.g. 0.2.0-rc1
+          gh release create "$GITHUB_REF_NAME" --verify-tag --title "wanna.sh $VERSION" --notes-file notes.md $flags

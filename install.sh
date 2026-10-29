@@ -10,7 +10,7 @@
 #   --chat-only  skip the AI libraries for pictures, video, voices and music (saves several GB)
 #   --help       show this help
 #
-# Environment overrides: WANNA_DIR, WANNA_REPO, WANNA_BRANCH, WANNA_BIN_DIR.
+# Environment overrides: WANNA_DIR, WANNA_REPO, WANNA_BRANCH (a branch, or a version such as v0.1.0), WANNA_BIN_DIR.
 # Running it again updates an existing install.
 
 set -euo pipefail
@@ -94,9 +94,23 @@ fi
 if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/backend/pyproject.toml" ] && [ -z "${WANNA_DIR:-}" ]; then
   DIR="$SCRIPT_DIR"
   step "Using the copy of wanna.sh in $DIR"
+elif [ -d "$DIR/.git" ] && [ -n "${WANNA_BRANCH:-}" ]; then
+  # A specific version (a tag such as v0.1.0) or branch was asked for: switch to it.
+  step "Switching wanna.sh in $DIR to $BRANCH"
+  if git -C "$DIR" ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+    # A branch: follow it, so running the installer again keeps it up to date.
+    switched=$(git -C "$DIR" fetch --quiet --depth 1 origin "+refs/heads/$BRANCH:refs/remotes/origin/$BRANCH" \
+      && git -C "$DIR" checkout --quiet -B "$BRANCH" "origin/$BRANCH" && echo yes)
+  else
+    # A version tag: stay on exactly that version.
+    switched=$(git -C "$DIR" fetch --quiet --depth 1 origin "+refs/tags/$BRANCH:refs/tags/$BRANCH" \
+      && git -C "$DIR" checkout --quiet "refs/tags/$BRANCH" && echo yes)
+  fi
+  [ "$switched" = yes ] || fail "Couldn't switch $DIR to $BRANCH. Check the version exists, and commit or undo any changes there."
 elif [ -d "$DIR/.git" ]; then
   step "Updating wanna.sh in $DIR"
-  git -C "$DIR" pull --ff-only || fail "Couldn't update $DIR. If you changed files there, commit or undo them first."
+  git -C "$DIR" pull --ff-only \
+    || fail "Couldn't update $DIR. If you changed files there, commit or undo them first. If you installed a specific version, run this again with WANNA_BRANCH=main (or another version)."
 elif [ -e "$DIR" ] && [ -n "$(ls -A "$DIR" 2>/dev/null)" ]; then
   fail "$DIR already exists and isn't a wanna.sh install. Choose another place with --dir."
 else

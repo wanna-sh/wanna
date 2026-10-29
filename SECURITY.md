@@ -21,13 +21,18 @@ publicly; we're happy to credit you in the advisory.
 
 ## Supported versions
 
-wanna.sh has no numbered releases yet. Security fixes go to the `main` branch, so only the latest `main` is supported.
-To update, run the installer again, or `docker compose pull` for Docker.
+| Version | Supported |
+| --- | --- |
+| The latest release, and `main` | Yes |
+| Older releases | No: please update |
+
+Security fixes go to `main` and into the next release. To update, run the installer again, or `docker compose pull` for
+Docker. Releases are listed at <https://github.com/wanna-sh/wanna/releases>.
 
 ## Scope
 
 How wanna.sh is meant to protect people is described on the website:
-<https://wanna-sh.github.io/wanna/docs/reference/security/>. Anything that breaks those promises is in scope, including:
+<https://wanna.sh/docs/reference/security/>. Anything that breaks those promises is in scope, including:
 
 - the server and its APIs (`/v1`, `/api`), API keys, and the browser protections (Origin, Host and CORS checks);
 - the Code sandbox: escaping it, reaching the computer, the local network or wanna.sh from inside it, or getting past

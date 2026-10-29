@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
+from importlib.metadata import version as _version
 import logging
 import os
 import subprocess
@@ -38,7 +39,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="wanna.sh",
-    version="0.1.0",
+    version=_version("wanna"),
     description="Run chat, image, video, speech, transcription and music models locally. "
                 "OpenAI-compatible endpoints live under /v1.",
     lifespan=lifespan,

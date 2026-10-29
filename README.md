@@ -11,7 +11,7 @@ wanna    # then open http://localhost:7860
 
 Linux, macOS, or Windows with WSL2. Needs git and Node.js 20.9+; the installer sets up Python with uv. Run it again to
 update; `--chat-only` skips the AI libraries for pictures, video, voices and music. Full guide, tutorials and API docs:
-https://wanna-sh.github.io/wanna/ (source in `site/`).
+https://wanna.sh/ (source in `site/`).
 
 ## Docker
 
@@ -21,7 +21,7 @@ mkdir -p ~/.wanna && docker compose up -d     # http://localhost:7860
 
 Needs the NVIDIA Container Toolkit for GPUs. Code is off in Docker by default; `docker-compose.code.yml` turns it on by
 mounting the Docker socket, which is root-equivalent on the host. Read the Docker guide's security section first:
-https://wanna-sh.github.io/wanna/docs/start/docker/
+https://wanna.sh/docs/start/docker/
 
 ## Run it by hand
 
@@ -44,9 +44,18 @@ For frontend development, run `npm run dev` in `frontend/` (it talks to the back
 `.env.development`). The dev server is a different origin, so start the backend with
 `WANNA_CORS=http://localhost:3000 .venv/bin/python -m wanna`; by default wanna.sh refuses requests from other sites.
 
-Security model (browser protection, API keys, the Code sandbox, Docker): https://wanna-sh.github.io/wanna/docs/reference/security/
+Security model (browser protection, API keys, the Code sandbox, Docker): https://wanna.sh/docs/reference/security/
 
 Data lives in `~/.wanna` (models, outputs, logs, settings). Override with `WANNA_HOME`.
+
+## Releasing
+
+1. Set the new `version` in `backend/pyproject.toml`, and add a `## <version>` section to `CHANGELOG.md`.
+2. Commit, then tag and push: `git tag v0.2.0 && git push origin main v0.2.0`.
+
+The tag does the rest: `.github/workflows/release.yml` checks the tag matches `pyproject.toml` and publishes a GitHub
+release with that changelog section, and `.github/workflows/docker.yml` publishes the images as `0.2.0`, `0.2` and
+`latest` (plus `-chat` versions). A version with a hyphen, such as `0.2.0-rc1`, becomes a pre-release.
 
 ## How it works
 

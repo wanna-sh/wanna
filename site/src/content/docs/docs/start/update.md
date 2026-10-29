@@ -11,6 +11,9 @@ Run the installer again. It updates the code, the app and the interface, and kee
 curl -fsSL https://raw.githubusercontent.com/wanna-sh/wanna/main/install.sh | bash
 ```
 
+If you installed a [specific version](/docs/start/install/#a-specific-version), this moves you to the latest one. To
+switch to another version instead, add `WANNA_BRANCH=v<version>` before `bash`.
+
 Or, from the folder you installed to:
 
 ```bash
