@@ -1,21 +1,47 @@
-# Security Policy
+# Security policy
 
-## Supported Versions
+wanna.sh runs AI models and, with Code, programs an AI writes, on people's own computers. Security reports are very
+welcome.
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
+## Reporting a vulnerability
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+Please report it **privately**: open the repository's **Security** tab and choose **Report a vulnerability**
+(<https://github.com/wanna-sh/wanna/security/advisories/new>). Don't open a public issue, discussion or pull request
+for a security problem.
 
-## Reporting a Vulnerability
+It helps to include:
 
-Use this section to tell people how to report a vulnerability.
+- what the problem is and what an attacker could do with it;
+- steps to reproduce it, or a proof of concept;
+- the commit or version, your operating system, and how wanna.sh was installed (installer, by hand, or Docker, with or
+  without Code turned on).
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+You'll get a reply as soon as possible. Please give us reasonable time to release a fix before sharing details
+publicly; we're happy to credit you in the advisory.
+
+## Supported versions
+
+wanna.sh has no numbered releases yet. Security fixes go to the `main` branch, so only the latest `main` is supported.
+To update, run the installer again, or `docker compose pull` for Docker.
+
+## Scope
+
+How wanna.sh is meant to protect people is described on the website:
+<https://wanna-sh.github.io/wanna/docs/reference/security/>. Anything that breaks those promises is in scope, including:
+
+- the server and its APIs (`/v1`, `/api`), API keys, and the browser protections (Origin, Host and CORS checks);
+- the Code sandbox: escaping it, reaching the computer, the local network or wanna.sh from inside it, or getting past
+  its approval modes;
+- the `web_fetch` tool reaching local or private addresses;
+- the installer, the Docker image and the compose files, including the optional Docker socket setup;
+- Knowledge: documents, libraries and search;
+- model loading running code from a model repository.
+
+Usually out of scope (but tell us if wanna.sh makes them worse):
+
+- bugs in the projects wanna.sh builds on (llama.cpp, PyTorch, diffusers, transformers, SearXNG, Docker): please report
+  those to them;
+- what AI models say or make, and their licences;
+- setups that switch protections off on purpose, such as `WANNA_CORS=*`, `WANNA_ALLOWED_HOSTS=*`, or publishing wanna.sh
+  on a network without **Require API key**;
+- attacks that need control of the computer already (for example an administrator account).
