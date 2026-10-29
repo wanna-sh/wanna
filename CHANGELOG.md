@@ -4,6 +4,15 @@ Each version's section becomes its GitHub release notes (see `.github/workflows/
 
 ## Unreleased
 
+### Improvements
+
+- **Downloads carry on in the background.** While a model downloads, wanna.sh keeps the computer from going to sleep
+  (the screen still locks and turns off as usual), and if the connection drops, for example when the computer wakes
+  up, it tries again by itself instead of failing.
+- **Saving says so.** Save buttons show "Saved" for a moment, so one click makes one copy.
+- **Logs you can share.** When a model fails, its log has Copy and Save buttons.
+- **Get models** shows each rating as a small gauge, and drops the "Tested" labels.
+
 ### Fixes
 
 - Picture models downloaded in half precision (most of them, such as Stable Diffusion inpainting) failed to start on

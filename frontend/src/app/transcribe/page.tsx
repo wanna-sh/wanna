@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Copy, FileAudio, Mic, Square, Upload, X } from "lucide-react";
+import { FileAudio, Mic, Square, Upload, X } from "lucide-react";
 import { api, type Job, type Segment } from "@/lib/api";
 import { useJob, useModels, useStored } from "@/lib/hooks";
 import { ago, seconds } from "@/lib/format";
@@ -19,6 +19,7 @@ import {
   modelName,
 } from "@/components/studio";
 import { Notice, PageHeader } from "@/components/ui";
+import { CopyButton, SaveButton } from "@/components/save";
 
 const LANGUAGES = [
   { value: "", label: "Detect automatically" },
@@ -47,13 +48,6 @@ interface Transcript {
 function srt(segs: Segment[]) {
   const ts = (t: number) => new Date(t * 1000).toISOString().slice(11, 23).replace(".", ",");
   return segs.map((s, i) => `${i + 1}\n${ts(s.start)} --> ${ts(s.end ?? s.start)}\n${s.text}\n`).join("\n");
-}
-
-function save(content: string, name: string) {
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([content], { type: "text/plain" }));
-  a.download = name;
-  a.click();
 }
 
 export default function TranscribePage() {
@@ -165,25 +159,10 @@ export default function TranscribePage() {
                 )}
               </div>
               <div className="flex flex-wrap gap-1 mt-2 -ml-2">
-                <button
-                  onClick={() => navigator.clipboard.writeText(t.text)}
-                  className="h-8 px-2.5 inline-flex items-center gap-1.5 rounded-full text-[13px] text-slate hover:text-ink hover:bg-well"
-                >
-                  <Copy size={14} aria-hidden /> Copy
-                </button>
-                <button
-                  onClick={() => save(t.text, "transcript.txt")}
-                  className="h-8 px-2.5 rounded-full text-[13px] text-slate hover:text-ink hover:bg-well"
-                >
-                  Save as text
-                </button>
+                <CopyButton text={t.text} />
+                <SaveButton text={t.text} name="transcript.txt" label="Save as text" />
                 {t.segments.length > 0 && (
-                  <button
-                    onClick={() => save(srt(t.segments), "subtitles.srt")}
-                    className="h-8 px-2.5 rounded-full text-[13px] text-slate hover:text-ink hover:bg-well"
-                  >
-                    Save as subtitles
-                  </button>
+                  <SaveButton text={srt(t.segments)} name="subtitles.srt" label="Save as subtitles" />
                 )}
               </div>
             </FeedItem>

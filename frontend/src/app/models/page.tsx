@@ -8,6 +8,7 @@ import { useModels, usePoll, useSystem } from "@/lib/hooks";
 import { MODEL_TASKS, TASKS } from "@/lib/tasks";
 import { ago, bytes, gpuName, prettyName } from "@/lib/format";
 import { Button, Field, LinkButton, LiveDot, Notice, PageHeader, inputClass } from "@/components/ui";
+import { CopyButton, SaveButton } from "@/components/save";
 
 export default function ModelsPage() {
   const { data, refresh } = useModels(undefined, 2500);
@@ -255,9 +256,17 @@ function ModelRow({ m, gpus, onChange }: { m: InstalledModel; gpus: Gpu[]; onCha
         </div>
       )}
       {log !== null && (
-        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-well p-3 text-[12px] font-mono whitespace-pre-wrap">
-          {log || "No log yet."}
-        </pre>
+        <div className="mt-3">
+          <pre className="max-h-72 overflow-auto rounded-xl bg-well p-3 text-[12px] font-mono whitespace-pre-wrap select-text">
+            {log || "No log yet."}
+          </pre>
+          {log && (
+            <div className="flex flex-wrap gap-1 mt-2 -ml-2">
+              <CopyButton text={log} label="Copy the log" />
+              <SaveButton text={log} name={`wanna.sh-${m.id}-log.txt`} label="Save the log as a file" />
+            </div>
+          )}
+        </div>
       )}
     </li>
   );

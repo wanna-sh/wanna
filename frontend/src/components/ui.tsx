@@ -182,21 +182,27 @@ export function LiveDot({ status }: { status: "loading" | "ready" | "error" | "s
   return <span className={`inline-block size-2 rounded-full ${cls}`} aria-hidden />;
 }
 
-const VERDICT_TONE: Record<Verdict["level"], string> = {
-  great: "text-ok",
-  good: "text-ok",
-  slow: "text-caution",
-  no: "text-danger",
-  unknown: "text-slate",
+// How well a model fits this computer, as a small gauge: bars filled, and their colour. Colour only warns.
+const VERDICT_GAUGE: Record<Verdict["level"], [number, string]> = {
+  great: [3, "bg-ink"],
+  good: [3, "bg-ink"],
+  slow: [2, "bg-caution"],
+  no: [1, "bg-danger"],
+  unknown: [0, ""],
 };
 
 /** "Runs great here" and friends: whether a model will work on this computer. */
 export function VerdictBadge({ verdict, detail = false }: { verdict: Verdict | null | undefined; detail?: boolean }) {
   if (!verdict) return null;
+  const [filled, fill] = VERDICT_GAUGE[verdict.level];
   return (
-    <div className={VERDICT_TONE[verdict.level]}>
-      <span className="inline-flex items-center gap-1.5 text-[13px] font-medium">
-        <span className="size-1.5 rounded-full bg-current" aria-hidden />
+    <div>
+      <span className="inline-flex items-center gap-2 text-[13px] text-ink">
+        <span className="inline-flex items-end gap-[2px]" aria-hidden>
+          {[5, 8, 11].map((h, i) => (
+            <span key={h} className={`w-[3px] rounded-[1px] ${i < filled ? fill : "bg-line"}`} style={{ height: h }} />
+          ))}
+        </span>
         {verdict.label}
       </span>
       {detail && <p className="text-[13px] text-slate mt-0.5">{verdict.detail}</p>}

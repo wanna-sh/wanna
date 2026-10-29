@@ -6,6 +6,7 @@ import { api, fileUrl, type Generation } from "@/lib/api";
 import { useModels, usePoll } from "@/lib/hooks";
 import { ago, prettyName } from "@/lib/format";
 import { PageHeader, Segmented } from "@/components/ui";
+import { SaveButton } from "@/components/save";
 
 type Kind = "all" | "image" | "video" | "audio";
 
@@ -54,9 +55,7 @@ export default function GalleryPage() {
                     {names.get(g.model_id) ?? g.model_id}, {ago(g.created_at)}
                   </span>
                   <span className="flex gap-1">
-                    <a href={fileUrl(f)} download className="underline px-1">
-                      Save
-                    </a>
+                    <SaveButton url={fileUrl(f)} icon={false} className="underline px-1 disabled:no-underline" />
                     <button
                       aria-label="Delete"
                       className="px-1 hover:text-danger"

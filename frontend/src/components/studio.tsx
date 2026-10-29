@@ -8,12 +8,13 @@
 
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowUp, Check, ChevronDown, Download, RotateCcw, SlidersHorizontal, Square, Trash2, X } from "lucide-react";
+import { ArrowUp, Check, ChevronDown, RotateCcw, SlidersHorizontal, Square, Trash2, X } from "lucide-react";
 import type { InstalledModel, Job, Task } from "@/lib/api";
 import { useSystem } from "@/lib/hooks";
 import { gpuName, prettyName } from "@/lib/format";
 import { TASKS } from "@/lib/tasks";
 import { LiveDot, Progress } from "./ui";
+import { SaveButton } from "./save";
 import { MlAddon } from "./addons";
 
 // --- page frame -----------------------------------------------------------------
@@ -400,9 +401,7 @@ export function FeedItem({
       {(saveUrl || onReuse || onDelete) && (
         <div className="flex gap-1 mt-2 -ml-2">
           {saveUrl && (
-            <a href={saveUrl} download className="h-8 px-2.5 inline-flex items-center gap-1.5 rounded-full text-[13px] text-slate hover:text-ink hover:bg-well">
-              <Download size={14} aria-hidden /> Save
-            </a>
+            <SaveButton url={saveUrl} />
           )}
           {onReuse && (
             <button onClick={onReuse} className="h-8 px-2.5 inline-flex items-center gap-1.5 rounded-full text-[13px] text-slate hover:text-ink hover:bg-well">
