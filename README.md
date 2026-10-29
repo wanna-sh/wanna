@@ -2,7 +2,18 @@
 
 Run AI models on your own computer: chat, pictures, video, read-aloud, transcription and music, from one friendly web app with an OpenAI-compatible API.
 
-## Run it
+## Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/surajkumar/wanna.sh/main/install.sh | bash
+wanna    # then open http://localhost:7860
+```
+
+Linux, macOS, or Windows with WSL2. Needs git and Node.js 20.9+; the installer sets up Python with uv. Run it again to
+update; `--chat-only` skips the AI libraries for pictures, video, voices and music. Full guide, tutorials and API docs:
+https://surajkumar.github.io/wanna.sh/ (source in `site/`).
+
+## Run it by hand
 
 ```bash
 # Backend (Python 3.11+, uv)

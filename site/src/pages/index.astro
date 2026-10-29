@@ -1,0 +1,464 @@
+---
+// The public product page. Docs live under /docs/ (Starlight); this page has its own layout so the hero can
+// run edge to edge, like the app's home page.
+import "@fontsource-variable/inter";
+import "@fontsource-variable/jetbrains-mono";
+import { Image } from "astro:assets";
+import chatShot from "../assets/screens/chat.webp";
+import modelsShot from "../assets/screens/get-models.webp";
+import codeShot from "../assets/screens/code.webp";
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+const url = (path: string) => `${base}${path}`;
+const REPO = "https://github.com/surajkumar/wanna.sh";
+const INSTALL = "curl -fsSL https://raw.githubusercontent.com/surajkumar/wanna.sh/main/install.sh | bash";
+
+const TOOLS = [
+  { key: "chat", verb: "chat with an assistant", label: "Chat", href: "/docs/tutorials/chat/",
+    pitch: "Ask questions, draft emails, summarise documents and get help with code, with assistants like Qwen, Llama and Gemma. Attach pictures and documents, or just talk." },
+  { key: "image", verb: "make a picture", label: "Pictures", href: "/docs/tutorials/pictures/",
+    pitch: "Describe a picture and watch it appear. Start from your own photo to restyle it." },
+  { key: "video", verb: "make a video", label: "Videos", href: "/docs/tutorials/videos/",
+    pitch: "Turn a description, or a starting picture, into a short clip." },
+  { key: "speech", verb: "hear text read aloud", label: "Read aloud", href: "/docs/tutorials/read-aloud/",
+    pitch: "Paste any text and hear it read aloud in a natural voice, then save the recording." },
+  { key: "transcribe", verb: "turn a recording into text", label: "Transcribe", href: "/docs/tutorials/transcribe/",
+    pitch: "Upload a recording or use your microphone. Get a transcript with timestamps, or subtitles." },
+  { key: "sound", verb: "make music", label: "Music & sound", href: "/docs/tutorials/music/",
+    pitch: "Describe a mood, genre or instruments and get an original piece of music." },
+];
+
+const WHY = [
+  { title: "Private by design", body: "Your prompts, chats and creations stay on your computer. The internet is only used to find and download models." },
+  { title: "Works offline", body: "Once a model is downloaded it keeps working without a connection, on a plane or behind a firewall." },
+  { title: "Free and open source", body: "MIT licensed and developed in the open. No accounts, no subscriptions and no per-use limits." },
+  { title: "Uses all your hardware", body: "Models go on the right graphics card automatically, and big ones are shared across several cards." },
+];
+
+const STEPS = [
+  { title: "Install it", body: "One command sets up everything on Linux, macOS or Windows (with WSL2). Then open it in your browser." },
+  { title: "Pick a model", body: "Browse thousands of models from Hugging Face, each rated for your computer, so you know it will run before you download." },
+  { title: "Say what you want", body: "Type a request, choose a few simple options and press Create. The model starts by itself the first time you use it." },
+];
+---
+
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>wanna.sh: every kind of AI, on your own computer</title>
+    <meta name="description" content="wanna.sh runs AI on your own computer: chat, pictures, video, voices, transcription, music and a coding agent in one free, open-source app with an OpenAI-compatible API." />
+    <link rel="icon" href={url("/favicon.svg")} type="image/svg+xml" />
+    <meta property="og:title" content="wanna.sh" />
+    <meta property="og:description" content="Every kind of AI in one app, running privately on your own computer." />
+    <meta property="og:image" content={new URL(url("/art/home.webp"), Astro.site).href} />
+    <script is:inline>
+      // Same choice as the docs (Starlight stores it as "starlight-theme"); otherwise follow the system.
+      try {
+        const t = localStorage.getItem("starlight-theme");
+        const theme = t === "light" || t === "dark" ? t : matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+        document.documentElement.dataset.theme = theme;
+      } catch {}
+    </script>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="top">
+      <div class="wrap top-inner">
+        <a class="logo" href={url("/")}>wanna<span>.sh</span></a>
+        <nav aria-label="Main">
+          <a href={url("/docs/")}>Docs</a>
+          <a href={url("/docs/tutorials/chat/")}>Tutorials</a>
+          <a href={url("/docs/api/")}>API</a>
+          <a class="icon-link" href={REPO} aria-label="wanna.sh on GitHub">
+            <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+          </a>
+          <a class="btn btn-small" href="#install">Install</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <!-- Hero: the painting follows the verb you point at. -->
+      <section class="hero" aria-labelledby="wanna">
+        <img class="art is-on" data-art="home" src={url("/art/home.webp")} alt="" fetchpriority="high" />
+        {TOOLS.map((t) => <img class="art" data-art={t.key} src={url(`/art/${t.key}.webp`)} alt="" loading="lazy" />)}
+        <div class="shade" aria-hidden="true"></div>
+        <div class="wrap hero-inner">
+          <a class="pill" href={REPO}>Free and open source, MIT licensed</a>
+          <h1 id="wanna">I wanna</h1>
+          <ul class="verbs">
+            {TOOLS.map((t) => (
+              <li><a href={url(t.href)} data-verb={t.key}>{t.verb}</a></li>
+            ))}
+            <li><a href={url("/docs/tutorials/code/")} data-verb="home">build an app</a></li>
+          </ul>
+          <p class="lede">
+            wanna.sh runs AI on your own computer. Chat, pictures, video, voices, transcription, music and a coding
+            agent in one app, private and working offline once a model is downloaded.
+          </p>
+          <div class="actions">
+            <a class="btn" href="#install">Install wanna.sh</a>
+            <a class="btn btn-ghost" href={url("/docs/")}>Read the docs</a>
+          </div>
+        </div>
+      </section>
+
+      <div class="wrap">
+        <!-- Install -->
+        <section id="install" class="band" aria-labelledby="install-title">
+          <div class="split">
+            <div>
+              <h2 id="install-title">Install in one command</h2>
+              <p class="muted">
+                For Linux, macOS, and Windows with WSL2. You need git and Node.js 20.9 or newer; the installer sets up
+                Python and everything else, then adds a <code>wanna</code> command.
+              </p>
+              <p class="links">
+                <a href={url("/docs/start/requirements/")}>What your computer needs</a>
+                <a href={url("/docs/start/install/")}>Step-by-step install</a>
+              </p>
+            </div>
+            <div>
+              <div class="cmd">
+                <code id="install-cmd">{INSTALL}</code>
+                <button type="button" class="copy" data-copy="install-cmd">Copy</button>
+              </div>
+              <p class="muted small">Then run <code>wanna</code> and open <code>http://localhost:7860</code>.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Tools -->
+        <section class="band" aria-labelledby="tools">
+          <div class="intro">
+            <h2 id="tools">Six AI tools, one app</h2>
+            <p class="muted">
+              Instead of a separate app for each kind of AI, wanna.sh brings popular open models together, with the same
+              simple controls everywhere.
+            </p>
+          </div>
+          <ul class="cards">
+            {TOOLS.map((t) => (
+              <li>
+                <a class="card" href={url(t.href)}>
+                  <div class="card-art"><img src={url(`/art/${t.key}.webp`)} alt="" loading="lazy" /></div>
+                  <div class="card-body">
+                    <h3>{t.label}</h3>
+                    <p class="muted">{t.pitch}</p>
+                    <span class="more">How it works</span>
+                  </div>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <!-- Product -->
+        <section class="band" aria-labelledby="see">
+          <div class="intro">
+            <h2 id="see">Made for people, not just engineers</h2>
+            <p class="muted">
+              Every model is described in plain language and rated for your computer before you download it. No
+              terminals, no config files, no guessing.
+            </p>
+          </div>
+          <figure class="shot">
+            <Image src={chatShot} alt="The Chat page: a conversation with Llama 3.2 3B, with model, attach and instructions controls under the message box." widths={[720, 1440]} sizes="(min-width: 1120px) 1040px, 100vw" />
+          </figure>
+          <div class="pair">
+            <figure class="shot">
+              <Image src={modelsShot} alt="Get models: each model shows how well it runs on this computer, like Runs great here or Runs well here." widths={[720, 1440]} sizes="(min-width: 1120px) 510px, 100vw" />
+              <figcaption><strong>Get models.</strong> Thousands of models from Hugging Face, each rated: runs great, runs well, runs slowly, or too big.</figcaption>
+            </figure>
+            <figure class="shot">
+              <Image src={codeShot} alt="Code: an agent searched the web and wrote a file, each step shown as a card." widths={[720, 1440]} sizes="(min-width: 1120px) 510px, 100vw" />
+              <figcaption><strong>Code.</strong> A coding agent that writes files, runs commands in a Docker sandbox and searches the web, with your approval.</figcaption>
+            </figure>
+          </div>
+        </section>
+
+        <!-- Why -->
+        <section class="band" aria-labelledby="why">
+          <h2 id="why">Why run AI on your own computer?</h2>
+          <ul class="why">
+            {WHY.map((w) => (
+              <li>
+                <h3>{w.title}</h3>
+                <p class="muted">{w.body}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <!-- How -->
+        <section class="band" aria-labelledby="how">
+          <h2 id="how">How it works</h2>
+          <ol class="steps">
+            {STEPS.map((s, i) => (
+              <li>
+                <span class="num" aria-hidden="true">{i + 1}</span>
+                <h3>{s.title}</h3>
+                <p class="muted">{s.body}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <!-- Developers -->
+        <section class="band split" aria-labelledby="dev">
+          <div>
+            <h2 id="dev">Built for your other apps too</h2>
+            <p class="muted">
+              wanna.sh speaks the OpenAI API. Point any app, script or plugin that supports a custom OpenAI address at
+              wanna.sh, and it uses your own models for chat, pictures, speech, transcription and video.
+            </p>
+            <p class="links">
+              <a href={url("/docs/guides/connect-apps/")}>Connect an app</a>
+              <a href={url("/docs/api/")}>API reference</a>
+            </p>
+          </div>
+          <pre class="code"><code>from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:7860/v1",
+    api_key="not-needed",
+)
+
+reply = client.chat.completions.create(
+    model="auto",
+    messages=[&#123;"role": "user", "content": "Hello!"&#125;],
+)
+print(reply.choices[0].message.content)</code></pre>
+        </section>
+
+        <!-- Call to action -->
+        <section class="cta" aria-labelledby="cta">
+          <img src={url("/art/sound.webp")} alt="" loading="lazy" />
+          <div class="cta-inner">
+            <h2 id="cta">Your computer is more capable than you think.</h2>
+            <p>Install wanna.sh, find a model that suits your computer, and start making things.</p>
+            <div class="actions">
+              <a class="btn" href={url("/docs/start/install/")}>Get started</a>
+              <a class="btn btn-ghost" href={REPO}>View on GitHub</a>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="foot">
+      <div class="wrap foot-grid">
+        <div>
+          <a class="logo" href={url("/")}>wanna<span>.sh</span></a>
+          <p class="muted small">Every kind of AI in one app, running privately on your own computer.</p>
+        </div>
+        <nav aria-label="Start">
+          <h2>Start</h2>
+          <a href={url("/docs/")}>What is wanna.sh?</a>
+          <a href={url("/docs/start/install/")}>Install</a>
+          <a href={url("/docs/start/first-chat/")}>Your first chat</a>
+          <a href={url("/docs/reference/troubleshooting/")}>Troubleshooting</a>
+        </nav>
+        <nav aria-label="Learn">
+          <h2>Learn</h2>
+          <a href={url("/docs/tutorials/chat/")}>Tutorials</a>
+          <a href={url("/docs/guides/hardware/")}>Graphics cards</a>
+          <a href={url("/docs/api/")}>API</a>
+          <a href={url("/docs/reference/faq/")}>FAQ</a>
+        </nav>
+        <nav aria-label="Project">
+          <h2>Project</h2>
+          <a href={REPO}>Source code</a>
+          <a href={`${REPO}/issues`}>Report a problem</a>
+          <a href={`${REPO}/blob/main/LICENSE`}>MIT licence</a>
+        </nav>
+      </div>
+      <div class="wrap legal muted small">© 2026 Suraj Kumar. Open source under the MIT licence.</div>
+    </footer>
+
+    <script>
+      // Hero: point at a verb and the painting behind it changes.
+      const arts = document.querySelectorAll<HTMLImageElement>(".hero .art");
+      const show = (key: string) => arts.forEach((a) => a.classList.toggle("is-on", a.dataset.art === key));
+      document.querySelectorAll<HTMLAnchorElement>("[data-verb]").forEach((link) => {
+        const key = link.dataset.verb!;
+        const on = () => { show(key); link.closest(".verbs")?.classList.add("has-active"); link.classList.add("active"); };
+        const off = () => { show("home"); link.closest(".verbs")?.classList.remove("has-active"); link.classList.remove("active"); };
+        link.addEventListener("mouseenter", on);
+        link.addEventListener("focus", on);
+        link.addEventListener("mouseleave", off);
+        link.addEventListener("blur", off);
+      });
+
+      document.querySelectorAll<HTMLButtonElement>("[data-copy]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const text = document.getElementById(btn.dataset.copy!)?.textContent ?? "";
+          try {
+            await navigator.clipboard.writeText(text);
+            btn.textContent = "Copied";
+          } catch {
+            btn.textContent = "Select and copy";
+          }
+          setTimeout(() => (btn.textContent = "Copy"), 1600);
+        });
+      });
+    </script>
+
+    <style is:global>
+      :root {
+        --fog: #0b0b0c; --paper: #161618; --well: #222225; --line: #2e2e32;
+        --ink: #ececee; --slate: #a8a8ae; --accent: #ececee; --accent-ink: #0a0a0a;
+        color-scheme: dark;
+      }
+      :root[data-theme="light"] {
+        --fog: #fafafa; --paper: #ffffff; --well: #f0f0f0; --line: #e4e4e4;
+        --ink: #18181b; --slate: #5f5f66; --accent: #18181b; --accent-ink: #fafafa;
+        color-scheme: light;
+      }
+      *, *::before, *::after { box-sizing: border-box; }
+      html { background: var(--fog); color: var(--ink); scroll-behavior: smooth; }
+      body {
+        margin: 0; background: var(--fog); color: var(--ink);
+        font-family: "Inter Variable", system-ui, sans-serif; font-size: 16px; line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+      img { display: block; max-width: 100%; height: auto; }
+      a { color: inherit; }
+      code { font-family: "JetBrains Mono Variable", ui-monospace, monospace; font-size: 0.9em; }
+      h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; }
+      h2 { font-size: clamp(1.6rem, 3vw, 1.95rem); }
+      h3 { font-size: 1.05rem; }
+      p { margin: 0; }
+      ul, ol { margin: 0; padding: 0; list-style: none; }
+      :focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 4px; }
+
+      .wrap { width: 100%; max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+      @media (min-width: 640px) { .wrap { padding: 0 32px; } }
+      .muted { color: var(--slate); }
+      .small { font-size: 14px; }
+      .skip { position: absolute; left: -9999px; }
+      .skip:focus { left: 16px; top: 12px; z-index: 50; background: var(--paper); padding: 8px 12px; border-radius: 8px; }
+
+      /* Header floats over the hero. */
+      .top { position: absolute; inset: 0 0 auto; z-index: 10; color: #fff; }
+      .top-inner { display: flex; align-items: center; justify-content: space-between; height: 72px; }
+      .logo { font-weight: 700; font-size: 1.3rem; letter-spacing: -0.03em; text-decoration: none; }
+      .logo span { opacity: 0.6; }
+      .top nav { display: flex; align-items: center; gap: 6px; font-size: 15px; }
+      .top nav > a:not(.btn) { text-decoration: none; padding: 6px 10px; border-radius: 999px; opacity: 0.85; }
+      .top nav > a:not(.btn):hover { opacity: 1; background: rgba(255, 255, 255, 0.1); }
+      .icon-link { display: inline-grid; place-items: center; }
+      @media (max-width: 560px) { .top nav > a[href$="/tutorials/chat/"], .top nav > a[href$="/api/"] { display: none; } }
+
+      .btn {
+        display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 20px; border-radius: 999px;
+        background: #fff; color: #000; font-weight: 500; font-size: 15px; text-decoration: none; border: 0;
+        transition: opacity 0.2s;
+      }
+      .btn:hover { opacity: 0.88; }
+      .btn-small { height: 34px; padding: 0 14px; font-size: 14px; margin-left: 6px; }
+      .btn-ghost { background: rgba(0, 0, 0, 0.25); color: #fff; border: 1px solid rgba(255, 255, 255, 0.3); backdrop-filter: blur(8px); }
+      .btn-ghost:hover { background: rgba(255, 255, 255, 0.1); opacity: 1; }
+
+      /* Hero */
+      .hero { position: relative; isolation: isolate; overflow: hidden; display: flex; align-items: flex-end; min-height: min(96vh, 920px); color: #fff; }
+      .hero .art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2; opacity: 0; transition: opacity 0.6s ease; }
+      .hero .art.is-on { opacity: 1; }
+      .shade { position: absolute; inset: 0; z-index: -1;
+        background: linear-gradient(to right, rgba(0,0,0,0.8), rgba(0,0,0,0.45) 50%, rgba(0,0,0,0.05)),
+                    linear-gradient(to top, rgba(0,0,0,0.75), transparent 66%); }
+      .hero-inner { padding-top: 110px; padding-bottom: 72px; }
+      .pill { display: inline-flex; align-items: center; height: 32px; padding: 0 14px; border-radius: 999px; font-size: 13px;
+        text-decoration: none; border: 1px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.1); backdrop-filter: blur(8px); }
+      .pill:hover { background: rgba(255,255,255,0.2); }
+      .hero h1, .verbs a { font-size: clamp(2.1rem, 4.6vw, 3.6rem); font-weight: 500; letter-spacing: -0.03em; }
+      .hero h1 { margin-top: 24px; line-height: 1; color: rgba(255,255,255,0.65); }
+      .verbs { margin-top: 8px; }
+      .verbs a { display: inline-block; line-height: 1.12; text-decoration: none; transition: opacity 0.3s; }
+      .verbs.has-active a:not(.active) { opacity: 0.35; }
+      .verbs a.active::after { content: ""; display: inline-block; width: 0.08em; height: 0.85em; margin-left: 0.08em;
+        background: currentColor; vertical-align: -0.08em; animation: blink 1s steps(1) infinite; }
+      @keyframes blink { 50% { opacity: 0; } }
+      .lede { margin-top: 28px; font-size: 18px; color: rgba(255,255,255,0.82); max-width: 56ch; }
+      .actions { margin-top: 28px; display: flex; flex-wrap: wrap; gap: 12px; }
+
+      /* Sections */
+      .band { padding: 72px 0; border-top: 1px solid var(--line); }
+      .band:first-child { border-top: 0; }
+      .intro { max-width: 62ch; margin-bottom: 36px; }
+      .intro .muted, .split .muted { margin-top: 8px; }
+      .split { display: grid; gap: 32px; align-items: start; }
+      .split > * { min-width: 0; }
+      @media (min-width: 900px) { .split { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); } }
+      .links { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 8px 24px; font-size: 15px; }
+      .links a { text-underline-offset: 4px; }
+
+      .cmd { display: flex; align-items: center; gap: 8px; background: var(--paper); border: 1px solid var(--line);
+        border-radius: 16px; padding: 14px 14px 14px 18px; }
+      .cmd code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; font-size: 13.5px; }
+      .copy { flex: none; height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line);
+        background: var(--well); color: var(--ink); font: inherit; font-size: 14px; cursor: pointer; }
+      .copy:hover { border-color: var(--slate); }
+      .cmd + .muted { margin-top: 12px; }
+
+      .cards { display: grid; gap: 16px; }
+      @media (min-width: 640px) { .cards { grid-template-columns: repeat(2, 1fr); } }
+      @media (min-width: 1000px) { .cards { grid-template-columns: repeat(3, 1fr); } }
+      .card { display: block; height: 100%; text-decoration: none; border: 1px solid var(--line); background: var(--paper);
+        border-radius: 18px; overflow: hidden; transition: border-color 0.2s; }
+      .card:hover { border-color: var(--slate); }
+      .card-art { aspect-ratio: 16 / 8; overflow: hidden; }
+      .card-art img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s; }
+      .card:hover .card-art img { transform: scale(1.03); }
+      .card-body { padding: 20px; }
+      .card-body .muted { font-size: 15px; margin-top: 6px; }
+      .more { display: inline-block; margin-top: 14px; font-size: 14px; text-decoration: underline; text-underline-offset: 3px; }
+
+      .shot { margin: 0; }
+      .shot img { border: 1px solid var(--line); border-radius: 14px; width: 100%; }
+      .shot figcaption { margin-top: 12px; font-size: 15px; color: var(--slate); }
+      .shot figcaption strong { color: var(--ink); font-weight: 600; }
+      .pair { margin-top: 24px; display: grid; gap: 24px; }
+      @media (min-width: 900px) { .pair { grid-template-columns: 1fr 1fr; } }
+
+      .why { margin-top: 36px; display: grid; gap: 32px; }
+      @media (min-width: 640px) { .why { grid-template-columns: repeat(2, 1fr); } }
+      @media (min-width: 1000px) { .why { grid-template-columns: repeat(4, 1fr); } }
+      .why .muted, .steps .muted { font-size: 15px; margin-top: 6px; }
+
+      .steps { margin-top: 36px; display: grid; gap: 20px; }
+      @media (min-width: 900px) { .steps { grid-template-columns: repeat(3, 1fr); } }
+      .steps li { border: 1px solid var(--line); border-radius: 18px; padding: 24px; }
+      .num { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 999px; background: var(--well); font-size: 14px; font-weight: 500; margin-bottom: 16px; }
+
+      .code { margin: 0; background: var(--paper); border: 1px solid var(--line); border-radius: 18px; padding: 20px;
+        overflow-x: auto; font-size: 13px; line-height: 1.65; }
+
+      .cta { position: relative; isolation: isolate; overflow: hidden; border-radius: 18px; color: #fff; margin-top: 16px; }
+      .cta img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2; }
+      .cta::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(to right, rgba(0,0,0,0.82), rgba(0,0,0,0.3)); }
+      .cta-inner { padding: 64px 24px; }
+      @media (min-width: 640px) { .cta-inner { padding: 64px 40px; } }
+      .cta h2 { max-width: 24ch; }
+      .cta p { margin-top: 8px; color: rgba(255,255,255,0.82); max-width: 52ch; }
+
+      .foot { margin-top: 80px; border-top: 1px solid var(--line); }
+      .foot-grid { padding-top: 56px; padding-bottom: 40px; display: grid; gap: 32px; }
+      @media (min-width: 800px) { .foot-grid { grid-template-columns: 1.6fr 1fr 1fr 1fr; } }
+      .foot-grid > div .muted { margin-top: 8px; max-width: 34ch; }
+      .foot nav { display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+      .foot nav h2 { font-size: 13px; font-weight: 500; color: var(--slate); letter-spacing: 0; margin-bottom: 4px; }
+      .foot nav a { text-decoration: none; }
+      .foot nav a:hover { text-decoration: underline; text-underline-offset: 3px; }
+      .legal { padding-top: 20px; padding-bottom: 28px; border-top: 1px solid var(--line); }
+
+      @media (prefers-reduced-motion: reduce) {
+        html { scroll-behavior: auto; }
+        .hero .art, .card-art img, .verbs a { transition: none; }
+        .verbs a.active::after { animation: none; }
+      }
+    </style>
+  </body>
+</html>

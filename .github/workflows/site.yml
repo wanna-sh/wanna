@@ -1,0 +1,43 @@
+# Builds the website in site/ and publishes it to GitHub Pages.
+# One-time setup: repository Settings > Pages > Source: "GitHub Actions".
+# Custom domain: add a repository variable SITE_DOMAIN (e.g. wanna.sh) under Settings > Secrets and variables >
+# Actions > Variables. Leave it unset to publish at https://surajkumar.github.io/wanna.sh/.
+name: Website
+
+on:
+  push:
+    branches: [main]
+    paths: ["site/**", ".github/workflows/site.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      SITE_DOMAIN: ${{ vars.SITE_DOMAIN }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install, build and upload the site
+        uses: withastro/action@v6
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
