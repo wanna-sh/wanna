@@ -35,7 +35,8 @@ updates:
   - package-ecosystem: docker
     directory: /
     schedule: { interval: weekly }
-    # Base images stay on long-term-support lines (Ubuntu 24.04, Node 24); move those by hand when it's time.
+    # Base images stay on long-term-support lines (Ubuntu 24.04, Node 24); move those by hand when it's time. Ubuntu's
+    # interim releases (24.10, 25.04...) look like minor updates, so those are skipped too.
     ignore:
       - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
