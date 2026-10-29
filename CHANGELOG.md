@@ -2,7 +2,7 @@
 
 Each version's section becomes its GitHub release notes (see `.github/workflows/release.yml`).
 
-## Unreleased
+## 0.3.2 (2026-10-29)
 
 - **The desktop apps update themselves.** When a new version is out, the Windows and Mac apps offer to install it
   when they start, then reopen. Updates are signed and checked before they're installed. Apps from 0.3.1 or earlier
