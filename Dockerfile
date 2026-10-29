@@ -15,7 +15,7 @@ RUN npm run build
 # --- The app ----------------------------------------------------------------------------------------------
 # Ubuntu 24.04: the prebuilt llama.cpp engine needs glibc 2.38 or newer. CUDA comes from the PyTorch wheels and
 # from llama.cpp's own download; the NVIDIA Container Toolkit adds the driver when run with GPUs.
-FROM ubuntu:24.04
+FROM ubuntu:24.10
 ARG WITH_ML=1
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
