@@ -39,7 +39,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 COPY backend/ ./
 RUN uv pip install --python .venv/bin/python --no-deps -e . && chmod -R a+rX /app /opt/python
 COPY --from=ui /app/frontend/out /app/frontend/out
-COPY docker/entrypoint.sh /usr/local/bin/wanna-entrypoint
+COPY --chmod=755 docker/entrypoint.sh /usr/local/bin/wanna-entrypoint
 
 ENV PATH=/app/backend/.venv/bin:$PATH \
     WANNA_HOME=/data \
