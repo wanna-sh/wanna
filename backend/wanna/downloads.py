@@ -16,7 +16,7 @@ import time
 import uuid
 from pathlib import Path
 
-from . import db, hub
+from . import awake, db, hub
 from .config import HOME, MODELS_DIR, hf_token
 from .download_worker import download_files
 
@@ -111,6 +111,9 @@ class Download:
 
     STALL_SECONDS = 90
     MAX_RESTARTS = 3
+    # Dropped connections (Wi-Fi changing, the computer waking from sleep) are retried, waiting a little longer each
+    # time: about a quarter of an hour in all before giving up.
+    RETRY_WAITS = [5, 10, 20, 30] + [60] * 13
 
     def _spawn(self, q) -> None:
         self._proc = _ctx.Process(
@@ -121,10 +124,44 @@ class Download:
     def run(self) -> None:
         self.status = "downloading"
         self.dest.mkdir(parents=True, exist_ok=True)
+        awake.hold()  # a sleeping computer drops the connection
+        try:
+            result = self._download()
+        finally:
+            awake.let_go()
+        if result is None:  # cancelled
+            return
+
+        if result[0] == "error":
+            self.status = "error"
+            self.error = _friendly_error(result[1])
+            manager.save_pending()
+            return
+        shutil.rmtree(self.dest / ".cache", ignore_errors=True)
+        self.done_bytes = self.total
+        self._register()
+        self.status = "done"
+        manager.save_pending()
+
+    def _download(self) -> tuple[str, str | None] | None:
+        """Download, retrying after dropped connections; finished files and partial ones are reused each time."""
+        for wait in [*self.RETRY_WAITS, None]:
+            result = self._attempt()
+            if result is None or result[0] == "done" or self.interrupted or wait is None or not _retryable(result[1]):
+                return result
+            log.warning("Download of %s failed (%s); trying again in %d s", self.repo_id, result[1], wait)
+            self.speed = 0.0
+            until = time.time() + wait
+            while time.time() < until:
+                if self.status == "cancelled":
+                    return None
+                time.sleep(0.5)
+
+    def _attempt(self) -> tuple[str, str | None] | None:
         q = _ctx.Queue()
         self._spawn(q)
         last_bytes, last_t = _dir_size(self.dest), time.time()
-        last_progress, restarts = time.time(), 0
+        last_progress, restarts, last_loop = time.time(), 0, time.time()
         result = None
         while True:
             try:
@@ -132,17 +169,21 @@ class Download:
                 if kind in ("done", "error"):
                     result = (kind, payload)
                     break
-                last_progress = time.time()  # a file finished
+                last_progress = time.time()  # bytes arrived, or a file finished
             except Exception:
                 pass
             if self.status == "cancelled":
-                return
+                return None
             if not self._proc.is_alive() and q.empty():
                 # Killed from outside (usually wanna.sh shutting down): keep it queued for the next start.
                 self.interrupted = True
                 result = ("error", "Download process stopped unexpectedly.")
                 break
             now = time.time()
+            if now - last_loop > 10:
+                # This loop runs twice a second, so a long gap means the computer was asleep: not a stall.
+                last_progress = now
+            last_loop = now
             size = _dir_size(self.dest)
             if size != self.done_bytes:
                 last_progress = now
@@ -163,17 +204,7 @@ class Download:
                 self._spawn(q)
                 last_progress = time.time()
         self._proc.join(timeout=5)
-
-        if result[0] == "error":
-            self.status = "error"
-            self.error = _friendly_error(result[1])
-            manager.save_pending()
-            return
-        shutil.rmtree(self.dest / ".cache", ignore_errors=True)
-        self.done_bytes = self.total
-        self._register()
-        self.status = "done"
-        manager.save_pending()
+        return result
 
     def _register(self) -> None:
         d, v = self.details, self.variant
@@ -198,6 +229,22 @@ class Download:
         if self._proc and self._proc.is_alive():
             self._proc.kill()
         shutil.rmtree(self.dest, ignore_errors=True)
+
+
+def _retryable(msg: str | None) -> bool:
+    """Errors that trying again could fix: not a licence, a missing file, a full disk or a stall (already retried).
+
+    The download process reports errors as "ExceptionType: message". A lost connection shows up as
+    LocalEntryNotFoundError (nothing reachable, nothing cached), which is worth retrying; EntryNotFoundError isn't.
+    """
+    msg = msg or ""
+    kind = msg.split(":", 1)[0]
+    if kind in ("GatedRepoError", "RepositoryNotFoundError", "RemoteEntryNotFoundError", "EntryNotFoundError",
+                "RevisionNotFoundError"):
+        return False
+    if kind == "HfHubHTTPError" and re.search(r"\b(401|403|404)\b", msg):
+        return False
+    return "No space left" not in msg and not msg.startswith("Stalled")
 
 
 def _friendly_error(msg: str) -> str:

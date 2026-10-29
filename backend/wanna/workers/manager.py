@@ -413,17 +413,18 @@ class ModelManager:
         self.events.appendleft({"time": time.time(), "message": msg})
 
     def _ram_guard(self) -> None:
-        """Stop the hungriest worker before system RAM runs out.
+        """Stop the hungriest worker before system memory runs out.
 
         Left alone, the kernel's OOM killer may pick any process (or the whole WSL VM may be
-        terminated), taking the user's other programs down with it.
+        terminated), taking the user's other programs down with it. Free swap counts: while there's
+        some, the system slows down instead of killing anything.
         """
         import psutil
 
         floor = int(os.environ.get("WANNA_MIN_FREE_RAM_MB", "1200")) * 1024**2
         while True:
             time.sleep(1)
-            if psutil.virtual_memory().available >= floor:
+            if psutil.virtual_memory().available + psutil.swap_memory().free >= floor:
                 continue
             victims = []
             for w in list(self.workers.values()):

@@ -339,7 +339,6 @@ function Grid({ results, onOpen }: { results: HubResult[]; onOpen: (id: string) 
             <div className="flex items-center gap-2 text-[13px] text-slate">
               {TASKS[r.task]?.label}
               <span className="ml-auto flex gap-3">
-                {r.tested && <span className="text-accent font-medium">Tested</span>}
                 {r.installed && <span className="text-ok font-medium">Installed</span>}
               </span>
             </div>

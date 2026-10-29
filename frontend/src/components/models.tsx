@@ -61,9 +61,8 @@ export function NoModelYet({ task, onInstalled }: { task: Task; onInstalled: () 
             <div className="flex-1 min-w-[220px]">
               <div className="font-display text-[1.1rem] leading-snug break-words">{p.title}</div>
               {p.why && <p className="text-slate text-[15px]">{p.why}</p>}
-              <div className="flex flex-wrap gap-x-4 mt-1">
+              <div className="mt-1">
                 <VerdictBadge verdict={p.verdict} />
-                {p.tested && <span className="text-[13px] font-medium text-accent">Tested with wanna.sh</span>}
               </div>
             </div>
             <Button onClick={() => setOpen(p.repo_id)}>Choose</Button>
@@ -169,11 +168,6 @@ export function ModelSheet({
                 {data.needs_image && (
                   <p className="text-[13px] mt-2">This model brings a picture to life, so you&apos;ll need a starting picture.</p>
                 )}
-                <p className="text-[13px] text-slate mt-2">
-                  {data.tested
-                    ? "Tested with wanna.sh."
-                    : "Not tested with wanna.sh yet. Most models like this work, but some need extra setup."}
-                </p>
               </div>
             )}
 

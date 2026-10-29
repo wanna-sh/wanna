@@ -116,7 +116,8 @@ class DiffusionHandler(Handler):
         video = args.task == "video"
         dtype = _dtype(self.device, "bfloat16" if video else "float16")
         kw = {"torch_dtype": dtype}
-        if args.variant and self.device != "cpu":
+        if args.variant:
+            # Only this variant's files were downloaded. On the processor diffusers converts them to float32.
             kw["variant"] = args.variant
 
         multi_gpu = self.device == "cuda" and args.gpu_count > 1
