@@ -52,7 +52,9 @@ most that fits fully on your cards.
 ## Protecting your computer
 
 Models that don't fit on the graphics card can spill into system memory. Before starting one, wanna.sh checks there is
-enough free memory, and it watches memory while models run, stopping a model before your computer runs out.
+enough free memory, and it watches memory while models run, stopping a model before your computer runs out. Free
+swap space counts as memory: with swap, a model that needs more memory than is free makes your computer slower for a
+while instead of being stopped.
 
 On Windows with WSL2, see the note on [WSL2 memory](/docs/start/install/#windows-with-wsl2).
 

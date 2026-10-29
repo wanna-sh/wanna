@@ -132,7 +132,7 @@ class Download:
                 if kind in ("done", "error"):
                     result = (kind, payload)
                     break
-                last_progress = time.time()  # a file finished
+                last_progress = time.time()  # bytes arrived, or a file finished
             except Exception:
                 pass
             if self.status == "cancelled":

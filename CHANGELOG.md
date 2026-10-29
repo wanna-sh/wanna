@@ -2,6 +2,18 @@
 
 Each version's section becomes its GitHub release notes (see `.github/workflows/release.yml`).
 
+## Unreleased
+
+### Fixes
+
+- Picture models downloaded in half precision (most of them, such as Stable Diffusion inpainting) failed to start on
+  the processor with "no file named diffusion_pytorch_model.bin". They now load and run in full precision there.
+- Big downloads on slower connections could fail with "The download kept stalling" although they were working:
+  Hugging Face's downloader writes files in bursts, and long gaps looked like a stall. wanna.sh now watches the bytes
+  arriving instead.
+- On computers with swap, models were stopped as "ran out of system memory" while swap was still free. Free swap now
+  counts, so they finish, more slowly.
+
 ## 0.3.0 (2026-10-29)
 
 ### The wanna.sh app for Mac
