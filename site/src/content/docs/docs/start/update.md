@@ -5,6 +5,14 @@ description: Keep wanna.sh up to date, or remove it completely.
 
 ## Update
 
+**The Windows and Mac apps update themselves.** When a new version is out, wanna.sh asks *"wanna.sh 0.3.2 is
+available. Update now?"* when it starts. Choose **Update now**: it closes, installs the new version and opens again,
+keeping your models, chats and settings. Choose **Later** to be asked next time. Updates are signed, and the app only
+installs ones signed by wanna.sh. Apps from version 0.3.1 or earlier don't have this yet: install the next version by
+hand once, as below.
+
+To update by hand:
+
 **Windows app:** download the [latest version](https://github.com/wanna-sh/wanna/releases/latest/download/wanna.sh-setup-windows-x64.exe)
 and open it. It updates the app in place and keeps your models, chats and settings. Close wanna.sh first.
 

@@ -8,6 +8,7 @@ use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -15,7 +16,9 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use tauri::webview::NewWindowResponse;
 use tauri::{AppHandle, Manager, RunEvent, Url, WebviewUrl, WebviewWindowBuilder};
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_opener::OpenerExt;
+use tauri_plugin_updater::UpdaterExt;
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -224,9 +227,63 @@ fn start(app: AppHandle) {
             if let (Some(window), Ok(url)) = (app.get_webview_window("main"), Url::parse(&url)) {
                 let _ = window.navigate(url);
             }
+            offer_update(app);
         }
         Err(e) => set_error(&app, &e),
     });
+}
+
+/// The setup screen's address (it's also where the window starts).
+fn setup_page() -> &'static str {
+    if cfg!(windows) {
+        "http://tauri.localhost/index.html"
+    } else {
+        "tauri://localhost/index.html"
+    }
+}
+
+static UPDATE_OFFERED: AtomicBool = AtomicBool::new(false);
+
+/// Once wanna.sh is open, look for a newer version (once per launch) and offer it. Offline, or with nothing new,
+/// nothing happens. Updates are signed; the app only installs ones that match the public key in tauri.conf.json.
+fn offer_update(app: AppHandle) {
+    if UPDATE_OFFERED.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let found = tauri::async_runtime::block_on(async { app.updater().ok()?.check().await.ok().flatten() });
+    let Some(update) = found else { return };
+    let current = app.package_info().version.to_string();
+    let accepted = app
+        .dialog()
+        .message(format!(
+            "wanna.sh {} is available (you have {current}). Update now?\n\nwanna.sh closes, updates and opens again. \
+             Your models, chats and settings are kept.",
+            update.version
+        ))
+        .title("Update wanna.sh")
+        .buttons(MessageDialogButtons::OkCancelCustom("Update now".to_string(), "Later".to_string()))
+        .blocking_show();
+    if !accepted {
+        return;
+    }
+    stop_server(&app);
+    set_message(&app, &format!("Updating wanna.sh to {}…", update.version));
+    if let (Some(window), Ok(url)) = (app.get_webview_window("main"), Url::parse(setup_page())) {
+        let _ = window.navigate(url);
+    }
+    // On Windows this hands over to the installer, which closes the app and opens the new version.
+    match tauri::async_runtime::block_on(update.download_and_install(|_, _| {}, || {})) {
+        Ok(()) => app.restart(),
+        Err(e) => {
+            app.dialog()
+                .message(format!("The update didn't install: {e}\n\nwanna.sh will start as it is. You can also \
+                                  download the new version from wanna.sh."))
+                .title("Update wanna.sh")
+                .kind(MessageDialogKind::Error)
+                .blocking_show();
+            start(app);
+        }
+    }
 }
 
 /// Stop wanna.sh and everything it started (the model engines are its child processes).
@@ -315,6 +372,8 @@ fn main() {
             }
         }))
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![setup_state, retry, open_logs])
         .setup(|app| {

@@ -10,6 +10,10 @@
 #   APPLE_SIGNING_IDENTITY        its name, e.g. "Developer ID Application: Your Name (TEAMID)"
 # and Apple notarization with these as well (an app-specific password from account.apple.com):
 #   APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID
+#
+# The apps update themselves from the latest release's latest.json (the updater job writes it). Updates are signed with
+# this key, whose public half is in desktop/src-tauri/tauri.conf.json; without it the builds skip the update files:
+#   TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD
 name: Desktop app
 
 on:
@@ -25,6 +29,8 @@ permissions:
 jobs:
   windows:
     runs-on: windows-latest
+    outputs:
+      updater-signature: ${{ steps.updater.outputs.signature }}
     defaults:
       run:
         shell: bash
@@ -73,10 +79,21 @@ jobs:
 
       - name: Build the installer
         working-directory: desktop
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           npm ci --no-fund --no-audit
-          npx tauri build --config "{\"version\":\"$VERSION\"}" ${SIGN_CONFIG:+--config "$SIGN_CONFIG"}
+          [ -n "$TAURI_SIGNING_PRIVATE_KEY" ] || UPDATER_CONFIG='{"bundle":{"createUpdaterArtifacts":false}}'
+          npx tauri build --config "{\"version\":\"$VERSION\"}" ${SIGN_CONFIG:+--config "$SIGN_CONFIG"} \
+            ${UPDATER_CONFIG:+--config "$UPDATER_CONFIG"}
           ls src-tauri/target/release/bundle/nsis/
+
+      - name: Update signature
+        id: updater
+        run: |
+          sigs=(desktop/src-tauri/target/release/bundle/nsis/*-setup.exe.sig)
+          if [ -f "${sigs[0]}" ]; then echo "signature=$(cat "${sigs[0]}")" >> "$GITHUB_OUTPUT"; else echo "No update signing key: no update files."; fi
 
       - name: Install it and check wanna.sh starts
         shell: pwsh
@@ -123,6 +140,8 @@ jobs:
 
   macos:
     runs-on: macos-latest  # Apple Silicon
+    outputs:
+      updater-signature: ${{ steps.updater.outputs.signature }}
     steps:
       - uses: actions/checkout@v7
 
@@ -161,6 +180,8 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           npm ci --no-fund --no-audit
           # Secrets that aren't set arrive as empty strings, which Tauri would try to use.
@@ -173,8 +194,18 @@ jobs:
             echo "No certificate configured: the app will be unsigned (ad-hoc signature)."
             sign=(--config '{"bundle":{"macOS":{"signingIdentity":"-"}}}')
           fi
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "No update signing key: no update files."
+            sign+=(--config '{"bundle":{"createUpdaterArtifacts":false}}')
+          fi
           npx tauri build --bundles app,dmg --config "{\"version\":\"$VERSION\"}" "${sign[@]}"
-          ls src-tauri/target/release/bundle/dmg/
+          ls src-tauri/target/release/bundle/dmg/ src-tauri/target/release/bundle/macos/
+
+      - name: Update signature
+        id: updater
+        run: |
+          sig=desktop/src-tauri/target/release/bundle/macos/wanna.sh.app.tar.gz.sig
+          if [ -f "$sig" ]; then echo "signature=$(cat "$sig")" >> "$GITHUB_OUTPUT"; fi
 
       - name: Install it and check wanna.sh starts, sees the GPU and chats
         run: |
@@ -224,6 +255,12 @@ jobs:
           name: wanna.sh-macos-disk-image
           path: desktop/src-tauri/target/release/bundle/dmg/*.dmg
 
+      - uses: actions/upload-artifact@v7
+        if: steps.updater.outputs.signature
+        with:
+          name: wanna.sh-macos-update
+          path: desktop/src-tauri/target/release/bundle/macos/wanna.sh.app.tar.gz
+
       - name: Attach to the release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
@@ -233,3 +270,59 @@ jobs:
           # A fixed name, so .../releases/latest/download/wanna.sh-macos-arm64.dmg always gets the newest version.
           cp desktop/src-tauri/target/release/bundle/dmg/*.dmg "$RUNNER_TEMP/wanna.sh-macos-arm64.dmg"
           gh release upload "$GITHUB_REF_NAME" "$RUNNER_TEMP/wanna.sh-macos-arm64.dmg" --clobber
+          # The app's own update (Windows updates with the installer above).
+          update=desktop/src-tauri/target/release/bundle/macos/wanna.sh.app.tar.gz
+          if [ -f "$update" ]; then
+            cp "$update" "$RUNNER_TEMP/wanna.sh-macos-arm64.app.tar.gz"
+            gh release upload "$GITHUB_REF_NAME" "$RUNNER_TEMP/wanna.sh-macos-arm64.app.tar.gz" --clobber
+          fi
+
+  # Checks both updates' signatures against the public key the apps trust, and on a release publishes latest.json,
+  # which installed apps read to find the new version.
+  updater:
+    needs: [windows, macos]
+    if: needs.windows.outputs.updater-signature && needs.macos.outputs.updater-signature
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          path: updates
+
+      - name: Check the signatures match the apps' public key
+        env:
+          WINDOWS_SIG: ${{ needs.windows.outputs.updater-signature }}
+          MACOS_SIG: ${{ needs.macos.outputs.updater-signature }}
+        run: |
+          sudo apt-get install -y -qq minisign >/dev/null
+          python3 -c "import json; print(json.load(open('desktop/src-tauri/tauri.conf.json'))['plugins']['updater']['pubkey'])" | base64 -d > "$RUNNER_TEMP/key.pub"
+          echo "$WINDOWS_SIG" | base64 -d > "$RUNNER_TEMP/windows.sig"
+          echo "$MACOS_SIG" | base64 -d > "$RUNNER_TEMP/macos.sig"
+          windows=(updates/wanna.sh-windows-installer/*-setup.exe)
+          minisign -V -p "$RUNNER_TEMP/key.pub" -m "${windows[0]}" -x "$RUNNER_TEMP/windows.sig"
+          minisign -V -p "$RUNNER_TEMP/key.pub" -m updates/wanna.sh-macos-update/wanna.sh.app.tar.gz -x "$RUNNER_TEMP/macos.sig"
+
+      - name: Publish latest.json
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WINDOWS_SIG: ${{ needs.windows.outputs.updater-signature }}
+          MACOS_SIG: ${{ needs.macos.outputs.updater-signature }}
+        run: |
+          python3 - <<'PY'
+          import datetime, json, os
+          tag = os.environ["GITHUB_REF_NAME"]
+          base = f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/{tag}"
+          manifest = {
+              "version": tag.removeprefix("v"),
+              "notes": f"See what's new: https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/tag/{tag}",
+              "pub_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "platforms": {
+                  "windows-x86_64": {"url": f"{base}/wanna.sh-setup-windows-x64.exe", "signature": os.environ["WINDOWS_SIG"]},
+                  "darwin-aarch64": {"url": f"{base}/wanna.sh-macos-arm64.app.tar.gz", "signature": os.environ["MACOS_SIG"]},
+              },
+          }
+          json.dump(manifest, open("latest.json", "w"), indent=2)
+          PY
+          gh release upload "$GITHUB_REF_NAME" latest.json --clobber
