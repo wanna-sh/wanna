@@ -24,3 +24,7 @@ updates:
   - package-ecosystem: docker
     directory: /
     schedule: { interval: weekly }
+    # Base images stay on long-term-support lines (Ubuntu 24.04, Node 24); move those by hand when it's time.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
