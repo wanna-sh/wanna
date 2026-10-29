@@ -2,7 +2,7 @@
 
 Each version's section becomes its GitHub release notes (see `.github/workflows/release.yml`).
 
-## Unreleased
+## 0.3.0 (2026-10-29)
 
 ### The wanna.sh app for Mac
 
