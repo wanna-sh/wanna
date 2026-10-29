@@ -312,8 +312,9 @@ def system_check(refresh: bool = False) -> list[dict]:
 
     t = _torch_status()
     if not t.get("installed"):
-        add("python", "Pictures, video, voices and music", "fail",
-            "The AI libraries aren't installed. Install wanna.sh with its [ml] extras.")
+        add("python", "Pictures, video, voices and music", "warn",
+            "Not included in the chat-only image. Use ghcr.io/wanna-sh/wanna:latest for these." if os.environ.get("WANNA_IN_DOCKER")
+            else "Not installed (chat-only install). Run the installer again without --chat-only to add them.")
     elif t.get("cuda"):
         add("python", "Pictures, video, voices and music", "ok", f"PyTorch {t.get('version')} with GPU support.")
     else:
