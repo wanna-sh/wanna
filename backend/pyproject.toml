@@ -7,28 +7,28 @@ license = "MIT"
 dependencies = [
     "fastapi>=0.162",
     "uvicorn[standard]>=0.54",
-    "httpx>=0.28",
+    "httpx>=0.28.1",
     "huggingface_hub>=2.3",
-    "nvidia-ml-py>=13.0",
-    "pydantic>=2.10",
-    "python-multipart>=0.0.20",
-    "psutil>=6.0",
-    "pypdf>=5.0",
+    "nvidia-ml-py>=13.615.71",
+    "pydantic>=2.14.1",
+    "python-multipart>=0.0.32",
+    "psutil>=7.2.2",
+    "pypdf>=6.21.2",
     "numpy",  # document search (knowledge libraries)
 ]
 
 [project.optional-dependencies]
 # Everything needed to run image, video, speech, transcription and music models.
 ml = [
-    "torch>=2.6",
+    "torch>=2.14.1",
     "torchvision",
     "diffusers>=0.42",
-    "transformers>=5.0",
-    "accelerate>=1.10",
+    "transformers>=5.20.2",
+    "accelerate>=1.15.0",
     "safetensors",
     "sentencepiece",
     "protobuf",
-    "soundfile>=0.13",
+    "soundfile>=0.14.0",
     "imageio[ffmpeg]",
     "pillow",
     "numpy",
