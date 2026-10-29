@@ -2,6 +2,22 @@
 
 Each version's section becomes its GitHub release notes (see `.github/workflows/release.yml`).
 
+## 0.2.0 (2026-10-29)
+
+### Install without a terminal
+
+- **The wanna.sh app for Windows**: download an installer, open it, and wanna.sh sets itself up and opens in its own
+  window. No terminal, git, Node.js or WSL2 needed, and no administrator rights.
+- **Add-ons on demand**: chat works straight away; pictures, video, voices and music download their AI libraries the
+  first time you use them, matched to your graphics card. This also works for `install.sh --chat-only` installs.
+
+### Fixes
+
+- The chat engine now picks the newest CUDA build your graphics driver supports. On Windows it could pick one the
+  driver was too old for, and an old driver now falls back to the Vulkan build (Windows) or the processor build (Linux)
+  instead of failing.
+- Code's sandbox works when wanna.sh runs natively on Windows.
+
 ## 0.1.0 (2026-10-29)
 
 The first release of wanna.sh: run AI models on your own computer, from one app.

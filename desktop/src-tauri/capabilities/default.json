@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The setup screen. wanna.sh itself (served from 127.0.0.1) gets no access to the desktop app.",
+  "windows": ["main"],
+  "local": true,
+  "permissions": ["core:default"]
+}

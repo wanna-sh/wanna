@@ -41,6 +41,11 @@ jobs:
 
           ## Get it
 
+          **Windows:** download `wanna.sh-setup-windows-x64.exe` below and open it. It isn't code-signed yet, so if
+          Windows says "Windows protected your PC", click **More info**, then **Run anyway**.
+
+          **Linux and macOS:**
+
           ```bash
           curl -fsSL https://raw.githubusercontent.com/{repo}/main/install.sh | WANNA_BRANCH=v{version} bash
           ```

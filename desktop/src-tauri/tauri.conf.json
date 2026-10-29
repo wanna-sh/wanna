@@ -1,0 +1,40 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "wanna.sh",
+  "mainBinaryName": "wanna.sh",
+  "version": "0.2.0",
+  "identifier": "sh.wanna.desktop",
+  "build": {
+    "frontendDist": "../src"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "publisher": "wanna.sh",
+    "homepage": "https://wanna.sh",
+    "shortDescription": "Run AI on your own computer",
+    "longDescription": "Chat, pictures, video, voices, transcription, music, a coding agent and document search, running privately on your own computer.",
+    "category": "Productivity",
+    "copyright": "© 2026 Suraj Kumar. MIT licence.",
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+    "resources": {
+      "../build/backend/": "backend/",
+      "../build/ui/": "ui/",
+      "../build/uv/": "uv/"
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico"
+      },
+      "webviewInstallMode": { "type": "downloadBootstrapper" }
+    }
+  }
+}

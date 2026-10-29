@@ -6,6 +6,10 @@ description: Turn a description into a picture, or restyle a photo of your own.
 **Pictures** turns a description into an image. You need a picture model first: open **Get models → Pictures**.
 Stable Diffusion 1.5 is small and quick; Stable Diffusion XL gives better results if your graphics card has 8 GB or more.
 
+If you installed the Windows app or a chat-only install, the first visit to Pictures (or Videos, Read aloud, Transcribe
+or Music) shows **One more step: picture, video, voice and music support**. Press **Install** for a one-time download of
+the AI libraries, about 3 GB, matched to your graphics card. You can keep chatting meanwhile.
+
 ![The Pictures page](../../../../assets/screens/pictures.webp)
 
 ## Describe your picture

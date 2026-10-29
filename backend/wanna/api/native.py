@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
-from .. import catalog, db, gpu, hub, jobs, presets, readiness, samplers
+from .. import addons, catalog, db, gpu, hub, jobs, presets, readiness, samplers
 from ..config import MODELS_DIR, OUTPUTS_DIR, UPLOADS_DIR, load_settings, save_settings
 from ..downloads import manager as downloads
 from ..engines import llamacpp
@@ -37,6 +37,21 @@ def system():
     info["disk_free"] = shutil.disk_usage(MODELS_DIR).free
     info["tasks"] = hub.TASKS
     return info
+
+
+@router.get("/addons")
+def list_addons():
+    """Optional parts that install on demand: "ml", the AI libraries for pictures, video, voices and music."""
+    return addons.status()
+
+
+@router.post("/addons/ml/install")
+def install_ml_addon():
+    try:
+        addons.install_ml()
+    except RuntimeError as e:
+        raise HTTPException(400, str(e))
+    return addons.status()
 
 
 @router.get("/system/check")

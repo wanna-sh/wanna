@@ -54,7 +54,7 @@ most that fits fully on your cards.
 Models that don't fit on the graphics card can spill into system memory. Before starting one, wanna.sh checks there is
 enough free memory, and it watches memory while models run, stopping a model before your computer runs out.
 
-On Windows with WSL2, see the note on [WSL2 memory](/docs/start/install/#windows).
+On Windows with WSL2, see the note on [WSL2 memory](/docs/start/install/#windows-with-wsl2).
 
 ## No graphics card?
 
