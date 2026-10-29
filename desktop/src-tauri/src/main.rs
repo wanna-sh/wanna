@@ -243,6 +243,27 @@ fn stays_in_app(app: &AppHandle, url: &Url) -> bool {
     matches!(url.host_str(), Some("127.0.0.1" | "localhost")) && url.port() == port
 }
 
+/// The window's first size: 16:9, about 70% of the screen's width, between 1280x720 and 1920x1080, and never taller
+/// than the space above the taskbar.
+fn default_size(app: &AppHandle) -> (f64, f64) {
+    let (screen_w, screen_h) = app
+        .primary_monitor()
+        .ok()
+        .flatten()
+        .map(|m| {
+            let area = m.work_area().size;
+            (area.width as f64 / m.scale_factor(), area.height as f64 / m.scale_factor())
+        })
+        .unwrap_or((1920.0, 1040.0));
+    let mut width = (screen_w * 0.7).clamp(1280.0, 1920.0).min(screen_w * 0.95);
+    let mut height = width * 9.0 / 16.0;
+    if height > screen_h * 0.9 {
+        height = screen_h * 0.9;
+        width = height * 16.0 / 9.0;
+    }
+    (width.round(), height.round())
+}
+
 #[tauri::command]
 fn setup_state(app: AppHandle) -> Setup {
     let mut setup = app.state::<AppState>().setup.lock().unwrap().clone();
@@ -281,10 +302,11 @@ fn main() {
             let handle = app.handle().clone();
             let for_navigation = handle.clone();
             let for_popups = handle.clone();
+            let (width, height) = default_size(&handle);
             WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
                 .title("wanna.sh")
-                .inner_size(1280.0, 820.0)
-                .min_inner_size(860.0, 560.0)
+                .inner_size(width, height)
+                .min_inner_size(960.0, 540.0)
                 .center()
                 .on_navigation(move |url| {
                     if stays_in_app(&for_navigation, url) {

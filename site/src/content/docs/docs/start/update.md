@@ -5,7 +5,10 @@ description: Keep wanna.sh up to date, or remove it completely.
 
 ## Update
 
-Run the installer again. It updates the code, the app and the interface, and keeps your models, chats and settings:
+**Windows app:** download the [latest version](https://github.com/wanna-sh/wanna/releases/latest/download/wanna.sh-setup-windows-x64.exe)
+and open it. It updates the app in place and keeps your models, chats and settings. Close wanna.sh first.
+
+**Linux, macOS and WSL2:** run the installer again. It updates the code, the app and the interface, and keeps your models, chats and settings:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/wanna-sh/wanna/main/install.sh | bash
@@ -28,6 +31,16 @@ Running in Docker? Run `docker compose pull && docker compose up -d` in the `wan
 [Run in Docker](/docs/start/docker/).
 
 ## Uninstall
+
+### Windows app
+
+1. Open **Settings → Apps → Installed apps**, find **wanna.sh**, and choose **Uninstall**.
+2. To also remove its Python and logs, delete `%LOCALAPPDATA%\sh.wanna.desktop`.
+3. To remove your models, pictures and settings, delete `C:\Users\<you>\.wanna`. **This deletes every downloaded
+   model and everything you've made**, so copy anything you want to keep first.
+4. If you used Code, remove its Docker containers and images in Docker Desktop (their names start with `wanna-`).
+
+### Linux, macOS and WSL2
 
 1. Stop wanna.sh.
 2. Remove the app and the `wanna` command:

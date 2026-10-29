@@ -12,6 +12,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 const url = (path: string) => `${base}${path}`;
 const REPO = "https://github.com/wanna-sh/wanna";
 const INSTALL = "curl -fsSL https://raw.githubusercontent.com/wanna-sh/wanna/main/install.sh | bash";
+const WINDOWS_DOWNLOAD = `${REPO}/releases/latest/download/wanna.sh-setup-windows-x64.exe`;
 
 const TOOLS = [
   { key: "chat", verb: "chat with an assistant", label: "Chat", href: "/docs/tutorials/chat/",
@@ -99,7 +100,7 @@ const STEPS = [
             agent in one app, private and working offline once a model is downloaded.
           </p>
           <div class="actions">
-            <a class="btn" href="#install">Install wanna.sh</a>
+            <a class="btn" href="#install">Get wanna.sh</a>
             <a class="btn btn-ghost" href={url("/docs/")}>Read the docs</a>
           </div>
         </div>
@@ -110,10 +111,10 @@ const STEPS = [
         <section id="install" class="band" aria-labelledby="install-title">
           <div class="split">
             <div>
-              <h2 id="install-title">Install in one command</h2>
+              <h2 id="install-title">Get wanna.sh</h2>
               <p class="muted">
-                For Linux, macOS, and Windows with WSL2. You need git and Node.js 20.9 or newer; the installer sets up
-                Python and everything else, then adds a <code>wanna</code> command.
+                On Windows, download the app and open it. It sets everything up the first time, no terminal needed. On
+                Linux and macOS, one command does the same.
               </p>
               <p class="links">
                 <a href={url("/docs/start/requirements/")}>What your computer needs</a>
@@ -122,6 +123,9 @@ const STEPS = [
               </p>
             </div>
             <div>
+              <a class="btn btn-solid" href={WINDOWS_DOWNLOAD}>Download for Windows</a>
+              <p class="muted small">Windows 10 or 11, 64-bit. Free and open source.</p>
+              <p class="small cmd-label">Linux and macOS</p>
               <div class="cmd">
                 <code id="install-cmd">{INSTALL}</code>
                 <button type="button" class="copy" data-copy="install-cmd">Copy</button>
@@ -403,6 +407,10 @@ print(reply.choices[0].message.content)</code></pre>
         background: var(--well); color: var(--ink); font: inherit; font-size: 14px; cursor: pointer; }
       .copy:hover { border-color: var(--slate); }
       .cmd + .muted { margin-top: 12px; }
+      /* The download button sits on the page background, not a painting, so it follows the theme. */
+      .btn-solid { background: var(--accent); color: var(--accent-ink); height: 48px; padding: 0 24px; font-size: 16px; }
+      .btn-solid + .muted { margin-top: 10px; }
+      .cmd-label { margin: 28px 0 8px; font-weight: 500; }
 
       .cards { display: grid; gap: 16px; }
       @media (min-width: 640px) { .cards { grid-template-columns: repeat(2, 1fr); } }

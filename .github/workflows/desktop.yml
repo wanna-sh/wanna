@@ -110,4 +110,7 @@ jobs:
         run: |
           # The release is created by release.yml from the same tag; wait for it.
           for _ in $(seq 1 60); do gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 && break; sleep 10; done
-          gh release upload "$GITHUB_REF_NAME" desktop/src-tauri/target/release/bundle/nsis/*-setup.exe --clobber
+          # A fixed name, so https://github.com/wanna-sh/wanna/releases/latest/download/wanna.sh-setup-windows-x64.exe
+          # always gets the newest version (the website's download button uses it).
+          cp desktop/src-tauri/target/release/bundle/nsis/*-setup.exe "$RUNNER_TEMP/wanna.sh-setup-windows-x64.exe"
+          gh release upload "$GITHUB_REF_NAME" "$RUNNER_TEMP/wanna.sh-setup-windows-x64.exe" --clobber

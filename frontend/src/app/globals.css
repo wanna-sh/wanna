@@ -138,3 +138,9 @@ body {
 .art-fade {
   transition: opacity 450ms ease;
 }
+
+/* Slim scrollbars in the theme's colours. Windows (and the desktop app's window) otherwise shows wide, light ones. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}

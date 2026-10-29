@@ -5,7 +5,8 @@ description: Where wanna.sh keeps its data, its command options and environment 
 
 ## Where things are
 
-Everything wanna.sh downloads or makes lives in one data folder, `~/.wanna` by default:
+Everything wanna.sh downloads or makes lives in one data folder, `~/.wanna` by default (on Windows,
+`C:\Users\<you>\.wanna`):
 
 | Path | What's in it |
 | --- | --- |
@@ -27,6 +28,9 @@ Chats from the Chat page are stored in your browser, not here.
 
 The app itself is installed in `~/wanna.sh` (or wherever you chose with `--dir`), with the `wanna` command linked from
 `~/.local/bin`.
+
+The **Windows app** is installed in `%LOCALAPPDATA%\wanna.sh`. It keeps its own Python, the AI libraries and its logs
+in `%LOCALAPPDATA%\sh.wanna.desktop`, and uses the same `.wanna` data folder as above.
 
 ## Command options
 

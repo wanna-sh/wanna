@@ -21,6 +21,17 @@ or **Not working**:
 
 ## Common problems
 
+### "Windows protected your PC" when installing
+
+The Windows installer isn't code-signed yet. Click **More info**, then **Run anyway**. See
+[Install](/docs/start/install/#windows-download-the-app).
+
+### The Windows app says "wanna.sh couldn't start"
+
+The first start needs an internet connection to download Python and wanna.sh's core parts. Press **Try again**. If it
+keeps failing, press **Open the log folder** and include `setup.log` and `server.log` when you
+[report the problem](https://github.com/wanna-sh/wanna/issues). The logs are in `%LOCALAPPDATA%\sh.wanna.desktop\logs`.
+
 ### The page says "The web UI hasn't been built yet"
 
 The interface wasn't built. Run the installer again, or by hand: `cd ~/wanna.sh/frontend && npm ci && npm run build`,

@@ -12,11 +12,11 @@ to guess.
 | System | Status |
 | --- | --- |
 | **Linux** (x86-64) | Supported. |
-| **Windows 10 or 11** | Supported through [WSL2](https://learn.microsoft.com/windows/wsl/install) (Windows Subsystem for Linux). This is the setup wanna.sh is developed and tested on. |
+| **Windows 10 or 11** (64-bit) | Supported, with the [Windows app](/docs/start/install/#windows-download-the-app). Also runs inside [WSL2](https://learn.microsoft.com/windows/wsl/install) for people who prefer the command line. |
 | **macOS** | The installer and app run. Chat models use Apple's Metal graphics through llama.cpp. Picture, video, voice, transcription and music models run on the processor, which is much slower. |
 
 :::note
-wanna.sh is young, and it has been tested most on Windows with WSL2 and NVIDIA graphics cards. If something doesn't
+wanna.sh is young, and it has been tested most on Windows (the app and WSL2) with NVIDIA graphics cards. If something doesn't
 work on your system, please [open an issue](https://github.com/wanna-sh/wanna/issues).
 :::
 
@@ -49,7 +49,10 @@ in **Settings** tells you whether the AI libraries can use your graphics card.
 
 ## Software
 
-The [installer](/docs/start/install/) checks for these and tells you what's missing:
+**The Windows app needs nothing else.** It sets up everything it uses by itself.
+
+On Linux and macOS, the [install command](/docs/start/install/#linux-and-macos-one-command) checks for these and tells
+you what's missing:
 
 - **git**
 - **Node.js 20.9 or newer**, to build the app's interface. Get it from [nodejs.org](https://nodejs.org) or with
@@ -59,7 +62,8 @@ The [installer](/docs/start/install/) checks for these and tells you what's miss
 The installer sets up Python itself, using [uv](https://docs.astral.sh/uv/).
 
 **Optional:** [Docker](https://docs.docker.com/get-started/get-docker/) is needed only for [Code](/docs/tutorials/code/),
-which runs the agent's commands inside a Docker container. On Windows, use Docker Desktop with WSL integration turned on.
+which runs the agent's commands inside a Docker container. On Windows, use Docker Desktop (with WSL integration turned on
+if you run wanna.sh in WSL2).
 
 ## Internet
 

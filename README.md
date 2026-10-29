@@ -1,17 +1,22 @@
 # wanna.sh
 
-Run AI models on your own computer: chat, pictures, video, read-aloud, transcription and music, from one friendly web app with an OpenAI-compatible API.
+Run AI models on your own computer: chat, pictures, video, read-aloud, transcription, music, a coding agent and document search, from one friendly app with an OpenAI-compatible API.
 
 ## Install
+
+**Windows:** download [wanna.sh for Windows](https://github.com/wanna-sh/wanna/releases/latest/download/wanna.sh-setup-windows-x64.exe)
+and open it. The desktop app (`desktop/`, Tauri) sets up everything on first run and opens wanna.sh in its own window.
+
+**Linux and macOS** (or Windows with WSL2):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/wanna-sh/wanna/main/install.sh | bash
 wanna    # then open http://localhost:7860
 ```
 
-Linux, macOS, or Windows with WSL2. Needs git and Node.js 20.9+; the installer sets up Python with uv. Run it again to
-update; `--chat-only` skips the AI libraries for pictures, video, voices and music. Full guide, tutorials and API docs:
-https://wanna.sh/ (source in `site/`).
+Needs git and Node.js 20.9+; the installer sets up Python with uv. Run it again to update; `--chat-only` skips the AI
+libraries for pictures, video, voices and music (wanna.sh offers to add them when they're first needed). Full guide,
+tutorials and API docs: https://wanna.sh/ (source in `site/`).
 
 ## Docker
 

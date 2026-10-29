@@ -1,9 +1,39 @@
 ---
 title: Install
-description: Install wanna.sh with one command on Linux, macOS or Windows (WSL2), or set it up by hand.
+description: Download the wanna.sh app for Windows, or install it with one command on Linux and macOS.
 ---
 
-## The quick way
+## Windows: download the app
+
+1. Download **[wanna.sh for Windows](https://github.com/wanna-sh/wanna/releases/latest/download/wanna.sh-setup-windows-x64.exe)**
+   (Windows 10 or 11, 64-bit).
+2. Open the file you downloaded. It installs wanna.sh for your account only, so it doesn't ask for administrator
+   rights, and adds it to the Start menu.
+3. wanna.sh opens in its own window. The first time, it downloads Python and its core parts, which takes a minute or
+   two. After that it starts in a few seconds.
+
+Then continue with [your first chat](/docs/start/first-chat/).
+
+:::caution["Windows protected your PC"]
+The installer isn't code-signed yet, so Windows SmartScreen may warn about it. Click **More info**, check the publisher
+line reads *Unknown publisher* and the file is `wanna.sh-setup-windows-x64.exe`, then click **Run anyway**. You can
+check the download first on [GitHub](https://github.com/wanna-sh/wanna/releases/latest), which builds it from the
+public source code.
+:::
+
+Good to know:
+
+- **Chat works straight away.** Pictures, video, voices and music need extra AI libraries (about 3 GB). wanna.sh offers
+  to download them the first time you open one of those pages, matched to your graphics card.
+- **Your graphics card:** keep the NVIDIA driver up to date. wanna.sh picks the chat engine and AI libraries that suit
+  the driver you have.
+- **While the window is open,** other apps can use wanna.sh's [API](/docs/api/) at `http://localhost:7860`. Closing the
+  window stops wanna.sh and frees the graphics card.
+- **Code** needs [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/) for its sandbox.
+- **Where things are:** your models, pictures and settings are in `C:\Users\<you>\.wanna`, the app in
+  `%LOCALAPPDATA%\wanna.sh`, and its Python and logs in `%LOCALAPPDATA%\sh.wanna.desktop`.
+
+## Linux and macOS: one command
 
 Open a terminal and run:
 
@@ -73,9 +103,10 @@ less install.sh
 bash install.sh
 ```
 
-## Windows
+## Windows with WSL2
 
-wanna.sh runs on Windows inside WSL2, a Linux environment built into Windows.
+Prefer the command line? wanna.sh also runs on Windows inside WSL2, a Linux environment built into Windows. Most people
+should use the [Windows app](#windows-download-the-app) instead.
 
 1. **Install WSL2.** Open PowerShell as administrator and run `wsl --install`, then restart. This installs Ubuntu by
    default. See [Microsoft's guide](https://learn.microsoft.com/windows/wsl/install) for details.
