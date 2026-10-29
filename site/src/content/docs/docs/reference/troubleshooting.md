@@ -13,7 +13,7 @@ or **Not working**:
 | **Graphics cards** | *No NVIDIA graphics card found*: everything runs on the processor. Check the card is installed and its driver works (`nvidia-smi` in a terminal should list it). On WSL2, install the driver on Windows. |
 | **Chat engine** | *Not set up yet* is normal: llama.cpp downloads itself the first time you chat. If it failed, check your internet connection and try again. |
 | **Pictures, video, voices and music** | *Not installed (chat-only install)*: run the installer again without `--chat-only`. *Not included in the chat-only image*: use `ghcr.io/wanna-sh/wanna:latest` instead of `latest-chat`. *Can't see a graphics card*: update your NVIDIA driver, then restart wanna.sh. |
-| **Code sandbox** | Install or start Docker. *Being prepared* means the sandbox image is building, which happens once. |
+| **Code sandbox** | Install or start Docker. *Being prepared* means the sandbox image is building, which happens once. *Code is off because wanna.sh runs in Docker*: see [Turning on Code](/docs/start/docker/#turning-on-code). |
 | **Free disk space** | Delete models you don't use in **My models**, or move your [data folder](/docs/reference/files/) with `WANNA_HOME`. |
 | **System memory** | Less than 16 GB works, but stick to models rated **Runs great here**. |
 | **Hugging Face** | Can't reach huggingface.co: installed models still work, but finding and downloading new ones needs internet. |

@@ -157,7 +157,7 @@ class Session:
                 self.emit({"type": "notice", "text": "Stopped."})
                 return
             reply = await self._call_model(worker, model["id"], context)
-            content, calls, thinking = reply["content"], reply["tool_calls"], reply["thinking"]
+            content, calls = reply["content"], reply["tool_calls"]
             if reply["finish"] == "length":
                 # The reply ran past the model's memory. Throw away a half-written tool call, explain, and retry.
                 cutoffs += 1

@@ -6,6 +6,7 @@ import base64
 import json
 import time
 import uuid
+from pathlib import Path
 
 import httpx
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
@@ -225,9 +226,7 @@ async def images_edits(
     return _image_payload(request, job, response_format)
 
 
-def _save_upload(f: UploadFile) -> "Path":
-    from pathlib import Path
-
+def _save_upload(f: UploadFile) -> Path:
     ext = Path(f.filename or "upload").suffix or ".bin"
     path = UPLOADS_DIR / f"{uuid.uuid4().hex}{ext}"
     with open(path, "wb") as out:

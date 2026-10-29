@@ -30,9 +30,9 @@ https://wanna.sh/docs/start/docker/
 cd backend
 uv venv && uv pip install -e ".[ml]"
 
-# Frontend (Node 20+)
+# Frontend (Node.js 20.9+)
 cd ../frontend
-npm install && npm run build
+npm ci && npm run build
 
 # Start (serves the UI and API on one port)
 cd ../backend

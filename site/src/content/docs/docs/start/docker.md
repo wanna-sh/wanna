@@ -93,7 +93,7 @@ your models. Don't run both at the same time on the same folder.
 | `ghcr.io/wanna-sh/wanna:latest` | Everything. |
 | `ghcr.io/wanna-sh/wanna:latest-chat` | Chat and Code only, without the AI libraries for pictures, video, voices and music. Several GB smaller. |
 
-Version tags such as `1.2.3` and `1.2.3-chat` are published too. To build the image yourself instead, run
+Each release is also published by version, for example `0.1.0` and `0.1` (and `0.1.0-chat`, `0.1-chat`). To build the image yourself instead, run
 `docker compose build`, or `docker build --build-arg WITH_ML=0 .` for the chat-only image.
 
 ### No NVIDIA graphics card

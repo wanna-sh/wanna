@@ -1,0 +1,26 @@
+# Weekly dependency updates as pull requests, grouped per ecosystem so they arrive as a few PRs, not dozens.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+    groups:
+      actions: { patterns: ["*"] }
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule: { interval: weekly }
+    groups:
+      frontend: { patterns: ["*"] }
+  - package-ecosystem: npm
+    directory: /site
+    schedule: { interval: weekly }
+    groups:
+      site: { patterns: ["*"] }
+  - package-ecosystem: pip
+    directory: /backend
+    schedule: { interval: weekly }
+    groups:
+      backend: { patterns: ["*"] }
+  - package-ecosystem: docker
+    directory: /
+    schedule: { interval: weekly }

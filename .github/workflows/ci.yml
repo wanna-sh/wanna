@@ -1,0 +1,111 @@
+# Checks every push and pull request: the app starts and answers, the interface and website build, and the scripts,
+# workflows and Docker image are valid. Models aren't downloaded; that's tested by hand on real hardware.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+      - name: Install (chat only, no AI libraries)
+        run: |
+          uv venv --python 3.13 .venv
+          uv pip install --python .venv/bin/python -e .
+      - name: Lint
+        run: uvx ruff check --isolated --select E9,F wanna
+      - name: Start wanna.sh and check it answers
+        env:
+          WANNA_HOME: ${{ runner.temp }}/wanna-home
+        run: |
+          .venv/bin/python -m wanna --port 7860 > "$RUNNER_TEMP/server.log" 2>&1 &
+          for i in $(seq 1 30); do curl -sf localhost:7860/healthz >/dev/null && break; sleep 1; done
+          check() {  # check <expected status> <description> <curl arguments...>
+            want=$1; what=$2; shift 2
+            got=$(curl -s -o /dev/null -w '%{http_code}' "$@")
+            echo "$what: $got"
+            [ "$got" = "$want" ] || { echo "::error::$what returned $got, expected $want"; cat "$RUNNER_TEMP/server.log"; exit 1; }
+          }
+          check 200 "health" localhost:7860/healthz
+          check 200 "OpenAI model list" localhost:7860/v1/models
+          check 200 "system check" localhost:7860/api/system/check
+          check 200 "knowledge status" localhost:7860/api/knowledge/status
+          check 404 "chat with no model installed" -X POST localhost:7860/v1/chat/completions \
+            -H 'Content-Type: application/json' -d '{"messages":[{"role":"user","content":"hi"}]}'
+          check 403 "request from another website" -X POST localhost:7860/api/uploads \
+            -H 'Origin: https://evil.example.com' -F file=@pyproject.toml
+          check 403 "DNS rebinding" localhost:7860/api/settings -H 'Host: evil.example.com'
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --no-fund --no-audit
+      - run: npx tsc --noEmit
+      - run: npx eslint src
+      - run: npm run build
+
+  site:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci --no-fund --no-audit
+      - run: npm run build
+
+  scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+      - name: Shell scripts
+        run: shellcheck install.sh docker/entrypoint.sh
+      - name: Workflows
+        run: uvx --from actionlint-py actionlint
+      - name: Compose files
+        run: |
+          docker compose -f docker-compose.yml config --quiet
+          DOCKER_GID=999 docker compose -f docker-compose.yml -f docker-compose.code.yml config --quiet
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Build the chat-only image and check it starts
+        run: |
+          docker buildx build --load --build-arg WITH_ML=0 -t wanna-ci .
+          mkdir -p "$RUNNER_TEMP/data"
+          docker run -d --name wanna-ci --user "$(id -u):$(id -g)" -p 127.0.0.1:7860:7860 -v "$RUNNER_TEMP/data:/data" wanna-ci
+          for i in $(seq 1 30); do curl -sf localhost:7860/healthz >/dev/null && break; sleep 1; done
+          curl -sf localhost:7860/healthz || { docker logs wanna-ci; exit 1; }

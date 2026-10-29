@@ -42,8 +42,8 @@ Cards don't need to match. For example, an 8 GB and a 12 GB card together run a 
 
 ## Memory for conversation
 
-For chat models, **Memory for conversation** (under **Options**) sets how much text the model keeps in mind, from
-**Short conversations (4K)** to **Very long documents (32K)**. More memory takes more graphics memory.
+For chat models, **Memory for conversation** (under **Options**) sets how much text the model keeps in mind, from 8K
+up to the most the model supports (as much as 128K). More memory takes more graphics memory.
 
 Before a chat model starts, wanna.sh plans exactly how it fits using llama.cpp's own planner, and shows each option as
 fast (fits fully on your graphics cards) or slower (part of it would run on the processor). **Recommended here** is the
