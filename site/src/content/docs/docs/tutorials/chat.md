@@ -43,6 +43,21 @@ first (Whisper models work well). Your browser will ask for permission to use th
 Press **Knowledge** to pick libraries of your documents. Answers then use the passages that match each question and
 cite them, with the sources listed underneath. See [Ask about your documents](/docs/tutorials/knowledge/).
 
+## Search the web
+
+With **Web** on (it is, unless you turn it off), the assistant can search the web and read pages when a question
+needs something it doesn't know, like today's news or the latest version of something. You'll see what it's doing
+(*Searching the web for…*, *Reading python.org…*), and the pages it read are listed under its answer.
+
+- **It needs a model that can use tools.** Most recent models can, such as Qwen 3 and 3.5, and Llama 3.1 and newer.
+  With one that can't, **Web** is greyed out.
+- **Bigger models use it better.** In testing, a 9B model read the right pages and answered correctly, while a 4B
+  model sometimes answered from search snippets alone and got details wrong. Check important facts in the pages it
+  lists.
+- **Privacy:** the searches go to a search engine and the pages are fetched from your computer. What's sent is the
+  search the model writes, not your conversation. Press **Web** to turn it off and keep a chat entirely on your
+  computer; it's remembered for that chat. See [Security and privacy](/docs/reference/security/#privacy).
+
 ## Give the assistant instructions
 
 Press **Instructions** to set guidance the assistant follows for the whole conversation, for example *"You are a
