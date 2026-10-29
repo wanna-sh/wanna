@@ -1,7 +1,7 @@
 {
   "name": "wanna-desktop",
   "private": true,
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "The wanna.sh desktop app: a window around wanna.sh that sets it up and runs it. Built with Tauri.",
   "scripts": {
     "stage": "python3 scripts/stage.py",

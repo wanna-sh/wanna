@@ -2,7 +2,7 @@
 
 Each version's section becomes its GitHub release notes (see `.github/workflows/release.yml`).
 
-## Unreleased
+## 0.3.3 (2026-10-29)
 
 - **Chat can search the web.** With **Web** on, models that can use tools search the web and read pages when a
   question needs current or specific information, show what they're doing, and list the pages they read. It's on by
