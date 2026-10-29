@@ -382,7 +382,10 @@ def _fetch_target(pid, url):
             published = {}
         host_port = published.get(port) or (port if port in published.values() else None)
         if host_port:
-            return urlunsplit((parts.scheme, f"127.0.0.1:{host_port}", parts.path, parts.query, ""))
+            app_port = port if port in published else next(c for c, h in published.items() if h == port)
+            inside = sandbox.app_url(pid, app_port)  # wanna.sh in Docker: go over the shared network
+            base = inside or f"{parts.scheme}://127.0.0.1:{host_port}"
+            return base + urlunsplit(("", "", parts.path, parts.query, ""))
         open_ports = ", ".join(str(p) for p in sorted(published)) or "none yet"
         raise ToolError(
             f"web_fetch can only reach this computer through the project's own app ports ({open_ports}). "

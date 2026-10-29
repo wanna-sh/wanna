@@ -12,7 +12,7 @@ can preview.
 ## Before you start
 
 - **Docker** must be installed and running. The agent's commands run inside a Docker container (the *sandbox*), never
-  directly on your computer. The first time, wanna.sh prepares the sandbox image, which takes a few minutes.
+  directly on your computer. See [what the sandbox can reach](#what-the-sandbox-can-reach).
 - **A chat model that can use tools.** In the model menu, models are marked **Can use tools** or **Can't use tools**.
   Bigger models do much better at coding: a 3B model can write a small file, while a model of 14B or more can build a
   multi-file app.
@@ -66,8 +66,41 @@ exact command in this project.
 | `web_search` | Search the web. |
 | `web_fetch` | Read a web page or PDF, such as documentation. |
 
-Files outside the project folder are off limits. The sandbox has internet access (so the agent can install packages)
-and is limited to 4 GB of memory and 4 processor cores.
+## What the sandbox can reach
+
+The sandbox is a Docker container that only sees its project folder. Commands run as your own user ID, with no
+administrator rights, so files the agent creates belong to you.
+
+| | |
+| --- | --- |
+| **The internet** | Yes, so the agent can install packages and read documentation. |
+| **Its own servers** (`localhost` inside the sandbox) | Yes. |
+| **Your computer** (including wanna.sh itself and anything else running on it) | No. |
+| **Your local network** (router, printers, other computers, NAS) | No. |
+| **Cloud metadata addresses** (`169.254.169.254`) | No. |
+| **Other files on your computer** | No, only the project folder. |
+
+A small firewall inside each sandbox blocks your computer, your local network (all private addresses) and link-local
+addresses. It's set up from outside the sandbox, which itself has no permission to change network settings, so
+nothing the agent runs can turn it off. If the firewall can't be set up, the sandbox doesn't start.
+
+Each sandbox is also limited to 4 GB of memory, 4 processor cores and 512 processes.
+
+:::note[What approval protects]
+The sandbox protects your computer from what runs inside it. Approval protects *the project*: in **Don't ask** mode the
+agent can delete or rewrite any file in the project folder, and use the internet as it sees fit. Keep important work
+in git, or use **Ask before any change**.
+:::
+
+For the full picture, including what Docker access means, see [Security](/docs/reference/security/#codes-sandbox).
+
+:::caution
+Anyone who can open wanna.sh can create Code projects and run commands in a sandbox. Keep wanna.sh private to your
+computer, or turn on [Require API key](/docs/guides/network/) before sharing it.
+:::
+
+The first time you use Code, wanna.sh builds the sandbox image (Node.js 24, Python 3, git and common tools), which takes
+a few minutes.
 
 ### Web search
 

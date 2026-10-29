@@ -73,6 +73,19 @@ Chat (including streaming, tool calls with GGUF models, and pictures for models 
 image generation and editing, text to speech, transcription and translation, and video. See the
 [API reference](/docs/api/) for details and the differences from OpenAI.
 
+## Web apps in the browser
+
+The address above works for apps, scripts, plugins and servers. A **web page** that calls wanna.sh directly from your
+browser is different: wanna.sh refuses requests from other websites by default, so a page you happen to visit can't use
+your models. To allow a web app you trust, start wanna.sh with its origin in `WANNA_CORS`:
+
+```bash
+WANNA_CORS=http://localhost:3000 wanna
+```
+
+Web apps that call wanna.sh from their own server (such as Open WebUI) don't need this. See
+[Security](/docs/reference/security/#protection-from-websites).
+
 ## From another device
 
 To use wanna.sh from another computer or phone on your network, see

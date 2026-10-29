@@ -21,7 +21,7 @@ import httpx
 import psutil
 
 from . import gpu
-from .config import LOGS_DIR, MODELS_DIR, load_settings
+from .config import DOCKER_NETWORK, LOGS_DIR, MODELS_DIR, load_settings
 from .engines import llamacpp
 
 log = logging.getLogger("wanna.readiness")
@@ -323,9 +323,14 @@ def system_check(refresh: bool = False) -> list[dict]:
 
     from .code import sandbox
 
-    ds = sandbox.docker_status()
-    add("docker", "Code sandbox", "ok" if ds["docker"] and ds["image"] else ("warn" if ds["docker"] else "fail"),
-        f"Docker {ds.get('version')}, sandbox ready." if ds["docker"] and ds["image"] else ds["message"])
+    code_off_in_docker = bool(os.environ.get("WANNA_IN_DOCKER")) and not DOCKER_NETWORK
+    if code_off_in_docker:
+        add("docker", "Code sandbox", "warn", "Code is off because wanna.sh runs in Docker. To turn it on, see "
+            "\"Turning on Code\" in the Docker guide; it gives wanna.sh access to Docker on your computer.")
+    else:
+        ds = sandbox.docker_status()
+        add("docker", "Code sandbox", "ok" if ds["docker"] and ds["image"] else ("warn" if ds["docker"] else "fail"),
+            f"Docker {ds.get('version')}, sandbox ready." if ds["docker"] and ds["image"] else ds["message"])
 
     free = shutil.disk_usage(MODELS_DIR).free
     add("disk", "Free disk space", "ok" if free > 50e9 else ("warn" if free > 10e9 else "fail"),
@@ -344,7 +349,9 @@ def system_check(refresh: bool = False) -> list[dict]:
 
     from .code import search
 
-    if (load_settings().get("brave_api_key") or "").strip():
+    if code_off_in_docker:
+        add("search", "Web search for Code", "warn", "Off, along with Code.")
+    elif (load_settings().get("brave_api_key") or "").strip():
         add("search", "Web search for Code", "ok", "Brave Search, using your API key, with local SearXNG as backup.")
     else:
         sx = search.searxng_state()

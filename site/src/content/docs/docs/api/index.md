@@ -88,6 +88,7 @@ Errors use OpenAI's shape:
 | Status | When |
 | --- | --- |
 | `401` | API keys are required and the key is missing or wrong (`invalid_api_key`). |
+| `403` | The request came from a web page on another site, or used a host name wanna.sh doesn't answer to. The message says which setting allows it (`WANNA_CORS` or `WANNA_ALLOWED_HOSTS`); see [Security](/docs/reference/security/#protection-from-websites). |
 | `404` | The model isn't installed, or is for a different task (`model_not_found`). |
 | `500` | Generation failed (`generation_failed`, `transcription_failed`). |
 | `503` | The model couldn't start, for example not enough memory (`model_load_failed`). |

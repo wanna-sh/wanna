@@ -31,8 +31,27 @@ Start wanna.sh with `--host 0.0.0.0`:
 wanna --host 0.0.0.0
 ```
 
-Other devices can now reach it at `http://<this-computer's-address>:7860`. If you start it this way without **Require
-API key** turned on, wanna.sh prints a warning.
+Other devices can now reach it at `http://<this-computer's-address>:7860`, using the computer's IP address. If you start
+it this way without **Require API key** turned on, wanna.sh prints a warning.
+
+To use a name with a dot in it instead, such as `mypc.local`, add it to `WANNA_ALLOWED_HOSTS`:
+
+```bash
+WANNA_ALLOWED_HOSTS=mypc.local wanna --host 0.0.0.0
+```
+
+wanna.sh only answers to names it knows, which protects it from "DNS rebinding" attacks by websites. See
+[Security](/docs/reference/security/#protection-from-websites).
+
+### Behind a reverse proxy
+
+If you put a reverse proxy (such as Caddy or nginx) with HTTPS in front of wanna.sh:
+
+- Add the proxy's domain to `WANNA_ALLOWED_HOSTS`, for example `WANNA_ALLOWED_HOSTS=wanna.example.com`.
+- Have the proxy pass the original `Host` header through (Caddy does by default; in nginx use
+  `proxy_set_header Host $host;`). wanna.sh compares it with the browser's `Origin` to recognise its own interface.
+- Long replies stream as server-sent events, so turn off response buffering for wanna.sh (in nginx,
+  `proxy_buffering off;`).
 
 :::caution
 - The connection is plain HTTP, not encrypted. Only share wanna.sh on networks you trust, and never expose port 7860

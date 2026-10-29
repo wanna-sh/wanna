@@ -44,6 +44,7 @@ export default defineConfig({
             { label: "What is wanna.sh?", slug: "docs" },
             { slug: "docs/start/requirements" },
             { slug: "docs/start/install" },
+            { slug: "docs/start/docker" },
             { slug: "docs/start/first-chat" },
             { slug: "docs/start/update" },
           ],
@@ -84,6 +85,7 @@ export default defineConfig({
           label: "Reference",
           items: [
             { slug: "docs/reference/settings" },
+            { slug: "docs/reference/security" },
             { slug: "docs/reference/files" },
             { slug: "docs/reference/troubleshooting" },
             { slug: "docs/reference/faq" },

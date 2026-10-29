@@ -20,6 +20,9 @@ cd ~/wanna.sh
 
 Stop wanna.sh first (press **Ctrl+C** in its terminal), and start it again with `wanna` afterwards.
 
+Running in Docker? Run `docker compose pull && docker compose up -d` in the `wanna.sh` folder. See
+[Run in Docker](/docs/start/docker/).
+
 ## Uninstall
 
 1. Stop wanna.sh.
@@ -40,8 +43,11 @@ Stop wanna.sh first (press **Ctrl+C** in its terminal), and start it again with 
 
    ```bash
    docker rm -f $(docker ps -aq --filter label=wanna.code=1) $(docker ps -aq --filter label=wanna.search=1)
-   docker images | grep -E "wanna-sandbox|searxng"   # then: docker rmi <image>
+   docker images | grep -E "wanna-sandbox|searxng|wanna.sh"   # then: docker rmi <image>
    ```
+
+   If you ran wanna.sh itself in Docker, also run `docker compose down` in the `wanna.sh` folder, and
+   `docker network rm wanna-code` if you turned on Code.
 
 Chats are stored in your browser. To remove them, use **Chat → Chats → Delete all chats** before uninstalling, or clear
 the site data for `localhost:7860` in your browser.

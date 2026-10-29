@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 
 
 def main() -> None:
@@ -17,7 +18,12 @@ def main() -> None:
 
     from .config import load_settings
 
-    if args.host not in ("127.0.0.1", "localhost") and not load_settings().get("require_api_key"):
+    if os.environ.get("WANNA_IN_DOCKER"):
+        logging.info(
+            "Running in Docker. Publish port %s only on 127.0.0.1 (docker-compose.yml does) unless 'Require API key' "
+            "is on in Settings.", args.port,
+        )
+    elif args.host not in ("127.0.0.1", "localhost") and not load_settings().get("require_api_key"):
         logging.warning(
             "wanna.sh is reachable from your network without an API key. "
             "Turn on 'Require API key' in Settings to protect it."
@@ -25,7 +31,8 @@ def main() -> None:
 
     import uvicorn
 
-    print(f"\n  wanna.sh is starting at http://{'localhost' if args.host == '127.0.0.1' else args.host}:{args.port}\n")
+    shown = "localhost" if args.host == "127.0.0.1" or os.environ.get("WANNA_IN_DOCKER") else args.host
+    print(f"\n  wanna.sh is starting at http://{shown}:{args.port}\n")
     uvicorn.run("wanna.app:app", host=args.host, port=args.port, reload=args.reload, log_level="info")
 
 

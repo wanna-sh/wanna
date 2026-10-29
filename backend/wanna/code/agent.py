@@ -156,7 +156,7 @@ class Session:
             if self.cancel.is_set():
                 self.emit({"type": "notice", "text": "Stopped."})
                 return
-            reply = await self._call_model(worker.url, model["id"], context)
+            reply = await self._call_model(worker, model["id"], context)
             content, calls, thinking = reply["content"], reply["tool_calls"], reply["thinking"]
             if reply["finish"] == "length":
                 # The reply ran past the model's memory. Throw away a half-written tool call, explain, and retry.
@@ -200,7 +200,7 @@ class Session:
                 meta = projects.get(self.pid) or meta  # "always allow" may have changed
         self.emit({"type": "notice", "text": f"Paused after {MAX_STEPS} steps. Say \"continue\" to keep going."})
 
-    async def _call_model(self, url: str, model_id: str, context: int) -> dict:
+    async def _call_model(self, worker, model_id: str, context: int) -> dict:
         """One streamed request. Text appears live; tool calls are collected from their deltas."""
         fitted, info = self._fit(context)
         log.info("code %s: %d messages, %d of %d chars budget%s", self.pid, len(fitted), info["after"], info["budget"],
@@ -225,8 +225,8 @@ class Session:
         calls: dict[int, dict] = {}
         event = None
         last_push = 0.0
-        async with httpx.AsyncClient(timeout=httpx.Timeout(None, connect=10)) as client:
-            async with client.stream("POST", f"{url}/v1/chat/completions", json=payload) as r:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(None, connect=10), headers=worker.headers) as client:
+            async with client.stream("POST", f"{worker.url}/v1/chat/completions", json=payload) as r:
                 if r.status_code != 200:
                     body = (await r.aread()).decode(errors="replace")
                     raise RuntimeError(_model_error(body))

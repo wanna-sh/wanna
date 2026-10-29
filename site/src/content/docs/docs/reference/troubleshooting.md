@@ -31,6 +31,17 @@ then restart wanna.sh.
 `~/.local/bin` isn't on your PATH. Add `export PATH="$HOME/.local/bin:$PATH"` to `~/.bashrc` (or `~/.zshrc`) and open a
 new terminal, or run `~/wanna.sh/backend/.venv/bin/wanna` directly.
 
+### "Requests from web pages on ... aren't allowed"
+
+A web page on another site tried to use wanna.sh, and wanna.sh refused, which is what protects you from websites you
+visit. If it's your own web app, add its origin to `WANNA_CORS`. See
+[Security](/docs/reference/security/#protection-from-websites).
+
+### "wanna.sh doesn't answer to the name ..."
+
+You opened wanna.sh with a host name it doesn't know, such as `mypc.local` or a domain behind a reverse proxy. Add the
+name to `WANNA_ALLOWED_HOSTS`, or use `localhost` or the computer's IP address.
+
 ### Port 7860 is already in use
 
 Another program (or another copy of wanna.sh) is using it. Stop it, or start wanna.sh on another port:

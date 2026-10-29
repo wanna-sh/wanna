@@ -90,10 +90,10 @@ async def _run(job: Job) -> None:
         job.status = "loading"
         worker = await manager.ensure_ready(job.model)
         job.status = "running"
-        poller = asyncio.create_task(_poll_progress(job, worker.url))
+        poller = asyncio.create_task(_poll_progress(job, worker.url, worker.headers))
         try:
             async with httpx.AsyncClient(timeout=None) as c:
-                r = await c.post(f"{worker.url}/run", json=job.params)
+                r = await c.post(f"{worker.url}/run", json=job.params, headers=worker.headers)
         finally:
             poller.cancel()
         if r.status_code != 200:
@@ -115,8 +115,8 @@ async def _run(job: Job) -> None:
         job.done.set()
 
 
-async def _poll_progress(job: Job, url: str) -> None:
-    async with httpx.AsyncClient(timeout=2) as c:
+async def _poll_progress(job: Job, url: str, headers: dict) -> None:
+    async with httpx.AsyncClient(timeout=2, headers=headers) as c:
         while True:
             await asyncio.sleep(0.5)
             try:

@@ -7,9 +7,11 @@ only the GPUs this model was assigned. Talks to the main server over local HTTP.
 from __future__ import annotations
 
 import argparse
+import hmac
 import inspect
 import json
 import logging
+import os
 import subprocess
 import threading
 import time
@@ -18,7 +20,7 @@ import uuid
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 log = logging.getLogger("wanna.worker")
@@ -413,6 +415,14 @@ HANDLERS = {
 # --- server -----------------------------------------------------------------
 
 app = FastAPI()
+TOKEN = os.environ.get("WANNA_WORKER_TOKEN", "")
+
+
+def _authorized(request: Request) -> None:
+    """Only wanna.sh, which started this worker and knows its secret, may run the model."""
+    given = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
+    if TOKEN and not hmac.compare_digest(given, TOKEN):
+        raise HTTPException(401, "Missing or wrong worker token")
 
 
 @app.get("/health")
@@ -420,7 +430,7 @@ def health():
     return STATE
 
 
-@app.post("/run")
+@app.post("/run", dependencies=[Depends(_authorized)])
 def run(params: dict):
     if STATE["status"] != "ready":
         raise HTTPException(503, STATE.get("error") or "Model is still loading")
@@ -436,7 +446,7 @@ def run(params: dict):
             _free_cache()
 
 
-@app.post("/stream")
+@app.post("/stream", dependencies=[Depends(_authorized)])
 def stream(params: dict):
     if STATE["status"] != "ready" or not hasattr(handler, "stream"):
         raise HTTPException(503, "Streaming not available")

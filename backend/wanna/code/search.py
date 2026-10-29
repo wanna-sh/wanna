@@ -20,7 +20,8 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 import httpx
 
-from ..config import HOME, load_settings
+from ..config import DOCKER_NETWORK, HOME, host_path, load_settings
+from .sandbox import join_network, network_args
 
 log = logging.getLogger("wanna.code.search")
 
@@ -78,6 +79,9 @@ def searxng_state() -> str:
 
 
 def _searxng_url() -> str | None:
+    if DOCKER_NETWORK:  # wanna.sh runs in Docker: reach SearXNG over the shared network
+        join_network(SEARXNG_CONTAINER)
+        return f"http://{SEARXNG_CONTAINER}:8080"
     r = subprocess.run(["docker", "port", SEARXNG_CONTAINER, "8080"], capture_output=True, text=True, timeout=15)
     m = re.search(r":(\d+)\s*$", r.stdout.strip().splitlines()[0] if r.stdout.strip() else "")
     return f"http://127.0.0.1:{m.group(1)}" if m else None
@@ -95,7 +99,7 @@ def ensure_searxng(timeout: float = 120) -> str:
             _write_settings()
             r = subprocess.run(
                 ["docker", "run", "-d", "--name", SEARXNG_CONTAINER, "--label", "wanna.search=1",
-                 "-p", "127.0.0.1::8080", "-v", f"{SEARXNG_DIR}:/etc/searxng", SEARXNG_IMAGE],
+                 "-p", "127.0.0.1::8080", "-v", f"{host_path(SEARXNG_DIR)}:/etc/searxng", *network_args(), SEARXNG_IMAGE],
                 capture_output=True, text=True, timeout=600,  # the first run downloads the image (~100 MB)
             )
             if r.returncode != 0:

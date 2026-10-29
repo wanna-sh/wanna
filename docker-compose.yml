@@ -1,0 +1,30 @@
+# wanna.sh in Docker. Full guide, including security: https://surajkumar.github.io/wanna.sh/docs/start/docker/
+#
+#   mkdir -p ~/.wanna
+#   docker compose up -d            # then open http://localhost:7860
+#
+# Code (the coding agent) is off in this setup. To turn it on, read the guide's security section first, then:
+#   docker compose -f docker-compose.yml -f docker-compose.code.yml up -d
+
+services:
+  wanna:
+    image: ghcr.io/surajkumar/wanna.sh:latest
+    build: .
+    container_name: wanna
+    # Run as your own user, so files in the data folder stay yours. Set WANNA_UID/WANNA_GID if yours aren't 1000.
+    user: "${WANNA_UID:-1000}:${WANNA_GID:-1000}"
+    ports:
+      # Only this computer can connect. Don't change this without reading "Network access" in the guide.
+      - "127.0.0.1:7860:7860"
+    volumes:
+      # Models, pictures, settings... the same folder a normal install uses, so you can switch between them.
+      - "${WANNA_DATA:-${HOME}/.wanna}:/data"
+    # Graphics cards (needs the NVIDIA Container Toolkit). No NVIDIA card? Delete this whole "deploy" section.
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped

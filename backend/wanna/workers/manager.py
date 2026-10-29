@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import secrets
 import signal
 import socket
 import subprocess
@@ -96,10 +97,17 @@ class Worker:
         self.progress: dict = {}
         self.estimated_bytes = model.get("size_bytes", 0)
         self.plan: dict | None = None  # llama-fit-params result used for this load
+        # The engine's port is on 127.0.0.1, but other programs and web pages (via DNS rebinding) could still reach it.
+        # Every request to it carries this secret; only wanna.sh knows it.
+        self.token = secrets.token_urlsafe(24)
 
     @property
     def url(self) -> str:
         return f"http://127.0.0.1:{self.port}"
+
+    @property
+    def headers(self) -> dict:
+        return {"Authorization": f"Bearer {self.token}"}
 
     def start(self) -> None:
         if self.engine == "llamacpp":
@@ -109,6 +117,7 @@ class Worker:
                 self.gpus, self.split, mmproj=meta.get("mmproj"), alias=self.id,
                 gpu_layers=(self.plan or {}).get("gpu_layers") if self.plan else None,
             )
+            env["LLAMA_API_KEY"] = self.token  # via the environment, so it isn't visible in the process list
         else:
             meta = self.model.get("meta") or {}
             cmd = [
@@ -123,6 +132,7 @@ class Worker:
             env = dict(os.environ)
             env["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
             env["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, self.gpus)) if self.gpus else ""
+            env["WANNA_WORKER_TOKEN"] = self.token
             env["PYTHONUNBUFFERED"] = "1"
             env.setdefault("HF_HUB_OFFLINE", "1")
             env["PYTHONPATH"] = str(Path(__file__).resolve().parents[2]) + os.pathsep + env.get("PYTHONPATH", "")
@@ -142,7 +152,7 @@ class Worker:
                     self.ready.set()
                     return
                 try:
-                    r = c.get(f"{self.url}/health")
+                    r = c.get(f"{self.url}/health", headers=self.headers)
                     if r.status_code == 200:
                         body = r.json() if "json" in r.headers.get("content-type", "") else {}
                         st = body.get("status", "ok")

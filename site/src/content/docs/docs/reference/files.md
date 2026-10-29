@@ -43,6 +43,16 @@ wanna [--host HOST] [--port PORT] [--reload]
 | --- | --- |
 | `WANNA_HOME` | Use a different data folder instead of `~/.wanna`. |
 | `HF_TOKEN` | A Hugging Face token, used when none is saved in Settings. |
+| `WANNA_CORS` | Web origins allowed to call the API from a browser, comma separated (for example `http://localhost:3000`). None by default. See [Security](/docs/reference/security/#protection-from-websites). |
+| `WANNA_ALLOWED_HOSTS` | Extra host names wanna.sh answers to, comma separated (for example `mypc.local`). `localhost`, IP addresses and single-word names always work. |
 | `WANNA_UI_DIR` | Serve the interface from a different folder (the built `frontend/out` by default). |
 | `WANNA_LLAMACPP_TAG` | Use a different llama.cpp release than the tested one. |
 | `WANNA_SANDBOX_IMAGE` | Use a different Docker image for Code's sandbox. |
+
+These are set by the Docker image and compose files; see [Run in Docker](/docs/start/docker/):
+
+| Variable | What it does |
+| --- | --- |
+| `WANNA_IN_DOCKER` | Set inside the image. Changes the startup message about network access. |
+| `WANNA_HOST_HOME` | With Code on in Docker: the data folder's path on the host, for the sandbox's folder mounts. |
+| `WANNA_DOCKER_NETWORK` | With Code on in Docker: the network wanna.sh shares with its sandbox and search containers. Requests from it are refused. |

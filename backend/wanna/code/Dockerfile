@@ -1,8 +1,9 @@
 # The sandbox Code projects run their commands in: Node 24 + Python 3 + git + common build tools.
 # Commands run as the host user, so HOME must be writable for any uid.
+# iptables is only used by wanna.sh's short-lived firewall helper (see sandbox.py); the sandbox user can't run it.
 FROM node:24-bookworm
 RUN apt-get update \
- && apt-get install -y --no-install-recommends python3-pip python3-venv python-is-python3 ripgrep less \
+ && apt-get install -y --no-install-recommends python3-pip python3-venv python-is-python3 ripgrep less iptables \
  && rm -rf /var/lib/apt/lists/* \
  && mkdir -p /home/wanna && chmod 1777 /home/wanna
 ENV HOME=/home/wanna \

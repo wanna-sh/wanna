@@ -1,0 +1,25 @@
+# Turns on Code (the coding agent) for wanna.sh in Docker. Use it together with docker-compose.yml:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.code.yml up -d
+#
+# SECURITY: this gives wanna.sh your host's Docker socket. Anything that controls the Docker socket can control
+# your computer as root. Read "Turning on Code" in the guide before using this:
+# https://surajkumar.github.io/wanna.sh/docs/start/docker/#turning-on-code
+
+services:
+  wanna:
+    environment:
+      # Where the data folder is on the host, so the sandbox can mount project folders. Must be an absolute path.
+      WANNA_HOST_HOME: "${WANNA_DATA:-${HOME}/.wanna}"
+      # wanna.sh reaches the sandboxes and its search engine over this network.
+      WANNA_DOCKER_NETWORK: wanna-code
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    group_add:
+      # The group that owns the Docker socket on the host: stat -c %g /var/run/docker.sock
+      - "${DOCKER_GID:?Set DOCKER_GID to the Docker socket's group: export DOCKER_GID=$(stat -c %g /var/run/docker.sock)}"
+    networks: [default, code]
+
+networks:
+  code:
+    name: wanna-code

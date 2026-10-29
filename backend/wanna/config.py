@@ -19,6 +19,20 @@ SETTINGS_PATH = HOME / "settings.json"
 for _d in (MODELS_DIR, OUTPUTS_DIR, UPLOADS_DIR, ENGINES_DIR, LOGS_DIR):
     _d.mkdir(parents=True, exist_ok=True)
 
+# Running wanna.sh itself in Docker with Code turned on (docker-compose.code.yml). Containers wanna.sh starts
+# (the Code sandbox, SearXNG) are created by the host's Docker, so:
+# - WANNA_HOST_HOME is where the data folder is on the host, for their bind mounts;
+# - WANNA_DOCKER_NETWORK is a network shared with them, so wanna.sh reaches them by name, not 127.0.0.1.
+HOST_HOME = os.environ.get("WANNA_HOST_HOME") or None
+DOCKER_NETWORK = os.environ.get("WANNA_DOCKER_NETWORK") or None
+
+
+def host_path(path: Path) -> str:
+    """Where `path` (inside the data folder) is on the Docker host. The same path unless wanna.sh runs in Docker."""
+    if not HOST_HOME:
+        return str(path)
+    return str(Path(HOST_HOME) / Path(path).resolve().relative_to(HOME.resolve()))
+
 DEFAULT_SETTINGS = {
     # Hugging Face token, needed for gated models (e.g. FLUX.1).
     "hf_token": "",

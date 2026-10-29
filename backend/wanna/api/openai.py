@@ -82,7 +82,7 @@ async def chat_completions(request: Request):
     body["model"] = model["id"]
 
     if model["engine"] == "llamacpp":
-        return await _proxy(worker.url + "/v1/chat/completions", body)
+        return await _proxy(worker.url + "/v1/chat/completions", body, worker.headers)
     return await _transformers_chat(worker, model, body)
 
 
@@ -94,11 +94,11 @@ async def completions(request: Request):
         raise _err(400, "Text completions are only available for GGUF chat models. Use /v1/chat/completions.")
     worker = await _ready(model)
     body["model"] = model["id"]
-    return await _proxy(worker.url + "/v1/completions", body)
+    return await _proxy(worker.url + "/v1/completions", body, worker.headers)
 
 
-async def _proxy(url: str, body: dict):
-    client = httpx.AsyncClient(timeout=httpx.Timeout(None, connect=10))
+async def _proxy(url: str, body: dict, headers: dict):
+    client = httpx.AsyncClient(timeout=httpx.Timeout(None, connect=10), headers=headers)
     if body.get("stream"):
         req = client.build_request("POST", url, json=body)
         r = await client.send(req, stream=True)
@@ -128,7 +128,7 @@ async def _transformers_chat(worker, model: dict, body: dict):
     created = int(time.time())
     if not body.get("stream"):
         async with httpx.AsyncClient(timeout=None) as c:
-            r = await c.post(worker.url + "/run", json=body)
+            r = await c.post(worker.url + "/run", json=body, headers=worker.headers)
         if r.status_code != 200:
             raise _err(r.status_code, r.text)
         out = r.json()
@@ -148,7 +148,7 @@ async def _transformers_chat(worker, model: dict, body: dict):
 
         yield chunk({"role": "assistant", "content": ""})
         async with httpx.AsyncClient(timeout=None) as c:
-            async with c.stream("POST", worker.url + "/stream", json=body) as r:
+            async with c.stream("POST", worker.url + "/stream", json=body, headers=worker.headers) as r:
                 async for line in r.aiter_lines():
                     if not line:
                         continue

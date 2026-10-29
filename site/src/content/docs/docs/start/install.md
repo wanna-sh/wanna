@@ -114,3 +114,7 @@ cd ../backend
 ```
 
 `python -m wanna` and the `wanna` command are the same thing. See [command options](/docs/reference/files/#command-options).
+
+## Docker
+
+wanna.sh also runs in a container. See [Run in Docker](/docs/start/docker/).
