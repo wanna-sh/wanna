@@ -11,14 +11,25 @@ updates:
     schedule: { interval: weekly }
     groups:
       frontend: { patterns: ["*"] }
+    # Major versions (TypeScript, ESLint, ...) need the Next.js/Astro tooling to support them first: update by hand.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: npm
     directory: /site
     schedule: { interval: weekly }
     groups:
       site: { patterns: ["*"] }
+    # Major versions (TypeScript, ESLint, ...) need the Next.js/Astro tooling to support them first: update by hand.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: pip
     directory: /backend
     schedule: { interval: weekly }
+    # Requirements are open-ended (">="), so installs already get new versions. Only change one when a new version
+    # falls outside it.
+    versioning-strategy: increase-if-necessary
     groups:
       backend: { patterns: ["*"] }
   - package-ecosystem: docker
