@@ -84,9 +84,9 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           npm ci --no-fund --no-audit
-          [ -n "$TAURI_SIGNING_PRIVATE_KEY" ] || UPDATER_CONFIG='{"bundle":{"createUpdaterArtifacts":false}}'
-          npx tauri build --config "{\"version\":\"$VERSION\"}" ${SIGN_CONFIG:+--config "$SIGN_CONFIG"} \
-            ${UPDATER_CONFIG:+--config "$UPDATER_CONFIG"}
+          updater=()
+          [ -n "$TAURI_SIGNING_PRIVATE_KEY" ] || updater=(--config '{"bundle":{"createUpdaterArtifacts":false}}')
+          npx tauri build --config "{\"version\":\"$VERSION\"}" ${SIGN_CONFIG:+--config "$SIGN_CONFIG"} "${updater[@]}"
           ls src-tauri/target/release/bundle/nsis/
 
       - name: Update signature
