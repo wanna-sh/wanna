@@ -5,7 +5,7 @@
 #   docker build -t wanna.sh:chat --build-arg WITH_ML=0 .   # chat and Code only, several GB smaller
 
 # --- The interface (Next.js static export) --------------------------------------------------------------
-FROM node:24-bookworm-slim AS ui
+FROM node:25-bookworm-slim AS ui
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --no-fund --no-audit
