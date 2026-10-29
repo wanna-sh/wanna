@@ -34,7 +34,7 @@ jobs:
           WANNA_HOME: ${{ runner.temp }}/wanna-home
         run: |
           .venv/bin/python -m wanna --port 7860 > "$RUNNER_TEMP/server.log" 2>&1 &
-          for i in $(seq 1 30); do curl -sf localhost:7860/healthz >/dev/null && break; sleep 1; done
+          for _ in $(seq 1 30); do curl -sf localhost:7860/healthz >/dev/null && break; sleep 1; done
           check() {  # check <expected status> <description> <curl arguments...>
             want=$1; what=$2; shift 2
             got=$(curl -s -o /dev/null -w '%{http_code}' "$@")
@@ -108,5 +108,5 @@ jobs:
           docker buildx build --load --build-arg WITH_ML=0 -t wanna-ci .
           mkdir -p "$RUNNER_TEMP/data"
           docker run -d --name wanna-ci --user "$(id -u):$(id -g)" -p 127.0.0.1:7860:7860 -v "$RUNNER_TEMP/data:/data" wanna-ci
-          for i in $(seq 1 30); do curl -sf localhost:7860/healthz >/dev/null && break; sleep 1; done
+          for _ in $(seq 1 30); do curl -sf localhost:7860/healthz >/dev/null && break; sleep 1; done
           curl -sf localhost:7860/healthz || { docker logs wanna-ci; exit 1; }
