@@ -73,10 +73,13 @@
       const invoke = window.__TAURI__.core.invoke;
       const message = document.getElementById("message");
       const error = document.getElementById("error");
+      const note = document.querySelector("main > .note");
       async function poll() {
         try {
           const s = await invoke("setup_state");
           if (s.message) message.textContent = s.message;
+          // The note about the first start doesn't apply while updating.
+          note.hidden = !!s.message && s.message.startsWith("Updating");
           document.body.classList.toggle("failed", !!s.error);
           if (s.error) error.textContent = s.error;
         } catch (e) {
