@@ -59,4 +59,11 @@ On Windows with WSL2, see the note on [WSL2 memory](/docs/start/install/#windows
 ## No graphics card?
 
 Everything still works on the processor, just much more slowly. Small chat models (3B or less) are usable; pictures,
-music and especially video will take a long time. On macOS, chat models use the graphics through Apple's Metal.
+music and especially video will take a long time.
+
+## Macs
+
+On a Mac with Apple Silicon, wanna.sh uses its built-in GPU: chat through Apple's Metal, and pictures, video, voices,
+transcription and music through PyTorch (on macOS 15 or newer). The GPU shares the Mac's memory, and macOS lets it use
+only part of it; wanna.sh asks macOS how much and shows it as the graphics memory in **Settings** and the model
+ratings. Close other apps to leave more of it free.

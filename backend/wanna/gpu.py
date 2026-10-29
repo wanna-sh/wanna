@@ -1,12 +1,19 @@
 """GPU discovery and placement.
 
-Uses NVML (nvidia-ml-py). Machines without NVIDIA GPUs fall back to CPU.
+Uses NVML (nvidia-ml-py) for NVIDIA cards. On a Mac with Apple Silicon the built-in GPU is listed as one card whose
+memory is what Metal lets the GPU use (it shares the Mac's memory). Other machines fall back to the processor.
 """
 
 from __future__ import annotations
 
+import ctypes
+import ctypes.util
+import functools
 import logging
 import os
+import platform
+import subprocess
+import sys
 import threading
 
 import psutil
@@ -31,10 +38,53 @@ def cuda_driver_version() -> tuple[int, int] | None:
     return v // 1000, (v % 1000) // 10
 
 
+def apple_silicon() -> bool:
+    return sys.platform == "darwin" and platform.machine() == "arm64"
+
+
+@functools.cache
+def _apple_gpu() -> dict | None:
+    """The Mac's GPU name and the memory Metal recommends it uses (its recommendedMaxWorkingSetSize), or None."""
+    if not apple_silicon():
+        return None
+    try:
+        objc = ctypes.cdll.LoadLibrary(ctypes.util.find_library("objc"))
+        ctypes.cdll.LoadLibrary("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")
+        metal = ctypes.cdll.LoadLibrary("/System/Library/Frameworks/Metal.framework/Metal")
+        metal.MTLCreateSystemDefaultDevice.restype = ctypes.c_void_p
+        objc.sel_registerName.restype = ctypes.c_void_p
+        objc.sel_registerName.argtypes = [ctypes.c_char_p]
+        send = objc.objc_msgSend
+        send.restype, send.argtypes = ctypes.c_uint64, [ctypes.c_void_p, ctypes.c_void_p]
+        device = metal.MTLCreateSystemDefaultDevice()
+        if not device:
+            return None
+        memory = int(send(device, objc.sel_registerName(b"recommendedMaxWorkingSetSize")))
+    except (OSError, AttributeError) as e:
+        log.warning("Couldn't ask Metal about this Mac's GPU: %s", e)
+        return None
+    try:
+        chip = subprocess.run(["sysctl", "-n", "machdep.cpu.brand_string"], capture_output=True, text=True,
+                              timeout=5).stdout.strip() or "Apple"
+    except (OSError, subprocess.TimeoutExpired):
+        chip = "Apple"
+    return {"name": f"{chip} GPU", "memory": memory} if memory else None
+
+
+def _apple_gpus() -> list[dict]:
+    mac = _apple_gpu()
+    if not mac:
+        return []
+    # The GPU shares the Mac's memory, so what's free for it is at most what the system has available.
+    free = min(mac["memory"], psutil.virtual_memory().available)
+    return [{"index": 0, "name": mac["name"], "uuid": "apple-gpu", "memory_total": mac["memory"],
+             "memory_used": mac["memory"] - free, "memory_free": free, "utilization": None, "temperature": None}]
+
+
 def list_gpus() -> list[dict]:
     """Return one dict per GPU, indexed the same way as CUDA_VISIBLE_DEVICES."""
     if not _NVML:
-        return []
+        return _apple_gpus()
     gpus = []
     with _lock:
         for i in range(pynvml.nvmlDeviceGetCount()):

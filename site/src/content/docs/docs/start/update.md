@@ -8,7 +8,11 @@ description: Keep wanna.sh up to date, or remove it completely.
 **Windows app:** download the [latest version](https://github.com/wanna-sh/wanna/releases/latest/download/wanna.sh-setup-windows-x64.exe)
 and open it. It updates the app in place and keeps your models, chats and settings. Close wanna.sh first.
 
-**Linux, macOS and WSL2:** run the installer again. It updates the code, the app and the interface, and keeps your models, chats and settings:
+**Mac app:** download the [latest version](https://github.com/wanna-sh/wanna/releases/latest/download/wanna.sh-macos-arm64.dmg),
+quit wanna.sh, and drag the new one into **Applications**, replacing the old one. It keeps your models, chats and
+settings.
+
+**Linux, macOS from the command line, and WSL2:** run the installer again. It updates the code, the app and the interface, and keeps your models, chats and settings:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/wanna-sh/wanna/main/install.sh | bash
@@ -40,7 +44,16 @@ Running in Docker? Run `docker compose pull && docker compose up -d` in the `wan
    model and everything you've made**, so copy anything you want to keep first.
 4. If you used Code, remove its Docker containers and images in Docker Desktop (their names start with `wanna-`).
 
-### Linux, macOS and WSL2
+### Mac app
+
+1. Quit wanna.sh and drag **wanna.sh** from **Applications** to the Bin.
+2. To also remove its Python and logs, delete `~/Library/Application Support/sh.wanna.desktop` (in the Finder, press
+   **⇧⌘G** and paste the path).
+3. To remove your models, pictures and settings, delete the `.wanna` folder in your home folder. **This deletes every
+   downloaded model and everything you've made**, so copy anything you want to keep first.
+4. If you used Code, remove its Docker containers and images in Docker Desktop (their names start with `wanna-`).
+
+### Linux, macOS from the command line, and WSL2
 
 1. Stop wanna.sh.
 2. Remove the app and the `wanna` command:

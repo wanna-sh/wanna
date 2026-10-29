@@ -2,6 +2,21 @@
 
 Each version's section becomes its GitHub release notes (see `.github/workflows/release.yml`).
 
+## Unreleased
+
+### The wanna.sh app for Mac
+
+- **Download for Mac** (Apple Silicon, macOS 14 or newer): open the disk image, drag wanna.sh into Applications, and it
+  sets itself up and opens in its own window, like the Windows app.
+- **Macs use their GPU.** Chat runs on Apple's Metal (before, it ran on the processor on a Mac), and pictures, video,
+  voices, transcription and music use the GPU through PyTorch on macOS 15 or newer. wanna.sh asks macOS how much memory
+  the GPU may use and rates models against it. The AI libraries are about 300 MB on a Mac.
+
+### Fixes
+
+- On a Mac with an Intel processor, `install.sh` installs chat and Code only instead of failing: PyTorch isn't made for
+  Intel Macs any more.
+
 ## 0.2.0 (2026-10-29)
 
 ### Install without a terminal

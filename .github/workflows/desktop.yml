@@ -1,9 +1,15 @@
-# Builds the Windows desktop app installer (Tauri, NSIS), tests it on a clean Windows machine, and attaches it to the
-# GitHub release when a version tag is pushed. Pull requests that touch the app build and test it too.
+# Builds the desktop apps (Tauri): the Windows installer (NSIS) and the Mac disk image (Apple Silicon). Each is tested
+# on a clean machine and attached to the GitHub release when a version tag is pushed. Pull requests that touch the app
+# build and test them too.
 #
-# Code signing switches on when these repository secrets exist (otherwise the installer is unsigned):
+# Code signing switches on when these repository secrets exist (otherwise the apps are unsigned):
 #   WINDOWS_CERTIFICATE           a code-signing certificate (.pfx), base64-encoded
 #   WINDOWS_CERTIFICATE_PASSWORD  its password
+#   APPLE_CERTIFICATE             a Developer ID Application certificate (.p12), base64-encoded
+#   APPLE_CERTIFICATE_PASSWORD    its password
+#   APPLE_SIGNING_IDENTITY        its name, e.g. "Developer ID Application: Your Name (TEAMID)"
+# and Apple notarization with these as well (an app-specific password from account.apple.com):
+#   APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID
 name: Desktop app
 
 on:
@@ -14,7 +20,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write  # to attach the installer to the release
+  contents: write  # to attach the installers to the release
 
 jobs:
   windows:
@@ -114,3 +120,116 @@ jobs:
           # always gets the newest version (the website's download button uses it).
           cp desktop/src-tauri/target/release/bundle/nsis/*-setup.exe "$RUNNER_TEMP/wanna.sh-setup-windows-x64.exe"
           gh release upload "$GITHUB_REF_NAME" "$RUNNER_TEMP/wanna.sh-setup-windows-x64.exe" --clobber
+
+  macos:
+    runs-on: macos-latest  # Apple Silicon
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            desktop/package-lock.json
+
+      - name: Build the interface
+        working-directory: frontend
+        run: npm ci --no-fund --no-audit && npm run build
+
+      - name: Stage what the app bundles
+        run: python3 desktop/scripts/stage.py --target macos-arm64
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2.9.3
+        with:
+          workspaces: desktop/src-tauri
+
+      - name: Version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then version="${GITHUB_REF_NAME#v}"
+          else version=$(python3 -c "import tomllib; print(tomllib.load(open('backend/pyproject.toml','rb'))['project']['version'])"); fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Build the disk image
+        working-directory: desktop
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          npm ci --no-fund --no-audit
+          # Secrets that aren't set arrive as empty strings, which Tauri would try to use.
+          for v in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            [ -n "${!v}" ] || unset "$v"
+          done
+          sign=()
+          if [ -z "${APPLE_SIGNING_IDENTITY:-}" ]; then
+            # Apple Silicon only runs signed apps, so without a certificate the app gets an ad-hoc signature.
+            echo "No certificate configured: the app will be unsigned (ad-hoc signature)."
+            sign=(--config '{"bundle":{"macOS":{"signingIdentity":"-"}}}')
+          fi
+          npx tauri build --bundles app,dmg --config "{\"version\":\"$VERSION\"}" "${sign[@]}"
+          ls src-tauri/target/release/bundle/dmg/
+
+      - name: Install it and check wanna.sh starts, sees the GPU and chats
+        run: |
+          dmgs=(desktop/src-tauri/target/release/bundle/dmg/*.dmg)
+          dmg=${dmgs[0]}
+          hdiutil attach -nobrowse -mountpoint "$RUNNER_TEMP/dmg" "$dmg"
+          cp -R "$RUNNER_TEMP/dmg/wanna.sh.app" /Applications/
+          hdiutil detach "$RUNNER_TEMP/dmg"
+          codesign --verify --deep --strict /Applications/wanna.sh.app && echo "Signature ok"
+          open /Applications/wanna.sh.app
+          logs="$HOME/Library/Application Support/sh.wanna.desktop/logs"
+          fail() { echo "::error::$1"; tail -n 40 "$logs"/*.log ~/.wanna/logs/*.log 2>/dev/null; exit 1; }
+          for i in $(seq 1 120); do curl -sf http://127.0.0.1:7860/healthz >/dev/null && break; sleep 5; done
+          curl -sf http://127.0.0.1:7860/healthz >/dev/null || fail "wanna.sh didn't start from the installed app"
+          echo "wanna.sh is up after about $((i * 5)) seconds"
+          curl -sf http://127.0.0.1:7860/ | grep -q "<title>wanna.sh" || fail "The interface didn't load"
+          curl -sf http://127.0.0.1:7860/api/system/check | python3 -c "import json,sys; [print(f\"{c['status']:5} {c['label']}: {c['detail']}\") for c in json.load(sys.stdin)]"
+          gpu=$(curl -sf http://127.0.0.1:7860/api/system | python3 -c "import json,sys; g=json.load(sys.stdin)['gpus']; print(g[0]['name'], g[0]['memory_total'] // 2**20, 'MiB') if g else print('')")
+          [ -n "$gpu" ] || fail "wanna.sh didn't find the Mac's GPU"
+          echo "GPU: $gpu"
+
+          # A small chat model, run on the GPU with Metal. The first chat also sets up the chat engine.
+          curl -sf -X POST http://127.0.0.1:7860/api/downloads -H 'Content-Type: application/json' \
+            -d '{"repo_id": "bartowski/Llama-3.2-1B-Instruct-GGUF"}' >/dev/null || fail "Couldn't start the download"
+          for _ in $(seq 1 60); do
+            st=$(curl -sf http://127.0.0.1:7860/api/downloads | python3 -c "import json,sys; print(json.load(sys.stdin)[0]['status'])")
+            [ "$st" = "done" ] && break; [ "$st" = "error" ] && fail "The download failed"; sleep 5
+          done
+          for _ in $(seq 1 40); do
+            reply=$(curl -s -X POST http://127.0.0.1:7860/v1/chat/completions -H 'Content-Type: application/json' \
+              -d '{"model": "auto", "max_tokens": 16, "messages": [{"role": "user", "content": "Say hello"}]}')
+            echo "$reply" | grep -q '"choices"' && break; sleep 10
+          done
+          echo "$reply" | grep -q '"choices"' || fail "Chat didn't answer: $reply"
+          echo "Reply: $(echo "$reply" | python3 -c "import json,sys; print(json.load(sys.stdin)['choices'][0]['message']['content'])")"
+          # The engine's command line (the log's first line) says how many layers wanna.sh put on the GPU.
+          head -n 1 ~/.wanna/logs/llama-*.log | grep -oE -- "--n-gpu-layers [1-9][0-9]*" || fail "Chat didn't run on the GPU"
+
+          # Quitting stops wanna.sh and the chat engine.
+          osascript -e 'quit app "wanna.sh"'
+          for _ in $(seq 1 30); do pgrep -f "llama-server|-m wanna" >/dev/null || break; sleep 1; done
+          if pgrep -fl "llama-server|-m wanna"; then fail "Something kept running after quitting"; fi
+          echo "Quit cleanly"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wanna.sh-macos-disk-image
+          path: desktop/src-tauri/target/release/bundle/dmg/*.dmg
+
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for _ in $(seq 1 60); do gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 && break; sleep 10; done
+          # A fixed name, so .../releases/latest/download/wanna.sh-macos-arm64.dmg always gets the newest version.
+          cp desktop/src-tauri/target/release/bundle/dmg/*.dmg "$RUNNER_TEMP/wanna.sh-macos-arm64.dmg"
+          gh release upload "$GITHUB_REF_NAME" "$RUNNER_TEMP/wanna.sh-macos-arm64.dmg" --clobber

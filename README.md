@@ -7,7 +7,11 @@ Run AI models on your own computer: chat, pictures, video, read-aloud, transcrip
 **Windows:** download [wanna.sh for Windows](https://github.com/wanna-sh/wanna/releases/latest/download/wanna.sh-setup-windows-x64.exe)
 and open it. The desktop app (`desktop/`, Tauri) sets up everything on first run and opens wanna.sh in its own window.
 
-**Linux and macOS** (or Windows with WSL2):
+**Mac** (Apple Silicon, macOS 14+): download [wanna.sh for Mac](https://github.com/wanna-sh/wanna/releases/latest/download/wanna.sh-macos-arm64.dmg),
+open it and drag wanna.sh into Applications. The same desktop app; it isn't signed by Apple yet, so the first time,
+allow it in System Settings → Privacy & Security → Open Anyway.
+
+**Linux** (or an Intel Mac, or Windows with WSL2):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/wanna-sh/wanna/main/install.sh | bash

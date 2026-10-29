@@ -13,6 +13,7 @@ import importlib
 import importlib.metadata
 import logging
 import os
+import platform
 import re
 import shutil
 import subprocess
@@ -46,6 +47,8 @@ def _uv() -> str | None:
 
 
 def can_install() -> tuple[bool, str | None]:
+    if sys.platform == "darwin" and platform.machine() != "arm64":
+        return False, "PyTorch, which these need, isn't made for Macs with an Intel processor any more."
     if os.environ.get("WANNA_IN_DOCKER"):
         return False, "In Docker, use the full image (ghcr.io/wanna-sh/wanna:latest) for pictures, video, voices and music."
     if sys.prefix == sys.base_prefix:
@@ -75,9 +78,14 @@ def ml_requirements() -> list[str]:
     return [r.split(";")[0].strip() for r in reqs if re.search(r"""extra\s*==\s*["']ml["']""", r)]
 
 
+def download_size() -> str:
+    # Measured from the packages' sizes: PyTorch with CUDA is most of it; PyTorch for Mac is far smaller.
+    return "about 300 MB" if sys.platform == "darwin" else "about 3 GB"
+
+
 def status() -> dict:
     ok, reason = can_install()
-    return {"ml": {"installed": ml_installed(), "can_install": ok, "reason": reason, "size": "about 3 GB",
+    return {"ml": {"installed": ml_installed(), "can_install": ok, "reason": reason, "size": download_size(),
                    **{k: v for k, v in state.items() if k != "log"}, "log": state["log"][-5:]}}
 
 

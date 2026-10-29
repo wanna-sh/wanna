@@ -44,7 +44,11 @@ jobs:
           **Windows:** download `wanna.sh-setup-windows-x64.exe` below and open it. It isn't code-signed yet, so if
           Windows says "Windows protected your PC", click **More info**, then **Run anyway**.
 
-          **Linux and macOS:**
+          **Mac** (Apple Silicon, macOS 14 or newer): download `wanna.sh-macos-arm64.dmg` below, open it and drag
+          wanna.sh into Applications. It isn't signed by Apple yet, so the first time, macOS says it couldn't verify
+          it: open **System Settings → Privacy & Security**, click **Open Anyway**, then **Open**.
+
+          **Linux** (or an Intel Mac):
 
           ```bash
           curl -fsSL https://raw.githubusercontent.com/{repo}/main/install.sh | WANNA_BRANCH=v{version} bash

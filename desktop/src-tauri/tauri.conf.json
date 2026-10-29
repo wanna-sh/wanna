@@ -35,6 +35,9 @@
         "installerIcon": "icons/icon.ico"
       },
       "webviewInstallMode": { "type": "downloadBootstrapper" }
+    },
+    "macOS": {
+      "minimumSystemVersion": "14.0"
     }
   }
 }

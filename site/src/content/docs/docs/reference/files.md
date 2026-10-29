@@ -32,6 +32,9 @@ The app itself is installed in `~/wanna.sh` (or wherever you chose with `--dir`)
 The **Windows app** is installed in `%LOCALAPPDATA%\wanna.sh`. It keeps its own Python, the AI libraries and its logs
 in `%LOCALAPPDATA%\sh.wanna.desktop`, and uses the same `.wanna` data folder as above.
 
+The **Mac app** is `/Applications/wanna.sh.app`. It keeps its own Python, the AI libraries and its logs in
+`~/Library/Application Support/sh.wanna.desktop`, and uses the same `~/.wanna` data folder.
+
 ## Command options
 
 ```text

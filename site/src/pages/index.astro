@@ -13,6 +13,7 @@ const url = (path: string) => `${base}${path}`;
 const REPO = "https://github.com/wanna-sh/wanna";
 const INSTALL = "curl -fsSL https://raw.githubusercontent.com/wanna-sh/wanna/main/install.sh | bash";
 const WINDOWS_DOWNLOAD = `${REPO}/releases/latest/download/wanna.sh-setup-windows-x64.exe`;
+const MAC_DOWNLOAD = `${REPO}/releases/latest/download/wanna.sh-macos-arm64.dmg`;
 
 const TOOLS = [
   { key: "chat", verb: "chat with an assistant", label: "Chat", href: "/docs/tutorials/chat/",
@@ -37,7 +38,7 @@ const WHY = [
 ];
 
 const STEPS = [
-  { title: "Install it", body: "One command sets up everything on Linux, macOS or Windows (with WSL2). Then open it in your browser." },
+  { title: "Install it", body: "Download the app for Windows or Mac, or run one command on Linux. It sets everything up the first time." },
   { title: "Pick a model", body: "Browse thousands of models from Hugging Face, each rated for your computer, so you know it will run before you download." },
   { title: "Say what you want", body: "Type a request, choose a few simple options and press Create. The model starts by itself the first time you use it." },
 ];
@@ -113,8 +114,8 @@ const STEPS = [
             <div>
               <h2 id="install-title">Get wanna.sh</h2>
               <p class="muted">
-                On Windows, download the app and open it. It sets everything up the first time, no terminal needed. On
-                Linux and macOS, one command does the same.
+                On Windows and Mac, download the app and open it. It sets everything up the first time, no terminal
+                needed. On Linux, one command does the same.
               </p>
               <p class="links">
                 <a href={url("/docs/start/requirements/")}>What your computer needs</a>
@@ -123,9 +124,14 @@ const STEPS = [
               </p>
             </div>
             <div>
-              <a class="btn btn-solid" href={WINDOWS_DOWNLOAD}>Download for Windows</a>
-              <p class="muted small">Windows 10 or 11, 64-bit. Free and open source.</p>
-              <p class="small cmd-label">Linux and macOS</p>
+              <div class="downloads">
+                <a class="btn btn-solid" href={WINDOWS_DOWNLOAD}>Download for Windows</a>
+                <a class="btn btn-solid" href={MAC_DOWNLOAD}>Download for Mac</a>
+              </div>
+              <p class="muted small">
+                Windows 10 or 11, 64-bit. Macs with Apple Silicon (M1 or newer), macOS 14 or newer. Free and open source.
+              </p>
+              <p class="small cmd-label">Linux, or a Mac with an Intel processor</p>
               <div class="cmd">
                 <code id="install-cmd">{INSTALL}</code>
                 <button type="button" class="copy" data-copy="install-cmd">Copy</button>
@@ -409,7 +415,8 @@ print(reply.choices[0].message.content)</code></pre>
       .cmd + .muted { margin-top: 12px; }
       /* The download button sits on the page background, not a painting, so it follows the theme. */
       .btn-solid { background: var(--accent); color: var(--accent-ink); height: 48px; padding: 0 24px; font-size: 16px; }
-      .btn-solid + .muted { margin-top: 10px; }
+      .downloads { display: flex; flex-wrap: wrap; gap: 10px; }
+      .downloads + .muted { margin-top: 10px; }
       .cmd-label { margin: 28px 0 8px; font-weight: 500; }
 
       .cards { display: grid; gap: 16px; }

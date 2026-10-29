@@ -35,7 +35,8 @@ Not yet: wanna.sh downloads models through **Get models** so it knows how to run
 
 ### Can I use it with AMD or Intel graphics?
 
-Not yet. Without an NVIDIA card, models run on the processor. On a Mac, chat models use Apple's Metal graphics.
+Not yet. Without an NVIDIA card, models run on the processor. Macs with Apple Silicon are the exception: wanna.sh uses
+their built-in GPU (see [Macs](/docs/guides/hardware/#macs)).
 
 ### Which chat model should I start with?
 

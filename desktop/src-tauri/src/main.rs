@@ -86,6 +86,7 @@ fn set_error(app: &AppHandle, text: &str) {
 /// A command that doesn't flash a console window on Windows. Programs it starts share its hidden console, so the
 /// model engines wanna.sh starts don't open windows either.
 fn hidden(program: &Path) -> Command {
+    #[cfg_attr(not(windows), allow(unused_mut))]
     let mut cmd = Command::new(program);
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
@@ -175,7 +176,16 @@ fn prepare(app: &AppHandle) -> Result<String, String> {
 
     set_message(app, "Starting wanna.sh…");
     let server_log = File::create(p.logs.join("server.log")).map_err(|e| e.to_string())?;
-    let child = with_env(hidden(&python).args(["-m", "wanna", "--port", &port.to_string()]), &p)
+    let mut server = hidden(&python);
+    #[cfg(target_os = "macos")]
+    {
+        // Apps opened from the Finder get a short PATH; add where Docker Desktop and Homebrew put their commands,
+        // so Code finds Docker.
+        let home = std::env::var("HOME").unwrap_or_default();
+        let path = std::env::var("PATH").unwrap_or_else(|_| "/usr/bin:/bin:/usr/sbin:/sbin".into());
+        server.env("PATH", format!("{path}:/usr/local/bin:/opt/homebrew/bin:{home}/.docker/bin"));
+    }
+    let child = with_env(server.args(["-m", "wanna", "--port", &port.to_string()]), &p)
         .env("WANNA_UI_DIR", p.resources.join("ui"))
         .env("WANNA_UV", &uv)
         .stdin(Stdio::null())
@@ -228,6 +238,15 @@ fn stop_server(app: &AppHandle) {
             let _ = hidden(Path::new("taskkill"))
                 .args(["/PID", &child.id().to_string(), "/T", "/F"])
                 .status();
+        }
+        // Elsewhere the engines run in their own process groups, so ask wanna.sh to stop: it stops them first.
+        #[cfg(unix)]
+        {
+            let _ = Command::new("kill").args(["-TERM", &child.id().to_string()]).status();
+            let asked = Instant::now();
+            while asked.elapsed() < Duration::from_secs(15) && matches!(child.try_wait(), Ok(None)) {
+                thread::sleep(Duration::from_millis(200));
+            }
         }
         let _ = child.kill();
         let _ = child.wait();
