@@ -51,6 +51,12 @@ export const api = {
     fd.append("file", file, filename);
     return fetch(API_BASE + path, { method: "POST", headers: HEADERS, body: fd }).then(handle<T>);
   },
+  /** Several files in one request, as the "files" field (Knowledge). */
+  uploadFiles: <T>(path: string, files: File[]) => {
+    const fd = new FormData();
+    for (const f of files) fd.append("files", f, f.name);
+    return fetch(API_BASE + path, { method: "POST", headers: HEADERS, body: fd }).then(handle<T>);
+  },
 };
 
 export const fileUrl = (name: string) => `${API_BASE}/files/${name}`;
@@ -105,7 +111,7 @@ export async function streamChat(
 
 // --- types -------------------------------------------------------------------
 
-export type Task = "chat" | "image" | "video" | "speech" | "transcribe" | "sound";
+export type Task = "chat" | "image" | "video" | "speech" | "transcribe" | "sound" | "embed";
 
 export interface Gpu {
   index: number;
@@ -297,6 +303,8 @@ export interface CodeProject {
   /** Conversation memory in tokens; null = automatic. */
   context: number | null;
   always_allow: string[];
+  /** Knowledge libraries the agent can search with its search_knowledge tool. */
+  knowledge?: string[];
   files?: number;
   running?: boolean;
   /** Sandbox port -> port on this computer, for previews. */
@@ -381,4 +389,54 @@ export interface MemoryOptions {
   trained_context: number | null;
   /** Models that were loaded while measuring; live figures then understate what this computer can do. */
   measured_with_loaded: string[];
+}
+
+// --- knowledge (document search) ---------------------------------------------------
+
+export interface KnowledgeLibrary {
+  id: string;
+  name: string;
+  description: string;
+  embed_model: string | null;
+  hidden: boolean;
+  created_at: number;
+  updated_at: number;
+  documents: number;
+  passages: number;
+  size_bytes: number;
+}
+
+export interface KnowledgeDoc {
+  id: string;
+  library_id: string;
+  name: string;
+  size_bytes: number;
+  pages: number | null;
+  chunks: number;
+  status: "queued" | "indexing" | "ready" | "error";
+  error: string | null;
+  progress: number;
+  truncated: number;
+  created_at: number;
+}
+
+/** A passage found by search. */
+export interface KnowledgeResult {
+  id: number;
+  document_id: string;
+  library_id: string;
+  document: string;
+  library: string | null;
+  page: number | null;
+  heading: string;
+  text: string;
+  score: number;
+  matched: ("meaning" | "words")[];
+}
+
+export interface KnowledgeStatus {
+  search_models: { id: string; repo_id: string; size_bytes: number }[];
+  default: string | null;
+  suggested: { repo_id: string; title: string; why: string; installed: boolean }[];
+  downloading: Download[];
 }

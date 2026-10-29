@@ -121,7 +121,8 @@ Models are downloaded from Hugging Face, and anyone can publish one, so wanna.sh
 ## Privacy
 
 - Prompts, chats, documents and everything you make stay on your computer.
-- Chats are stored in your browser. Everything else is in your [data folder](/docs/reference/files/).
+- Chats are stored in your browser. Everything else is in your [data folder](/docs/reference/files/), including the
+  documents you add to [Knowledge](/docs/tutorials/knowledge/), which are read and searched on this computer only.
 - wanna.sh connects to Hugging Face (finding and downloading models), GitHub (downloading the chat engine), Docker Hub
   (Code's sandbox and search images) and, for Code, to the websites the agent searches and reads. Searches go through a private SearXNG on your computer, which
   forwards them to public search engines; with a Brave Search key, they go to Brave.

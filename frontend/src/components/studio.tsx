@@ -235,7 +235,7 @@ export function PromptBar({
 
 // --- chips --------------------------------------------------------------------------
 
-function useDismiss(open: boolean, close: () => void) {
+export function useDismiss(open: boolean, close: () => void) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -253,7 +253,7 @@ function useDismiss(open: boolean, close: () => void) {
   return ref;
 }
 
-const chipClass =
+export const chipClass =
   "h-9 px-3 inline-flex items-center gap-1.5 rounded-full border border-line text-[14px] hover:bg-well transition-colors";
 
 /** "Shape  Square ▾": a small button that opens a menu of choices. */

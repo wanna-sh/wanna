@@ -13,11 +13,12 @@ Everything wanna.sh downloads or makes lives in one data folder, `~/.wanna` by d
 | `outputs/` | Pictures, videos, recordings and music you've made. Also served at `http://localhost:7860/files/`. |
 | `uploads/` | Files you've attached or uploaded. |
 | `projects/` | [Code](/docs/tutorials/code/) projects, one folder each. |
+| `knowledge/` | The original files in your [Knowledge](/docs/tutorials/knowledge/) libraries, one folder per library. |
 | `code/` | Code conversations and project settings. |
 | `engines/` | The chat engine (llama.cpp) wanna.sh downloaded for your system. |
 | `searxng/` | Settings for the private search engine Code uses. |
 | `logs/` | A log per running model, useful when one won't start. |
-| `wanna.db` | The list of installed models, your gallery and API keys (stored as fingerprints, not the keys themselves). |
+| `wanna.db` | The list of installed models, your gallery, Knowledge libraries and their passages, and API keys (stored as fingerprints, not the keys themselves). |
 | `settings.json` | Your settings. |
 
 Chats from the Chat page are stored in your browser, not here.

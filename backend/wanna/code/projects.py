@@ -88,6 +88,8 @@ def update(pid: str, patch: dict) -> dict:
             meta[k] = patch[k]
     if patch.get("approval") in APPROVAL_MODES:
         meta["approval"] = patch["approval"]
+    if "knowledge" in patch and isinstance(patch["knowledge"], list):
+        meta["knowledge"] = [str(x) for x in patch["knowledge"]][:20]
     if "context" in patch:
         c = patch["context"]
         if c in (None, 0, "auto"):

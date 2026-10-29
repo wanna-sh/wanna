@@ -59,4 +59,4 @@ Data lives in `~/.wanna` (models, outputs, logs, settings). Override with `WANNA
 
 ## API
 
-OpenAI-compatible under `/v1`: `chat/completions`, `completions`, `images/generations`, `images/edits`, `audio/speech`, `audio/transcriptions`, `audio/translations`, `videos` (async, like OpenAI's), `models`. Use `model: "auto"` to pick whatever is running. Interactive docs at `/docs`. API keys are managed under **API & apps** in the UI.
+OpenAI-compatible under `/v1`: `chat/completions`, `completions`, `images/generations`, `images/edits`, `audio/speech`, `audio/transcriptions`, `audio/translations`, `videos` (async, like OpenAI's), `embeddings`, `models`. Document search (RAG) is under `/api/knowledge`: libraries of files, hybrid search (embeddings plus SQLite full-text, merged by reciprocal rank fusion) and a ready-made chat context (`wanna/knowledge/`). Use `model: "auto"` to pick whatever is running. Interactive docs at `/docs`. API keys are managed under **API & apps** in the UI.

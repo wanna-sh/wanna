@@ -43,7 +43,8 @@ in **Settings** tells you whether the AI libraries can use your graphics card.
 
 - **System memory (RAM):** 16 GB or more is recommended. Models that don't fully fit on the graphics card spill into
   system memory.
-- **Disk space:** about 10 GB for the app and its AI libraries, plus space for models. Small models are 1 to 5 GB;
+- **Disk space:** about 10 GB for the app and its AI libraries, plus space for models. Document search needs a small
+  search model (about 640 MB) and room for your documents. Small models are 1 to 5 GB;
   big ones are 15 to 30 GB or more each.
 
 ## Software

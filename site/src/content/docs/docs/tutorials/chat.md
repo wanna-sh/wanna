@@ -23,8 +23,9 @@ Press **Attach**, or drop or paste files into the message box.
 - **Pictures** work with models that can see, such as Gemma 3 and Gemma 4 or Qwen-VL models. Ask "What's in this
   picture?" or "Turn this whiteboard into notes". If the model can't read pictures, wanna.sh tells you before you send.
 - **Documents**: PDFs and text files (Markdown, CSV, JSON, HTML, code files and more). wanna.sh extracts the text and
-  adds it to your message. If a document is longer than the model can hold in mind, you'll see a note saying how much
-  of it was included.
+  adds it to your message. If a document is too long for the model to hold in mind, wanna.sh
+  [searches it for each question instead](/docs/tutorials/knowledge/#long-attachments-in-chat), once document search
+  is set up. Without document search, only the first part is sent, and the attachment says *first part*.
 
 :::note
 Scanned PDFs are pictures of pages with no text inside, so there's nothing to extract. Take a screenshot of the page and
@@ -36,6 +37,11 @@ attach it as a picture to a model that can see instead.
 Press the microphone button, speak, and press it again to stop. Your words are turned into text in the message box, so
 you can check them before sending. This uses your [transcription model](/docs/tutorials/transcribe/), so install one
 first (Whisper models work well). Your browser will ask for permission to use the microphone.
+
+## Ask about your own documents
+
+Press **Knowledge** to pick libraries of your documents. Answers then use the passages that match each question and
+cite them, with the sources listed underneath. See [Ask about your documents](/docs/tutorials/knowledge/).
 
 ## Give the assistant instructions
 

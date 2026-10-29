@@ -459,6 +459,37 @@ def web_fetch(pid, url):
         f"\n\n[page cut off at {FETCH_MAX_CHARS:,} characters]" if len(body) > FETCH_MAX_CHARS else "")
 
 
+KNOWLEDGE_SCHEMA = _fn(
+    "search_knowledge",
+    "Search the user's own documents attached to this project (specs, notes, manuals, reference docs). Returns the "
+    "most relevant passages with their document names. Use it whenever the request may depend on those documents.",
+    {"query": {"type": "string", "description": "What to look for, as a question or keywords."}},
+    ["query"],
+)
+
+
+def schemas_for(project: dict) -> list[dict]:
+    """The tools the agent gets: search_knowledge only when the project has knowledge libraries."""
+    return SCHEMAS + ([KNOWLEDGE_SCHEMA] if project.get("knowledge") else [])
+
+
+def search_knowledge(pid, query):
+    from ..knowledge.search import search_blocking
+    from .projects import get as get_project
+
+    libraries = (get_project(pid) or {}).get("knowledge") or []
+    if not libraries:
+        raise ToolError("This project has no knowledge libraries. The user can add some in project settings.")
+    results = search_blocking(query, libraries, k=6)
+    if not results:
+        return "No matching passages in the project's documents."
+    parts = []
+    for n, r in enumerate(results, 1):
+        where = r["document"] + (f", page {r['page']}" if r.get("page") else "") + (f", {r['heading']}" if r["heading"] else "")
+        parts.append(f"[{n}] {where}\n{r['text'].strip()}")
+    return "\n\n".join(parts)
+
+
 def web_search(pid, query, max_results=8):
     """Brave (with a key), local SearXNG, or DuckDuckGo as a last resort. See code/search.py."""
     from . import search
@@ -476,7 +507,7 @@ def web_search(pid, query, max_results=8):
 FUNCS = {
     "read_file": read_file, "write_file": write_file, "edit_file": edit_file, "multi_edit": multi_edit,
     "list_files": list_files, "glob": glob, "grep": grep, "bash": bash, "bash_output": bash_output,
-    "kill_shell": kill_shell, "web_fetch": web_fetch, "web_search": web_search,
+    "kill_shell": kill_shell, "web_fetch": web_fetch, "web_search": web_search, "search_knowledge": search_knowledge,
 }
 
 

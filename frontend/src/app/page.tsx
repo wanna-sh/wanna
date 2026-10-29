@@ -21,6 +21,7 @@ const PITCH: Record<Task, string> = {
   speech: "Paste any text and hear it read aloud in a natural voice, then save the recording.",
   transcribe: "Upload a recording or use your microphone. Get a transcript with timestamps, or subtitles.",
   sound: "Describe a mood, genre or instruments and get an original piece of music.",
+  embed: "Ask questions about your own documents and get answers that cite them.",
 };
 
 const WHY: { icon: ReactNode; title: string; body: ReactNode }[] = [

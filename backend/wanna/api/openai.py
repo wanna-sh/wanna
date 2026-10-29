@@ -9,7 +9,7 @@ import uuid
 
 import httpx
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, PlainTextResponse, Response, StreamingResponse
 
 from .. import db, jobs, presets
 from ..config import OUTPUTS_DIR, UPLOADS_DIR
@@ -377,7 +377,10 @@ def get_video_content(video_id: str):
 
 
 @router.post("/embeddings")
-async def embeddings():
-    return JSONResponse(
-        {"error": {"message": "Embeddings are not supported yet.", "type": "not_implemented"}}, status_code=501
-    )
+async def embeddings(request: Request):
+    """Vectors for text from an installed search (embedding) model. Text is embedded exactly as sent."""
+    body = await request.json()
+    model = _resolve(body.get("model"), "embed")
+    worker = await _ready(model)
+    body["model"] = model["id"]
+    return await _proxy(worker.url + "/v1/embeddings", body, worker.headers)

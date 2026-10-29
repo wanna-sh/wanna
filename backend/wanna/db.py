@@ -34,6 +34,51 @@ CREATE TABLE IF NOT EXISTS generations (
     files TEXT NOT NULL DEFAULT '[]',
     created_at REAL NOT NULL
 );
+-- Knowledge: libraries of documents, split into passages for search.
+CREATE TABLE IF NOT EXISTS kb_libraries (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    embed_model TEXT,               -- the search model its passages were embedded with
+    hidden INTEGER NOT NULL DEFAULT 0,  -- 1 for a chat's own attachments, not shown on the Knowledge page
+    created_at REAL NOT NULL,
+    updated_at REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS kb_documents (
+    id TEXT PRIMARY KEY,
+    library_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    file TEXT NOT NULL,             -- the original, relative to the data folder
+    size_bytes INTEGER NOT NULL DEFAULT 0,
+    pages INTEGER,
+    chunks INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL,           -- queued | indexing | ready | error
+    error TEXT,
+    progress REAL NOT NULL DEFAULT 0,
+    truncated INTEGER NOT NULL DEFAULT 0,
+    created_at REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS kb_chunks (
+    id INTEGER PRIMARY KEY,
+    document_id TEXT NOT NULL,
+    library_id TEXT NOT NULL,
+    idx INTEGER NOT NULL,
+    page INTEGER,
+    heading TEXT NOT NULL DEFAULT '',
+    text TEXT NOT NULL,
+    embedding BLOB                  -- float32, normalised
+);
+CREATE INDEX IF NOT EXISTS kb_chunks_library ON kb_chunks(library_id);
+CREATE INDEX IF NOT EXISTS kb_chunks_document ON kb_chunks(document_id);
+CREATE VIRTUAL TABLE IF NOT EXISTS kb_fts USING fts5(
+    text, heading, content='kb_chunks', content_rowid='id', tokenize='unicode61 remove_diacritics 2'
+);
+CREATE TRIGGER IF NOT EXISTS kb_chunks_ai AFTER INSERT ON kb_chunks BEGIN
+    INSERT INTO kb_fts(rowid, text, heading) VALUES (new.id, new.text, new.heading);
+END;
+CREATE TRIGGER IF NOT EXISTS kb_chunks_ad AFTER DELETE ON kb_chunks BEGIN
+    INSERT INTO kb_fts(kb_fts, rowid, text, heading) VALUES ('delete', old.id, old.text, old.heading);
+END;
 CREATE TABLE IF NOT EXISTS api_keys (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,

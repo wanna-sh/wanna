@@ -26,8 +26,10 @@ wanna.sh is running.
 | `POST /v1/audio/transcriptions` | Speech to text | [Voice and transcription](/docs/api/audio/#transcription) |
 | `POST /v1/audio/translations` | Speech to English text | [Voice and transcription](/docs/api/audio/#translation) |
 | `POST /v1/videos`, `GET /v1/videos/{id}`, `GET /v1/videos/{id}/content` | Make videos (asynchronous) | [Video](/docs/api/video/) |
+| `POST /v1/embeddings` | Vectors from a search (embedding) model | [Knowledge and embeddings](/docs/api/knowledge/) |
 
-`POST /v1/embeddings` exists but returns `501 Not Implemented`: embeddings aren't supported yet.
+For searching your documents (RAG), wanna.sh also has [Knowledge endpoints](/docs/api/knowledge/#knowledge-libraries)
+that index files and return the passages that match a question.
 
 Music has no OpenAI equivalent; use the [wanna.sh API](/docs/api/native/#generate-anything).
 
@@ -74,7 +76,8 @@ curl http://localhost:7860/v1/models
 }
 ```
 
-The extra `wanna` object tells you each model's task (`chat`, `image`, `video`, `speech`, `transcribe` or `sound`),
+The extra `wanna` object tells you each model's task (`chat`, `image`, `video`, `speech`, `transcribe`, `sound` or
+`embed`),
 where it came from, which engine runs it, and whether it's loaded.
 
 ## Errors

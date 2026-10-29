@@ -6,7 +6,7 @@ import { Check, Search } from "lucide-react";
 import Link from "next/link";
 import { api, type Budget, type BrowseResult, type Download, type HubResult, type Overview, type Task } from "@/lib/api";
 import { usePoll } from "@/lib/hooks";
-import { TASKS, TASK_ORDER } from "@/lib/tasks";
+import { MODEL_TASKS, TASKS } from "@/lib/tasks";
 import { compact, mem } from "@/lib/format";
 import { DownloadRow, ModelSheet } from "@/components/models";
 import { Button, Notice, PageHeader, Segmented, VerdictBadge, inputClass } from "@/components/ui";
@@ -105,7 +105,7 @@ function Discover() {
           onChange={setTask}
           options={[
             { value: "all", label: "Everything" },
-            ...TASK_ORDER.map((t) => ({ value: t, label: TASKS[t].label })),
+            ...MODEL_TASKS.map((t) => ({ value: t, label: TASKS[t].label })),
           ]}
         />
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2">

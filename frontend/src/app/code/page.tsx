@@ -7,6 +7,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
   ArrowLeft,
+  BookOpen,
   Check,
   ChevronRight,
   Circle,
@@ -37,12 +38,15 @@ import {
   type CodeEvent,
   type CodeProject,
   type InstalledModel,
+  type KnowledgeLibrary,
+  type KnowledgeStatus,
   type MemoryOptions,
   type Todo,
 } from "@/lib/api";
 import { useModels, usePoll } from "@/lib/hooks";
 import { ago, bytes } from "@/lib/format";
 import { ModelMenu, OptionChip, PromptBar, SidePanel } from "@/components/studio";
+import { KnowledgeMenu } from "@/components/knowledge";
 import { Button, Field, Notice, PageHeader, inputClass } from "@/components/ui";
 
 const APPROVAL_OPTIONS: { value: ApprovalMode; label: string; hint: string }[] = [
@@ -182,6 +186,8 @@ function Workspace({ pid, status }: { pid: string; status: DockerStatus | null }
   const router = useRouter();
   const project = usePoll<CodeProject>(`/api/code/projects/${pid}`, 4000);
   const { models } = useModels("chat");
+  const { data: libraries } = usePoll<KnowledgeLibrary[]>("/api/knowledge/libraries", 15000);
+  const { data: kStatus } = usePoll<KnowledgeStatus>("/api/knowledge/status", 15000);
   const [events, setEvents] = useState<CodeEvent[]>([]);
   const [todos, setTodos] = useState<Todo[]>([]);
   const [running, setRunning] = useState(false);
@@ -370,6 +376,14 @@ function Workspace({ pid, status }: { pid: string; status: DockerStatus | null }
                     options={APPROVAL_OPTIONS}
                   />
                 )}
+                {p && (
+                  <KnowledgeMenu
+                    libraries={libraries ?? []}
+                    value={(p.knowledge ?? []).filter((id) => libraries?.some((l) => l.id === id))}
+                    onChange={(ids) => patch({ knowledge: ids })}
+                    ready={!!kStatus?.default}
+                  />
+                )}
               </>
             }
           />
@@ -500,6 +514,7 @@ const TOOL_ICONS: Record<string, LucideIcon> = {
   todo_write: ListTodo,
   web_fetch: Globe,
   web_search: Globe,
+  search_knowledge: BookOpen,
 };
 
 /** A plain-words label for what a tool call did. */
@@ -531,6 +546,8 @@ function summary(e: CodeEvent): string {
       return `Read ${a.url}`;
     case "web_search":
       return `Searched the web for "${a.query}"`;
+    case "search_knowledge":
+      return `Searched your documents for "${a.query}"`;
     default:
       return e.name ?? "Tool";
   }

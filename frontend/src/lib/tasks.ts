@@ -47,6 +47,16 @@ export const TASKS: Record<
     noun: "music model",
     help: "Describe a style of music or a sound effect.",
   },
+  // Not a page of its own: search models power Knowledge (document search) in Chat and Code.
+  embed: {
+    verb: "search my documents",
+    label: "Document search",
+    href: "/knowledge/",
+    noun: "search model",
+    help: "Find the passages in your documents that answer a question.",
+  },
 };
 
 export const TASK_ORDER: Task[] = ["chat", "image", "video", "speech", "transcribe", "sound"];
+/** Every kind of model, for lists of models (Get models, My models). */
+export const MODEL_TASKS: Task[] = [...TASK_ORDER, "embed"];

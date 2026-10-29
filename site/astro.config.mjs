@@ -53,6 +53,7 @@ export default defineConfig({
           label: "Tutorials",
           items: [
             { slug: "docs/tutorials/chat" },
+            { slug: "docs/tutorials/knowledge" },
             { slug: "docs/tutorials/pictures" },
             { slug: "docs/tutorials/videos" },
             { slug: "docs/tutorials/read-aloud" },
@@ -78,6 +79,7 @@ export default defineConfig({
             { slug: "docs/api/images" },
             { slug: "docs/api/audio" },
             { slug: "docs/api/video" },
+            { slug: "docs/api/knowledge" },
             { slug: "docs/api/native" },
           ],
         },

@@ -5,12 +5,13 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Archive, ArchiveRestore, FileText, History, Loader2, Mic, Paperclip, Plus, Search, Square, Trash2, X } from "lucide-react";
 import Link from "next/link";
-import { api, streamChat } from "@/lib/api";
+import { api, streamChat, type KnowledgeDoc, type KnowledgeLibrary, type KnowledgeResult, type KnowledgeStatus } from "@/lib/api";
 import { useDictation } from "@/lib/dictation";
 import { useModels, usePoll, useStored } from "@/lib/hooks";
 import { NoModelYet, useTaskModel } from "@/components/models";
 import { ChipButton, ModelMenu, PromptBar, ToggleChip, modelName } from "@/components/studio";
 import { Notice, PageHeader, Segmented, inputClass } from "@/components/ui";
+import { KnowledgeMenu, Sources } from "@/components/knowledge";
 import { ago } from "@/lib/format";
 
 type Part = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
@@ -21,12 +22,16 @@ interface Doc {
   pages?: number | null;
   /** True when only the first part fit in the model's conversation memory. */
   trimmed?: boolean;
+  /** Too long to send whole: indexed into the chat's own library and searched for each question instead. */
+  indexed?: { library: string; document: string };
 }
 interface Message {
   role: "user" | "assistant" | "system";
   content: string | Part[];
   docs?: Doc[];
   stats?: string;
+  /** Passages from the user's documents that the answer was given, numbered like its [1] citations. */
+  sources?: KnowledgeResult[];
 }
 interface Conversation {
   id: string;
@@ -35,6 +40,10 @@ interface Conversation {
   updated: number;
   /** Archived chats are hidden from Recent but kept; sending a new message brings one back. */
   archived?: boolean;
+  /** Knowledge libraries this chat searches. */
+  knowledge?: string[];
+  /** The chat's own hidden library, for attachments too long to send whole. */
+  attachLib?: string;
 }
 
 const SUGGESTIONS = [
@@ -61,7 +70,13 @@ const MAX_DOCS = 5;
 /** What the model receives for a message: attached documents' text goes ahead of what you typed. */
 function apiContent(m: Message): Message["content"] {
   if (!m.docs?.length) return m.content;
-  const files = m.docs.map((d) => `<file name="${d.name}">\n${d.text}\n</file>`).join("\n\n");
+  const files = m.docs
+    .map((d) =>
+      d.indexed
+        ? `<file name="${d.name}">(Long document: the passages relevant to each question are given in the system message.)</file>`
+        : `<file name="${d.name}">\n${d.text}\n</file>`,
+    )
+    .join("\n\n");
   const intro = `I've attached ${m.docs.length === 1 ? "a file" : `${m.docs.length} files`}:\n\n${files}\n\n`;
   if (typeof m.content === "string") return intro + m.content;
   const images = m.content.filter((p) => p.type === "image_url");
@@ -83,6 +98,13 @@ export default function ChatPage() {
   const [error, setError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [searching, setSearching] = useState(false);
+  // Knowledge for a chat that hasn't started yet; once it starts, the conversation keeps its own choice.
+  const [draftKnowledge, setDraftKnowledge] = useStored<string[]>("wanna.chat.knowledge", []);
+  const [draftAttachLib, setDraftAttachLib] = useState<string | null>(null);
+  const [indexing, setIndexing] = useState<Record<string, KnowledgeDoc>>({});
+  const { data: libraries } = usePoll<KnowledgeLibrary[]>("/api/knowledge/libraries", 15000);
+  const { data: kStatus } = usePoll<KnowledgeStatus>("/api/knowledge/status", 15000);
   const abort = useRef<AbortController | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -100,6 +122,25 @@ export default function ChatPage() {
   const docBudget = Math.floor(contextTokens * 0.6 * 3.5);
   const dictation = useDictation((t) => setInput((prev) => (prev.trim() ? `${prev.trimEnd()} ${t}` : t)));
 
+  const searchReady = !!kStatus?.default;
+  const knowledge = (convo ? convo.knowledge ?? [] : draftKnowledge).filter((id) => libraries?.some((l) => l.id === id));
+  const setKnowledge = (ids: string[]) => (convo ? update(convo.id, (c) => ({ ...c, knowledge: ids })) : setDraftKnowledge(ids));
+  const attachLib = convo?.attachLib ?? draftAttachLib;
+  const pendingIndex = docs.filter((d) => d.indexed && indexing[d.indexed.document]?.status !== "ready");
+
+  // Long attachments are indexed in the background; follow their progress until they're searchable.
+  const pendingKey = pendingIndex.map((d) => d.indexed!.document).join(",");
+  useEffect(() => {
+    if (!pendingKey || !attachLib) return;
+    const timer = setInterval(async () => {
+      try {
+        const list = await api.get<KnowledgeDoc[]>(`/api/knowledge/libraries/${attachLib}/documents`);
+        setIndexing(Object.fromEntries(list.map((d) => [d.id, d])));
+      } catch {}
+    }, 1200);
+    return () => clearInterval(timer);
+  }, [pendingKey, attachLib]);
+
   const lastText = messages.length ? textOf(messages[messages.length - 1].content) : "";
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
@@ -109,15 +150,18 @@ export default function ChatPage() {
     setConvos((cs) => cs.map((c) => (c.id === id ? fn(c) : c)));
 
   const send = async (text: string) => {
-    if ((!text.trim() && !images.length && !docs.length) || busy || !model || blockedByPictures || reading) return;
+    if ((!text.trim() && !images.length && !docs.length) || busy || !model || blockedByPictures || reading || pendingIndex.length) return;
     setError(null);
     let id = activeId;
     if (!convo) {
       id = crypto.randomUUID();
       const title = text.slice(0, 60) || docs[0]?.name || "Picture chat";
-      setConvos((cs) => [{ id, title, messages: [], updated: Date.now() }, ...cs]);
+      const extra = { knowledge: draftKnowledge, ...(draftAttachLib ? { attachLib: draftAttachLib } : {}) };
+      setConvos((cs) => [{ id, title, messages: [], updated: Date.now(), ...extra }, ...cs]);
       setActiveId(id);
+      setDraftAttachLib(null);
     }
+    const libs = [...knowledge, ...(attachLib ? [attachLib] : [])];
     const content: Message["content"] = images.length
       ? [...images.map((url) => ({ type: "image_url" as const, image_url: { url } })), { type: "text", text }]
       : text;
@@ -137,11 +181,29 @@ export default function ChatPage() {
 
     const ctrl = new AbortController();
     abort.current = ctrl;
-    const t0 = now();
+    let t0 = now();
     let out = "";
+    let sources: KnowledgeResult[] | undefined;
     try {
+      // Knowledge: find the passages that match this message (with the previous one, for short follow-ups).
+      let instructions = system.trim();
+      if (libs.length) {
+        setSearching(true);
+        const prev = [...messages].reverse().find((m) => m.role === "user");
+        const query = text.length < 80 && prev ? `${textOf(prev.content)}\n${text}` : text || docs.map((d) => d.name).join(", ");
+        const ctx = await api.post<{ results: KnowledgeResult[]; prompt: string }>("/api/knowledge/context", {
+          query,
+          libraries: libs,
+          k: 6,
+        });
+        sources = ctx.results;
+        // One system message: some chat models accept only one, at the start.
+        instructions = [instructions, ctx.prompt].filter(Boolean).join("\n\n");
+        setSearching(false);
+        t0 = now();
+      }
       const payload = [
-        ...(system.trim() ? [{ role: "system", content: system }] : []),
+        ...(instructions ? [{ role: "system", content: instructions }] : []),
         ...history.map((m) => ({ role: m.role, content: apiContent(m) })),
       ];
       const { usage, firstTokenAt, thought } = await streamChat(
@@ -164,13 +226,14 @@ export default function ChatPage() {
           : undefined;
       update(id, (c) => {
         const ms = [...c.messages];
-        ms[ms.length - 1] = { role: "assistant", content: out, stats };
+        ms[ms.length - 1] = { role: "assistant", content: out, stats, ...(sources ? { sources } : {}) };
         return { ...c, messages: ms };
       });
     } catch (e) {
       if ((e as Error).name !== "AbortError") setError((e as Error).message);
       if (!out) update(id, (c) => ({ ...c, messages: c.messages.slice(0, -1) }));
     } finally {
+      setSearching(false);
       setBusy(false);
       abort.current = null;
     }
@@ -212,6 +275,18 @@ export default function ChatPage() {
     return { name: f.name, text, pages };
   };
 
+  /** The chat's hidden library for long attachments, created the first time one is needed. */
+  const ensureAttachLib = async (): Promise<string> => {
+    if (attachLib) return attachLib;
+    const lib = await api.post<KnowledgeLibrary>("/api/knowledge/libraries", {
+      name: `Chat attachments: ${convo?.title ?? "new chat"}`.slice(0, 120),
+      hidden: true,
+    });
+    if (convo) update(convo.id, (c) => ({ ...c, attachLib: lib.id }));
+    else setDraftAttachLib(lib.id);
+    return lib.id;
+  };
+
   /** Attach pictures and documents from the file picker, a paste, or a drop. */
   const addFiles = async (files: File[]) => {
     setError(null);
@@ -236,12 +311,25 @@ export default function ChatPage() {
     for (const f of readable) {
       try {
         const d = await readDoc(f);
+        if (d.text.length > docBudget && searchReady) {
+          // Too long to send whole: index it into this chat's own library and search it for each question.
+          const lib = await ensureAttachLib();
+          const [kdoc] = await api.uploadFiles<KnowledgeDoc[]>(`/api/knowledge/libraries/${lib}/documents`, [f]);
+          setIndexing((s) => ({ ...s, [kdoc.id]: kdoc }));
+          setDocs((ds) => [...ds, { name: d.name, text: "", pages: d.pages, indexed: { library: lib, document: kdoc.id } }]);
+          continue;
+        }
+        if (d.text.length > docBudget) {
+          setNotice(`${d.name} is too long to send whole, so only its first part will be read. Set up document search on the Knowledge page to search long documents instead.`);
+        }
         setDocs((ds) => {
-          // Share the model's memory between all attached documents.
+          // Share the model's memory between the attached documents that are sent whole.
           const all = [...ds, d];
-          const total = all.reduce((a, x) => a + x.text.length, 0);
+          const whole = all.filter((x) => !x.indexed);
+          const total = whole.reduce((a, x) => a + x.text.length, 0);
           if (total <= docBudget) return all;
           return all.map((x) => {
+            if (x.indexed) return x;
             const share = Math.floor(docBudget * (x.text.length / total));
             return x.text.length > share ? { ...x, text: x.text.slice(0, share), trimmed: true } : x;
           });
@@ -334,11 +422,16 @@ export default function ChatPage() {
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>{textOf(m.content)}</ReactMarkdown>
                         ) : (
                           <span className="text-slate">
-                            {busy && current?.loaded?.status !== "ready" ? "Starting the model…" : "Thinking…"}
+                            {searching
+                              ? "Searching your documents…"
+                              : busy && current?.loaded?.status !== "ready"
+                                ? "Starting the model…"
+                                : "Thinking…"}
                           </span>
                         )}
                       </div>
                       {m.stats && <div className="text-[12px] text-slate mt-1">{m.stats}</div>}
+                      {!!m.sources?.length && textOf(m.content) && <Sources sources={m.sources} answer={textOf(m.content)} />}
                     </div>
                   )}
                 </li>
@@ -405,7 +498,9 @@ export default function ChatPage() {
           placeholder="Message the assistant"
           onSubmit={() => send(input)}
           submitLabel="Send"
-          canSubmit={(!!input.trim() || images.length > 0 || docs.length > 0) && !!model && !blockedByPictures && !reading}
+          canSubmit={
+            (!!input.trim() || images.length > 0 || docs.length > 0) && !!model && !blockedByPictures && !reading && !pendingIndex.length
+          }
           busy={busy}
           onStop={() => abort.current?.abort()}
           onFiles={addFiles}
@@ -428,7 +523,15 @@ export default function ChatPage() {
             (images.length > 0 || docs.length > 0 || reading > 0) && (
               <div className="flex flex-wrap items-center gap-2">
                 {docs.map((d, i) => (
-                  <DocChip key={i} doc={d} onRemove={() => setDocs((ds) => ds.filter((_, j) => j !== i))} />
+                  <DocChip
+                    key={i}
+                    doc={d}
+                    state={d.indexed ? indexing[d.indexed.document] : undefined}
+                    onRemove={() => {
+                      if (d.indexed) api.del(`/api/knowledge/documents/${d.indexed.document}`).catch(() => {});
+                      setDocs((ds) => ds.filter((_, j) => j !== i));
+                    }}
+                  />
                 ))}
                 {reading > 0 && (
                   <span className="inline-flex items-center gap-2 h-9 px-3 rounded-xl border border-line text-[13px] text-slate">
@@ -458,6 +561,7 @@ export default function ChatPage() {
               <ChipButton onClick={() => fileInput.current?.click()} label="Attach pictures or documents">
                 <Paperclip size={15} aria-hidden /> Attach
               </ChipButton>
+              <KnowledgeMenu libraries={libraries ?? []} value={knowledge} onChange={setKnowledge} ready={searchReady} />
               <ToggleChip on={showSettings} onChange={setShowSettings}>
                 Instructions{system.trim() && !showSettings ? " (on)" : ""}
               </ToggleChip>
@@ -480,6 +584,9 @@ export default function ChatPage() {
           setHistoryOpen(false);
         }}
         onChange={(next) => {
+          for (const c of convos) {
+            if (c.attachLib && !next.some((n) => n.id === c.id)) api.del(`/api/knowledge/libraries/${c.attachLib}`).catch(() => {});
+          }
           setConvos(next);
           if (!next.some((c) => c.id === activeId)) setActiveId("");
         }}
@@ -647,18 +754,30 @@ function ChatHistory({
   );
 }
 
-/** An attached document: name, size, and a note when only part of it fits. */
-function DocChip({ doc, onRemove }: { doc: Doc; onRemove?: () => void }) {
+/** An attached document: name, size, and a note when only part of it fits or it's searched instead. */
+function DocChip({ doc, onRemove, state }: { doc: Doc; onRemove?: () => void; state?: KnowledgeDoc }) {
   const n = doc.text.length;
-  const size = doc.pages
-    ? `${doc.pages} page${doc.pages === 1 ? "" : "s"}`
-    : n < 1000
-      ? `${n} characters`
-      : `${Math.round(n / 1000)}k characters`;
+  const size = doc.indexed
+    ? state?.status === "error"
+      ? "couldn't index"
+      : state && state.status !== "ready"
+        ? `indexing ${Math.round(state.progress * 100)}%`
+        : "searched"
+    : doc.pages
+      ? `${doc.pages} page${doc.pages === 1 ? "" : "s"}`
+      : n < 1000
+        ? `${n} characters`
+        : `${Math.round(n / 1000)}k characters`;
   return (
     <span
       className="inline-flex items-center gap-2 max-w-[260px] h-9 pl-2.5 pr-2 rounded-xl border border-line bg-paper text-[13px]"
-      title={doc.trimmed ? "Only the first part fits in this model's conversation memory. Raise it in My models to read more." : doc.name}
+      title={
+        doc.indexed
+          ? state?.error ?? "Too long to send whole, so the passages that match each question are found and sent instead."
+          : doc.trimmed
+            ? "Only the first part fits in this model's conversation memory. Raise it in My models to read more."
+            : doc.name
+      }
     >
       <FileText size={15} className="text-slate shrink-0" aria-hidden />
       <span className="truncate text-ink">{doc.name}</span>

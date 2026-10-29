@@ -5,7 +5,7 @@ import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { api, type Gpu, type InstalledModel, type MemoryOptions } from "@/lib/api";
 import { useModels, usePoll, useSystem } from "@/lib/hooks";
-import { TASKS, TASK_ORDER } from "@/lib/tasks";
+import { MODEL_TASKS, TASKS } from "@/lib/tasks";
 import { ago, bytes, gpuName, prettyName } from "@/lib/format";
 import { Button, Field, LinkButton, LiveDot, Notice, PageHeader, inputClass } from "@/components/ui";
 
@@ -57,7 +57,7 @@ export default function ModelsPage() {
         </p>
       )}
 
-      {TASK_ORDER.map((t) => {
+      {MODEL_TASKS.map((t) => {
         const ms = (data ?? []).filter((m) => m.task === t);
         if (!ms.length) return null;
         return (

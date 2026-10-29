@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState, useSyncExternalStore, type ReactNode } from "react";
 import {
   AudioLines,
+  BookOpen,
   Boxes,
   Clapperboard,
   Code,
@@ -34,8 +35,10 @@ const TASK_ICONS: Record<Task, LucideIcon> = {
   speech: AudioLines,
   transcribe: FileText,
   sound: Music,
+  embed: BookOpen,
 };
 const LIBRARY = [
+  { href: "/knowledge/", label: "Knowledge", icon: BookOpen },
   { href: "/discover/", label: "Get models", icon: Download },
   { href: "/models/", label: "My models", icon: Boxes },
   { href: "/gallery/", label: "Gallery", icon: Images },

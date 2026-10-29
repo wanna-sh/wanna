@@ -17,6 +17,7 @@ TASKS = {
     "speech": {"label": "Read text aloud", "blurb": "Turn text into a natural sounding voice."},
     "transcribe": {"label": "Speech to text", "blurb": "Turn recordings into written text."},
     "sound": {"label": "Music & sound effects", "blurb": "Generate music or sound from a description."},
+    "embed": {"label": "Document search", "blurb": "Find the passages in your documents that answer a question."},
 }
 
 # Hugging Face pipeline tags -> our task.
@@ -57,6 +58,12 @@ CURATED = [
      "why": "Tiny, instant English text-to-speech."},
     {"repo_id": "suno/bark-small", "task": "speech", "title": "Bark (small)",
      "why": "Expressive voice that can laugh, sigh and sing a little."},
+    {"repo_id": "Qwen/Qwen3-Embedding-0.6B-GGUF", "task": "embed", "title": "Qwen3 Embedding 0.6B",
+     "why": "Small, accurate and multilingual. The default for searching your documents."},
+    {"repo_id": "ggml-org/embeddinggemma-300M-GGUF", "task": "embed", "title": "EmbeddingGemma 300M",
+     "why": "Google's tiny search model. Very light, good in over 100 languages."},
+    {"repo_id": "nomic-ai/nomic-embed-text-v1.5-GGUF", "task": "embed", "title": "Nomic Embed v1.5",
+     "why": "Popular English search model, very light."},
     {"repo_id": "openai/whisper-small", "task": "transcribe", "title": "Whisper small",
      "why": "Accurate transcription in 99 languages, fast on any GPU."},
     {"repo_id": "openai/whisper-large-v3-turbo", "task": "transcribe", "title": "Whisper large v3 turbo",
@@ -117,6 +124,16 @@ def is_chat_gguf(repo_id: str, pipeline: str | None, tags) -> bool:
     return not (NOT_CHAT_TAGS & set(tags or [])) and not NOT_CHAT_NAME.search(repo_id)
 
 
+EMBED_TAGS = {"feature-extraction", "sentence-similarity"}
+
+
+def is_embed_gguf(repo_id: str, pipeline: str | None, tags) -> bool:
+    """A GGUF text-embedding model (for document search). Rerankers share the tags but score pairs instead."""
+    if pipeline not in (None, "feature-extraction", "sentence-similarity"):
+        return False
+    return bool(EMBED_TAGS & set(tags or [])) and not re.search(r"rerank", repo_id, re.IGNORECASE)
+
+
 def classify(info) -> tuple[str | None, str | None]:
     """Return (task, engine) for a ModelInfo, or (None, None) if we can't run it."""
     tags = set(info.tags or [])
@@ -125,6 +142,8 @@ def classify(info) -> tuple[str | None, str | None]:
     pipeline = info.pipeline_tag
     library = info.library_name
 
+    if has_gguf and is_embed_gguf(info.id, pipeline, tags):
+        return "embed", "llamacpp"
     if has_gguf and is_chat_gguf(info.id, pipeline, tags):
         return "chat", "llamacpp"
     # Other repos may also ship .gguf files (e.g. a voice model); classify them by what they are.

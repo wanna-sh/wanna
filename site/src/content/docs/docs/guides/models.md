@@ -4,7 +4,8 @@ description: How Get models rates models for your computer, which version to cho
 ---
 
 **Get models** lists the models wanna.sh can run, from [Hugging Face](https://huggingface.co), grouped by what they do:
-Chat, Pictures, Videos, Read aloud, Transcribe and Music & sound.
+Chat, Pictures, Videos, Read aloud, Transcribe, Music & sound, and Document search (the small search models that
+power [Knowledge](/docs/tutorials/knowledge/)).
 
 ![Get models](../../../../assets/screens/get-models.webp)
 

@@ -32,6 +32,7 @@ const ART_FOCUS: Partial<Record<Task, string>> = {
   transcribe: "center 70%",
   sound: "center 75%",
   video: "center 60%",
+  embed: "center 55%",
 };
 
 /** Page title. With `art`, a task's painting sits behind it as a wide banner. */

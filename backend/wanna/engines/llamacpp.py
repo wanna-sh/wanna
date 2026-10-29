@@ -188,7 +188,7 @@ def _extract_flat(buf: io.BytesIO, name: str, dest: Path) -> None:
 def server_command(
     model_path: str, port: int, context: int, gpus: list[int], split: list[float] | None,
     mmproj: str | None = None, alias: str | None = None, extra: list[str] | None = None,
-    gpu_layers: int | None = None,
+    gpu_layers: int | None = None, embedding: bool = False, pooling: str | None = None,
 ) -> tuple[list[str], dict]:
     """Build the llama-server command line and environment for a model placement."""
     cmd = [
@@ -204,6 +204,11 @@ def server_command(
         cmd += ["--alias", alias]
     if mmproj:
         cmd += ["--mmproj", mmproj]
+    if embedding:
+        # Embedding models read a whole passage in one batch, so the batch sizes must cover the context.
+        cmd += ["--embedding", "--batch-size", str(context), "--ubatch-size", str(context)]
+        if pooling:
+            cmd += ["--pooling", pooling]
     env = dict(os.environ)
     lib_dir = str(installer.dir)
     env["LD_LIBRARY_PATH"] = lib_dir + os.pathsep + env.get("LD_LIBRARY_PATH", "")

@@ -223,44 +223,17 @@ EXTRACT_MAX_CHARS = 400_000
 @router.post("/extract-text")
 def extract_text(file: UploadFile = File(...)):
     """Text from a PDF or plain-text file, for attaching documents to a chat."""
-    name = (file.filename or "").lower()
+    from ..knowledge.extract import ExtractError, extract
+
     data = file.file.read(50 * 1024 * 1024 + 1)
     if len(data) > 50 * 1024 * 1024:
         raise HTTPException(413, "That file is over 50 MB. Try a smaller document.")
-    pages = None
-    if name.endswith(".pdf") or data[:5] == b"%PDF-":
-        import io
-
-        from pypdf import PdfReader
-        from pypdf.errors import PdfReadError
-
-        try:
-            reader = PdfReader(io.BytesIO(data))
-            if reader.is_encrypted:
-                raise HTTPException(400, "This PDF is password protected. Unlock it and attach it again.")
-            parts, total = [], 0
-            for page in reader.pages:
-                t = page.extract_text() or ""
-                parts.append(t)
-                total += len(t)
-                if total > EXTRACT_MAX_CHARS:
-                    break
-            text, pages = "\n\n".join(parts), len(reader.pages)
-        except PdfReadError as e:
-            raise HTTPException(400, f"Couldn't read this PDF: {e}")
-        if not text.strip():
-            raise HTTPException(
-                400, "This PDF has no selectable text (it may be scanned pictures of pages), so there's nothing to read."
-            )
-    else:
-        try:
-            text = data.decode("utf-8")
-        except UnicodeDecodeError:
-            text = data.decode("latin-1")
-        if "\x00" in text[:4096]:
-            raise HTTPException(400, "This doesn't look like a text document. Attach a PDF, text, Markdown, CSV or code file.")
-    truncated = len(text) > EXTRACT_MAX_CHARS
-    return {"text": text[:EXTRACT_MAX_CHARS], "pages": pages, "chars": min(len(text), EXTRACT_MAX_CHARS), "truncated": truncated}
+    try:
+        parts, pages, truncated = extract(data, file.filename or "", EXTRACT_MAX_CHARS)
+    except ExtractError as e:
+        raise HTTPException(400, str(e))
+    text = "\n\n".join(t for _, t in parts)[:EXTRACT_MAX_CHARS]
+    return {"text": text, "pages": pages, "chars": len(text), "truncated": truncated}
 
 
 def _upload_path(upload_id: str | None) -> str | None:

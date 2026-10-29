@@ -31,6 +31,7 @@ TASK_QUERIES = {
     "speech": [{"filter": "transformers", "pipeline_tag": "text-to-speech"}],
     "sound": [{"filter": "transformers", "pipeline_tag": "text-to-audio"}],
     "transcribe": [{"filter": "transformers", "pipeline_tag": "automatic-speech-recognition"}],
+    "embed": [{"filter": ["gguf", "feature-extraction"]}, {"filter": ["gguf", "sentence-similarity"]}],
 }
 EXPAND = ["gguf", "safetensors", "config", "siblings", "downloads", "likes", "trendingScore", "createdAt",
           "pipeline_tag", "library_name", "tags", "gated"]
@@ -180,6 +181,12 @@ def _quick(m, task: str, b: dict) -> dict | None:
         weights = int(params * Q4_BYTES_PER_PARAM)
         return {"weights": weights, "params": params, "verdict": rate(task, weights, b),
                 "vision": m.pipeline_tag in ("image-text-to-text", "any-to-any")}
+    if task == "embed":
+        g = m.gguf or {}
+        if not hub.is_embed_gguf(m.id, m.pipeline_tag, tags) or not g.get("total"):
+            return None
+        weights = int(g["total"] * 1.07)  # Q8_0, the usual choice for small embedding models
+        return {"weights": weights, "params": g["total"], "verdict": rate(task, weights, b)}
     if task in ("image", "video"):
         files = {s.rfilename for s in (m.siblings or [])}
         if "model_index.json" not in files:

@@ -39,6 +39,9 @@ The panels on the right show:
 - **Files**: the project's files. Click one to read it.
 - **Preview**: any web server the agent starts in the sandbox on port 3000, 5173, 8000 or 8080, shown live.
 
+To let the agent use your own documents (a spec, an API reference, your conventions), press **Knowledge** under the
+message box and tick libraries. See [Ask about your documents](/docs/tutorials/knowledge/#in-code).
+
 Send another message at any time to ask for changes. **Stop** halts the agent; **New conversation** starts a fresh
 conversation in the same project.
 
@@ -65,6 +68,7 @@ exact command in this project.
 | `todo_write` | Keep the task list in the **Tasks** panel. |
 | `web_search` | Search the web. |
 | `web_fetch` | Read a web page or PDF, such as documentation. |
+| `search_knowledge` | Search the [Knowledge](/docs/tutorials/knowledge/#in-code) libraries you gave the project. Only offered when the project has some. |
 
 ## What the sandbox can reach
 

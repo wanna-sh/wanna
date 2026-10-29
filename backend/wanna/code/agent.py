@@ -215,7 +215,7 @@ class Session:
         payload = {
             "model": model_id,
             "messages": [{"role": "system", "content": self._system()}] + fitted,
-            "tools": tools.SCHEMAS,
+            "tools": tools.schemas_for(projects.get(self.pid) or {}),
             "stream": True,
             "temperature": 0.3,
             # Cap private reasoning so one step can't spend the whole memory thinking (llama.cpp honours this per request).

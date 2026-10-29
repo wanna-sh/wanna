@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .downloads import manager as downloads
-from .api import code, native, openai
+from .api import code, knowledge, native, openai
 from .config import DOCKER_NETWORK, OUTPUTS_DIR
 from .workers.manager import manager
 
@@ -29,6 +29,9 @@ UI_DIR = Path(os.environ.get("WANNA_UI_DIR", Path(__file__).resolve().parents[2]
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     downloads.resume_pending()
+    from .knowledge import index as knowledge_index
+
+    knowledge_index.resume()
     yield
     manager.unload_all()
 
@@ -163,6 +166,7 @@ async def validation_error(request: Request, exc: RequestValidationError):
 
 app.include_router(openai.router)
 app.include_router(native.router)
+app.include_router(knowledge.router)
 app.include_router(code.router)
 app.mount("/files", StaticFiles(directory=OUTPUTS_DIR), name="files")
 

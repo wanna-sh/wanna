@@ -15,6 +15,7 @@ of AI, it brings them together behind one simple interface in your web browser:
 | turn a recording into text | **Transcribe** | Speech recognition models such as Whisper |
 | make music | **Music & sound** | Music models such as MusicGen |
 | build an app | **Code** | A coding agent that uses your chat model |
+| ask about my documents | **Knowledge**, in Chat and Code | Search models such as Qwen3 Embedding, plus your chat model |
 
 ![The Chat page in wanna.sh](../../../assets/screens/chat.webp)
 

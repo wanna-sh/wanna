@@ -20,6 +20,7 @@ import httpx
 from .. import db, gpu
 from ..config import HOME, LOGS_DIR, OUTPUTS_DIR, load_settings
 from ..engines import llamacpp
+from ..knowledge.families import family
 
 log = logging.getLogger("wanna.manager")
 
@@ -61,6 +62,9 @@ def _kill_orphans() -> None:
             pass
     PID_FILE.unlink(missing_ok=True)
 
+
+# Context for embedding models: room for a long passage plus its instruction.
+EMBED_CONTEXT = 8192
 
 class ModelNotFound(Exception):
     pass
@@ -116,6 +120,8 @@ class Worker:
                 self.model["path"], self.port, self.context or load_settings()["default_context"],
                 self.gpus, self.split, mmproj=meta.get("mmproj"), alias=self.id,
                 gpu_layers=(self.plan or {}).get("gpu_layers") if self.plan else None,
+                embedding=self.task == "embed",
+                pooling=family(self.model["repo_id"])["pooling"] if self.task == "embed" else None,
             )
             env["LLAMA_API_KEY"] = self.token  # via the environment, so it isn't visible in the process list
         else:
@@ -277,6 +283,8 @@ class ModelManager:
                     return existing
                 self.unload(model_id)
 
+            if model["task"] == "embed" and not context:
+                context = EMBED_CONTEXT  # passages are short; a fixed size keeps the batch settings simple
             if model["engine"] == "llamacpp" and not llamacpp.installer.installed():
                 llamacpp.installer.ensure()
                 raise LoadError("The chat engine is still being set up. This happens once; please try again shortly.")

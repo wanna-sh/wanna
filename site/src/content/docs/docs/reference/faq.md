@@ -17,6 +17,12 @@ and download models and the chat engine, and Code's web tools fetch the pages an
 
 Yes, once the models you want are downloaded. Finding and downloading new models needs a connection.
 
+### Can it answer questions about my own documents?
+
+Yes. Put them in a [Knowledge](/docs/tutorials/knowledge/) library (or just attach a long document in Chat), and
+answers use the passages that match each question, with citations. This is often called RAG. Everything runs on your
+computer.
+
 ### How is it different from Ollama, LM Studio or Open WebUI?
 
 Those focus on chat. wanna.sh covers chat, pictures, video, voices, transcription, music and coding in one app, rates
