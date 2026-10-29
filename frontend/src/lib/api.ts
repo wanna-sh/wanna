@@ -145,6 +145,7 @@ export interface SystemInfo {
   cpu_count: number;
   ram_total: number;
   ram_available: number;
+  wsl?: boolean;
   cuda_driver: string | null;
   gpus: Gpu[];
   engines: { llamacpp: { status: string; progress: number; message: string; error: string | null; backend: string } };
@@ -209,6 +210,8 @@ export interface Budget {
   all_gpus: number;
   best_gpu: number;
   ram: number;
+  /** Inside WSL2: ram is WSL's share of the PC's memory. */
+  wsl?: boolean;
 }
 
 export interface BrowseResult {

@@ -298,7 +298,7 @@ def _pretty(name: str) -> str:
 
 def _public_budget(b: dict) -> dict:
     return {"gpus": [{"name": _short(g["name"]), "memory": g["memory"]} for g in b["gpus"]],
-            "all_gpus": b["all_gpus"], "best_gpu": b["best_gpu"], "ram": b["ram"]}
+            "all_gpus": b["all_gpus"], "best_gpu": b["best_gpu"], "ram": b["ram"], "wsl": gpu.in_wsl()}
 
 
 _REMIX_WORDS = {"abliterated", "uncensored", "heretic", "gsq", "rco", "aggressive", "quantized", "instruct", "it",

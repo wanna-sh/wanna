@@ -191,12 +191,13 @@ export default function ChatPage() {
         setSearching(true);
         const prev = [...messages].reverse().find((m) => m.role === "user");
         const query = text.length < 80 && prev ? `${textOf(prev.content)}\n${text}` : text || docs.map((d) => d.name).join(", ");
-        const ctx = await api.post<{ results: KnowledgeResult[]; prompt: string }>("/api/knowledge/context", {
+        const ctx = await api.post<{ results: KnowledgeResult[]; prompt: string; warnings?: string[] }>("/api/knowledge/context", {
           query,
           libraries: libs,
           k: 6,
         });
         sources = ctx.results;
+        if (ctx.warnings?.length) setNotice(ctx.warnings.join(" "));
         // One system message: some chat models accept only one, at the start.
         instructions = [instructions, ctx.prompt].filter(Boolean).join("\n\n");
         setSearching(false);
@@ -442,7 +443,17 @@ export default function ChatPage() {
 
         {error && (
           <div className="mb-3">
-            <Notice tone="error">{error}</Notice>
+            <Notice tone="error">
+              {error}
+              {/Knowledge page/.test(error) && (
+                <>
+                  {" "}
+                  <Link href="/knowledge/" className="underline underline-offset-2">
+                    Open Knowledge
+                  </Link>
+                </>
+              )}
+            </Notice>
           </div>
         )}
 
@@ -488,7 +499,19 @@ export default function ChatPage() {
                 or remove the picture.
               </Notice>
             )}
-            {notice && <Notice>{notice}</Notice>}
+            {notice && (
+              <Notice>
+                {notice}
+                {/Knowledge page/.test(notice) && (
+                  <>
+                    {" "}
+                    <Link href="/knowledge/" className="underline underline-offset-2">
+                      Open Knowledge
+                    </Link>
+                  </>
+                )}
+              </Notice>
+            )}
             {dictation.error && <Notice tone="error">{dictation.error}</Notice>}
           </div>
         )}

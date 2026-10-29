@@ -7,7 +7,7 @@ import Link from "next/link";
 import { api, type Budget, type BrowseResult, type Download, type HubResult, type Overview, type Task } from "@/lib/api";
 import { usePoll } from "@/lib/hooks";
 import { MODEL_TASKS, TASKS } from "@/lib/tasks";
-import { compact, mem } from "@/lib/format";
+import { compact, hardwareSummary } from "@/lib/format";
 import { DownloadRow, ModelSheet } from "@/components/models";
 import { Button, Notice, PageHeader, Segmented, VerdictBadge, inputClass } from "@/components/ui";
 
@@ -170,13 +170,11 @@ function Discover() {
 function YourComputer({ budget }: { budget: Budget | undefined }) {
   const [open, setOpen] = useState(false);
   if (!budget) return null;
-  const cards = budget.gpus.map((g) => `${g.name} (${mem(g.memory)})`);
   return (
     <section className="mb-7 text-[15px]">
       <p className="text-slate">
-        {cards.length === 0
-          ? `Rated for this computer: no graphics card, ${mem(budget.ram)} of memory. Small models work best.`
-          : `Rated for this computer: ${cards.join(" and ")}, ${mem(budget.ram)} of memory.`}{" "}
+        Rated for this computer: {hardwareSummary(budget.gpus, budget.ram, budget.wsl)}.
+        {budget.gpus.length === 0 && " Small models work best."}{" "}
         <button className="underline underline-offset-2 hover:text-ink" onClick={() => setOpen(!open)} aria-expanded={open}>
           {open ? "Hide what the ratings mean" : "What do the ratings mean?"}
         </button>

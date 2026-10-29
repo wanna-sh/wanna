@@ -27,6 +27,9 @@ def _vectors(lib: dict) -> tuple[np.ndarray, np.ndarray]:
     with db.cursor() as c:
         rows = c.execute("SELECT id, embedding FROM kb_chunks WHERE library_id = ? AND embedding IS NOT NULL",
                          (lib["id"],)).fetchall()
+    if rows:  # only vectors of the library's usual size, in case a re-index was interrupted
+        size = max({len(r[1]) for r in rows}, key=[len(r[1]) for r in rows].count)
+        rows = [r for r in rows if len(r[1]) == size]
     ids = np.array([r[0] for r in rows], dtype=np.int64)
     mat = np.vstack([np.frombuffer(r[1], dtype=np.float32) for r in rows]) if rows else np.zeros((0, 1), np.float32)
     _cache[lib["id"]] = (lib["updated_at"], ids, mat)
@@ -38,6 +41,12 @@ def _fts_query(query: str) -> str | None:
     return " OR ".join(f'"{w}"' for w in words) or None
 
 
+def words_only(library_ids: list[str]) -> list[dict]:
+    """Libraries whose search model was removed: they can only be searched by words until they're read again."""
+    libs = [lib for lib in (store.get_library(i) for i in dict.fromkeys(library_ids)) if lib]
+    return [lib for lib in libs if lib["embed_model"] and lib["passages"] and db.get_model(lib["embed_model"]) is None]
+
+
 async def search(query: str, library_ids: list[str], k: int = 6) -> list[dict]:
     libs = [lib for lib in (store.get_library(i) for i in dict.fromkeys(library_ids)) if lib]
     if not query.strip() or not libs:
@@ -45,8 +54,10 @@ async def search(query: str, library_ids: list[str], k: int = 6) -> list[dict]:
     ranked: dict[int, float] = {}
     how: dict[int, set] = {}
 
-    # Meaning: one query vector per search model (libraries normally share one).
-    for model_id in {lib["embed_model"] for lib in libs if lib["embed_model"]}:
+    # Meaning: one query vector per search model (libraries normally share one). A removed model is skipped;
+    # those libraries are still searched by words below.
+    models = {lib["embed_model"] for lib in libs if lib["embed_model"]}
+    for model_id in (m for m in models if db.get_model(m) is not None):
         q = (await embed(model_id, [query], "query"))[0]
         scored = []
         for lib in (lib for lib in libs if lib["embed_model"] == model_id):

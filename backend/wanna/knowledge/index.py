@@ -84,8 +84,19 @@ async def _index(did: str) -> None:
             store.set_document(did, status="error", error=f"Indexing failed: {e}")
 
 
+def retry(did: str) -> None:
+    """Try a document that failed again, for example after installing a search model."""
+    store.set_document(did, status="queued", progress=0, error=None)
+    queue(did)
+
+
 async def reindex(lid: str, model_id: str) -> None:
-    """Embed every document in a library again, with another search model."""
+    """Read every document in a library again, with this search model (and the current way of splitting text).
+
+    The old vectors are dropped first: two models' vectors can't be compared. Word search keeps working on the old
+    passages until each document is done.
+    """
+    store.clear_vectors(lid)
     store.update_library(lid, embed_model=model_id)
     for doc in store.list_documents(lid):
         store.set_document(doc["id"], status="queued", progress=0, error=None)

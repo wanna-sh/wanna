@@ -32,6 +32,8 @@ or press **Choose files**.
   pages take seconds. You'll see progress next to each document.
 - **Very long documents:** the first five million characters (about a million words) are indexed.
 - **Scanned PDFs** have no text inside, so there's nothing to search. Use a PDF with selectable text.
+- **If a document fails** (for example, you added it before the search model finished downloading), its error shows
+  next to it with a **Try again** link.
 
 Use **Try a search** to check that a question finds what you expect.
 
@@ -88,10 +90,20 @@ the search and the citations.
 
 ## Changing the search model
 
-A library keeps the search model it was made with; new libraries use the search model you installed most recently.
-To move an existing library to another search model, re-index it with the
-[API](/docs/api/knowledge/#re-index-a-library). Search models aren't interchangeable: passages and questions must be
-read by the same one.
+Search models aren't interchangeable: a question can only be compared with passages read by the same model. So each
+library keeps the search model it was read with, shown under its name as **Search model**. New libraries use the
+search model you installed most recently.
+
+To switch a library to another search model, press **Change or read again**, choose the model and press **Read
+documents again**. Every document is read again, with the usual progress. Until each one is done, the library is still
+searched by exact words. Choosing the same model reads the documents again too, which picks up any improvements in how
+newer versions of wanna.sh split documents into passages.
+
+### If a search model is removed
+
+If you delete a search model that libraries were read with, My models warns you first and names them. Those libraries
+keep working, but can only be searched by exact words, not by meaning. Chat says so when it uses one, and the library
+shows a notice with a button to read it again with an installed search model.
 
 ## Where it's stored
 

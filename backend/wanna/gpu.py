@@ -70,11 +70,20 @@ def _str(v) -> str:
     return v.decode() if isinstance(v, bytes) else v
 
 
+def in_wsl() -> bool:
+    """Running inside WSL2, where system memory is WSL's share of the PC's (half, by default)."""
+    try:
+        return "microsoft" in open("/proc/version").read().lower()
+    except OSError:
+        return False
+
+
 def system_info() -> dict:
     vm = psutil.virtual_memory()
     return {
         "cpu_count": psutil.cpu_count(logical=True),
         "ram_total": int(vm.total),
+        "wsl": in_wsl(),
         "ram_available": int(vm.available),
         "cuda_driver": ".".join(map(str, cuda_driver_version())) if cuda_driver_version() else None,
         "gpus": list_gpus(),

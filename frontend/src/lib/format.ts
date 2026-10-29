@@ -52,3 +52,16 @@ export function prettyName(name: string): string {
     .replace(/[-_.](GGUF|gguf|Diffusers|diffusers)$/, "")
     .replace(/[-_]/g, " ");
 }
+
+/**
+ * "RTX 3070 (8 GB) and RTX 3060 (12 GB), 20 GB of graphics memory in total, and 16 GB of system memory available to
+ * WSL2": graphics and system memory named separately, so neither is mistaken for the other.
+ */
+export function hardwareSummary(gpus: { name: string; memory: number }[], ram: number, wsl = false): string {
+  const system = `${mem(ram)} of system memory${wsl ? " available to WSL2" : ""}`;
+  const cards = gpus.map((g) => `${gpuName(g.name)} (${mem(g.memory)})`);
+  if (cards.length === 0) return `no graphics card, ${system}`;
+  if (cards.length === 1) return `${cards[0]} and ${system}`;
+  const total = gpus.reduce((a, g) => a + g.memory, 0);
+  return `${cards.join(" and ")}, ${mem(total)} of graphics memory in total, and ${system}`;
+}

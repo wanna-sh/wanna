@@ -13,7 +13,7 @@ import {
   type KnowledgeStatus,
 } from "@/lib/api";
 import { usePoll } from "@/lib/hooks";
-import { bytes } from "@/lib/format";
+import { bytes, prettyName } from "@/lib/format";
 import { Button, Field, Notice, PageHeader, Panel, Progress, inputClass } from "@/components/ui";
 import { sourceLabel } from "@/components/knowledge";
 
@@ -41,7 +41,7 @@ function Knowledge() {
         intro="Put your documents in a library, then ask about them in Chat or Code. Answers use the passages that match your question and say where each fact came from. Everything stays on this computer."
       />
       {status && !ready && <Setup status={status} onStarted={refreshStatus} />}
-      {ready && (lid ? <LibraryView lid={lid} /> : <Libraries />)}
+      {ready && (lid ? <LibraryView lid={lid} searchModels={status.search_models} /> : <Libraries />)}
     </>
   );
 }
@@ -220,7 +220,7 @@ function ChatAttachments() {
   );
 }
 
-function LibraryView({ lid }: { lid: string }) {
+function LibraryView({ lid, searchModels }: { lid: string; searchModels: KnowledgeStatus["search_models"] }) {
   const router = useRouter();
   const { data: lib, error, refresh } = usePoll<KnowledgeLibrary & { documents_list: KnowledgeDoc[] }>(
     `/api/knowledge/libraries/${lid}`,
@@ -258,6 +258,7 @@ function LibraryView({ lid }: { lid: string }) {
   if (error) return <Notice tone="error">{error}</Notice>;
   if (!lib) return null;
   const docs = lib.documents_list;
+  const modelGone = !!lib.embed_model && lib.documents > 0 && !searchModels.some((m) => m.id === lib.embed_model);
   return (
     <div className="grid gap-6 max-w-[900px]">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -271,11 +272,24 @@ function LibraryView({ lid }: { lid: string }) {
             {lib.documents} document{lib.documents === 1 ? "" : "s"}, {lib.passages} passages. Use it in Chat with the{" "}
             <span className="text-ink">Knowledge</span> button under the message box.
           </p>
+          {!modelGone && lib.documents > 0 && <SearchModel lib={lib} searchModels={searchModels} onDone={refresh} />}
         </div>
         <Button tone="quiet" onClick={removeLibrary}>
           <Trash2 size={15} aria-hidden /> Delete library
         </Button>
       </div>
+
+      {modelGone && (
+        <Notice>
+          <p>
+            This library was read with a search model that has been removed, so for now it can only be searched by exact
+            words. Read it again with an installed search model to search it by meaning too.
+          </p>
+          <div className="mt-3">
+            <SearchModel lib={lib} searchModels={searchModels} onDone={refresh} open />
+          </div>
+        </Notice>
+      )}
 
       <div
         onDragOver={(e) => {
@@ -319,7 +333,10 @@ function LibraryView({ lid }: { lid: string }) {
               <FileText size={18} className="text-slate shrink-0" aria-hidden />
               <div className="min-w-0 flex-1">
                 <p className="truncate">{d.name}</p>
-                <DocStatus d={d} />
+                <DocStatus
+                  d={d}
+                  onRetry={() => api.post(`/api/knowledge/documents/${d.id}/retry`).then(refresh, (e) => setProblem((e as Error).message))}
+                />
               </div>
               <button
                 type="button"
@@ -346,6 +363,83 @@ function LibraryView({ lid }: { lid: string }) {
   );
 }
 
+const modelLabel = (m: { repo_id: string }) => prettyName(m.repo_id);
+
+/** Which search model a library was read with, and a way to read it again (with that model or another). */
+function SearchModel({
+  lib,
+  searchModels,
+  onDone,
+  open: startOpen = false,
+}: {
+  lib: KnowledgeLibrary;
+  searchModels: KnowledgeStatus["search_models"];
+  onDone: () => void;
+  open?: boolean;
+}) {
+  const current = searchModels.find((m) => m.id === lib.embed_model);
+  const [open, setOpen] = useState(startOpen);
+  const [choice, setChoice] = useState(current?.id ?? searchModels[0]?.id ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const reread = async () => {
+    const m = searchModels.find((x) => x.id === choice);
+    if (!m) return;
+    const same = m.id === lib.embed_model;
+    const msg = same
+      ? `Read all ${lib.documents} documents again with ${modelLabel(m)}? This picks up improvements in how documents are split.`
+      : `Read all ${lib.documents} documents again with ${modelLabel(m)}? Until each one is done, it's found by exact words only.`;
+    if (!confirm(msg)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(`/api/knowledge/libraries/${lib.id}/reindex`, { model: m.id });
+      setOpen(startOpen);
+      onDone();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="mt-2 text-[13px] text-slate">
+      {!startOpen && (
+        <p>
+          Search model: <span className="text-ink">{current ? modelLabel(current) : "not set yet"}</span>.{" "}
+          <button type="button" onClick={() => setOpen(!open)} className="underline underline-offset-2 hover:text-ink">
+            {open ? "Cancel" : "Change or read again"}
+          </button>
+        </p>
+      )}
+      {open && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <select
+            className={`${inputClass} h-10 py-0 max-w-[280px]`}
+            value={choice}
+            onChange={(e) => setChoice(e.target.value)}
+            aria-label="Search model"
+          >
+            {searchModels.map((m) => (
+              <option key={m.id} value={m.id}>
+                {modelLabel(m)}
+                {m.id === lib.embed_model ? " (current)" : ""}
+              </option>
+            ))}
+          </select>
+          <Button onClick={reread} disabled={busy || !choice}>
+            {busy ? <Loader2 size={15} className="animate-spin" aria-hidden /> : null} Read documents again
+          </Button>
+          <Link href="/discover/?task=embed" className="underline underline-offset-2 hover:text-ink">
+            Get other search models
+          </Link>
+        </div>
+      )}
+      {error && <p className="text-danger mt-2">{error}</p>}
+    </div>
+  );
+}
+
 /** Fetched rather than linked, so it works when API keys are required (links can't send the interface's header). */
 async function openDocument(d: KnowledgeDoc) {
   const r = await fetch(`${API_BASE}/api/knowledge/documents/${d.id}/file`, { headers: { "X-Wanna-UI": "1" } });
@@ -356,8 +450,16 @@ async function openDocument(d: KnowledgeDoc) {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-function DocStatus({ d }: { d: KnowledgeDoc }) {
-  if (d.status === "error") return <p className="text-[13px] text-danger">{d.error}</p>;
+function DocStatus({ d, onRetry }: { d: KnowledgeDoc; onRetry: () => void }) {
+  if (d.status === "error")
+    return (
+      <p className="text-[13px] text-danger">
+        {d.error}{" "}
+        <button type="button" onClick={onRetry} className="underline underline-offset-2 text-ink">
+          Try again
+        </button>
+      </p>
+    );
   if (d.status === "queued") return <p className="text-[13px] text-slate">Waiting to be read…</p>;
   if (d.status === "indexing")
     return (
@@ -378,6 +480,7 @@ function DocStatus({ d }: { d: KnowledgeDoc }) {
 function TrySearch({ lid }: { lid: string }) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<KnowledgeResult[] | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const run = async () => {
@@ -385,8 +488,13 @@ function TrySearch({ lid }: { lid: string }) {
     setBusy(true);
     setError(null);
     try {
-      const r = await api.post<{ results: KnowledgeResult[] }>("/api/knowledge/search", { query: q, libraries: [lid], k: 5 });
+      const r = await api.post<{ results: KnowledgeResult[]; warnings?: string[] }>("/api/knowledge/search", {
+        query: q,
+        libraries: [lid],
+        k: 5,
+      });
       setResults(r.results);
+      setWarnings(r.warnings ?? []);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -414,6 +522,7 @@ function TrySearch({ lid }: { lid: string }) {
           <Notice tone="error">{error}</Notice>
         </div>
       )}
+      {warnings.length > 0 && <p className="mt-3 text-[13px] text-slate">Searched by exact words only (see above).</p>}
       {results && (
         <ol className="mt-4 grid gap-3">
           {results.length === 0 && <li className="text-[14px] text-slate">Nothing found.</li>}

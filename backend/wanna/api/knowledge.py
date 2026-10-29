@@ -11,7 +11,7 @@ from ..config import HOME
 from ..downloads import manager as downloads
 from ..knowledge import index, store
 from ..knowledge.embed import NoSearchModel, default_model
-from ..knowledge.search import context_prompt, search
+from ..knowledge.search import context_prompt, search, words_only
 from ..workers.manager import LoadError
 from .auth import require_key
 
@@ -136,6 +136,14 @@ async def add_documents(lid: str, files: list[UploadFile] = File(...)):
     return added
 
 
+@router.post("/documents/{did}/retry")
+async def retry_document(did: str):  # async: indexing is queued on the server's event loop
+    if not store.get_document(did):
+        raise HTTPException(404, "Document not found")
+    index.retry(did)
+    return store.get_document(did)
+
+
 @router.delete("/documents/{did}")
 def delete_document(did: str):
     if not store.get_document(did):
@@ -169,14 +177,22 @@ async def _search(req: Query) -> list[dict]:
         raise HTTPException(503, str(e))
 
 
+def _warnings(req: Query) -> list[str]:
+    return [f'"{lib["name"]}" was read with a search model that has been removed, so it was only searched by exact '
+            "words. Read it again on the Knowledge page to search it by meaning too." for lib in words_only(req.libraries)
+            if not lib["hidden"]] + [
+           "A long attachment in this chat was read with a search model that has been removed, so it was only searched "
+           "by exact words." for lib in words_only(req.libraries) if lib["hidden"]][:1]
+
+
 @router.post("/search")
 async def search_libraries(req: Query):
     """The passages that best match a query, most relevant first."""
-    return {"results": await _search(req)}
+    return {"results": await _search(req), "warnings": _warnings(req)}
 
 
 @router.post("/context")
 async def chat_context(req: Query):
     """Search, then build the instructions and numbered passages to give a chat model (what Chat uses)."""
     results = await _search(req)
-    return {"results": results, "prompt": context_prompt(results)}
+    return {"results": results, "prompt": context_prompt(results), "warnings": _warnings(req)}

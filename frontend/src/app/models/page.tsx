@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
-import { api, type Gpu, type InstalledModel, type MemoryOptions } from "@/lib/api";
+import { api, type Gpu, type InstalledModel, type MemoryOptions, type KnowledgeLibrary } from "@/lib/api";
 import { useModels, usePoll, useSystem } from "@/lib/hooks";
 import { MODEL_TASKS, TASKS } from "@/lib/tasks";
 import { ago, bytes, gpuName, prettyName } from "@/lib/format";
@@ -221,8 +221,20 @@ function ModelRow({ m, gpus, onChange }: { m: InstalledModel; gpus: Gpu[]; onCha
             <button
               className="text-danger underline underline-offset-2 ml-auto"
               disabled={busy}
-              onClick={() => {
-                if (confirm(`Delete ${name}? This frees ${bytes(m.size_bytes)} and can't be undone.`))
+              onClick={async () => {
+                let warning = "";
+                if (m.task === "embed") {
+                  // Libraries read with this search model can't be searched by meaning without it.
+                  const libs = await api.get<KnowledgeLibrary[]>("/api/knowledge/libraries?hidden=true").catch(() => []);
+                  const using = libs.filter((l) => l.embed_model === m.id && l.documents > 0);
+                  if (using.length) {
+                    const names = using.filter((l) => !l.hidden).map((l) => `"${l.name}"`);
+                    const chats = using.length - names.length;
+                    const what = [...names, ...(chats ? [`${chats} chat attachment${chats === 1 ? "" : "s"}`] : [])].join(", ");
+                    warning = `\n\n${what} ${using.length === 1 ? "was" : "were"} read with it. Until you read them again with another search model (on the Knowledge page), they can only be searched by exact words.`;
+                  }
+                }
+                if (confirm(`Delete ${name}? This frees ${bytes(m.size_bytes)} and can't be undone.${warning}`))
                   act(() => api.del(`/api/models/${m.id}`));
               }}
             >

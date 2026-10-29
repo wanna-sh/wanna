@@ -28,8 +28,8 @@ async def embed(model_id: str, texts: list[str], kind: str) -> np.ndarray:
     """Normalised float32 vectors, one row per text. kind is "query" or "document"."""
     model = db.get_model(model_id)
     if model is None:
-        raise NoSearchModel(f"The search model '{model_id}' isn't installed any more. Install it again, or re-index "
-                            "the library with another search model.")
+        raise NoSearchModel(f"The search model {model_id} isn't installed. Install it again, or read the library again "
+                            "with another search model on the Knowledge page.")
     prefix = family(model["repo_id"])[kind]
     worker = await manager.ensure_ready(model)
     worker.last_used = time.time()

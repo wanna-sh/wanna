@@ -6,7 +6,7 @@ import { ArrowRight, Cpu, Lock, WifiOff } from "lucide-react";
 import { API_BASE, type Task } from "@/lib/api";
 import { useModels, useSystem } from "@/lib/hooks";
 import { TASKS, TASK_ORDER } from "@/lib/tasks";
-import { gpuName, mem } from "@/lib/format";
+import { gpuName, hardwareSummary, mem } from "@/lib/format";
 import { GitHubMark, REPO_URL } from "@/components/github";
 
 const ART: ("home" | Task)[] = ["home", ...TASK_ORDER];
@@ -166,8 +166,13 @@ export default function Home() {
           </div>
           {cards.length > 0 && (
             <p className="mt-6 text-[14px] text-white/65">
-              Ready on this computer: {cards.join(" and ")}
-              {sys?.ram_total ? `, ${mem(sys.ram_total)} of memory` : ""}.
+              Ready on this computer:{" "}
+              {hardwareSummary(
+                (sys?.gpus ?? []).map((g) => ({ name: g.name, memory: g.memory_total })),
+                sys?.ram_total ?? 0,
+                sys?.wsl,
+              )}
+              .
             </p>
           )}
         </div>

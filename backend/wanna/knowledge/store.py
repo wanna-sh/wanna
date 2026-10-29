@@ -126,6 +126,12 @@ def delete_document(did: str) -> None:
 
 # --- passages --------------------------------------------------------------------------------------------
 
+def clear_vectors(lid: str) -> None:
+    with db.cursor() as c:
+        c.execute("UPDATE kb_chunks SET embedding = NULL WHERE library_id = ?", (lid,))
+    touch(lid)
+
+
 def replace_chunks(did: str, lid: str, chunks: list[dict], vectors) -> None:
     with db.cursor() as c:
         c.execute("DELETE FROM kb_chunks WHERE document_id = ?", (did,))

@@ -53,6 +53,7 @@ runs.
 | `DELETE /api/knowledge/libraries/{id}` | Delete it, its documents and their files. |
 | `POST /api/knowledge/libraries/{id}/documents` | Add documents: a multipart upload with one or more `files` fields. Returns them with `status: "queued"`; indexing runs in the background. |
 | `GET /api/knowledge/libraries/{id}/documents` | Documents and their `status` (`queued`, `indexing`, `ready`, `error`), `progress` (0 to 1) and `error`. |
+| `POST /api/knowledge/documents/{id}/retry` | Read a document that failed again. |
 | `DELETE /api/knowledge/documents/{id}` | Remove a document. |
 | `GET /api/knowledge/documents/{id}/file` | Download the original file. |
 
@@ -69,7 +70,8 @@ POST /api/knowledge/libraries/{id}/reindex
 ```
 
 Body: `{"model": "<search model id>"}`. Reads every document again with that search model, for example after
-installing a better one.
+installing a better one, or after removing the one the library used. The library's old vectors are dropped first
+(vectors from two models can't be compared); until each document is done it's searched by words only.
 
 ### Search
 
@@ -91,14 +93,17 @@ curl -s localhost:7860/api/knowledge/search -H 'Content-Type: application/json' 
 Each result has the passage `text`, its `document`, `page` (for PDFs), `heading` (the section it's in), `library`, a
 `score`, and `matched`: `["meaning"]`, `["words"]` or both. Results are best first.
 
+The response also has `warnings`: a list of messages, for example when a library's search model was removed and it
+could only be searched by words.
+
 ### Context for a chat
 
 ```http
 POST /api/knowledge/context
 ```
 
-Same body as search. Returns `results` and a `prompt`: instructions plus the numbered passages, ready to use as the
-system message of a chat request. This is exactly what Chat does:
+Same body as search. Returns `results`, `warnings` and a `prompt`: instructions plus the numbered passages, ready to
+use as the system message of a chat request. This is exactly what Chat does:
 
 ```python
 import httpx
