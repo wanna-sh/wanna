@@ -210,7 +210,8 @@ jobs:
           done
           echo "$reply" | grep -q '"choices"' || fail "Chat didn't answer: $reply"
           echo "Reply: $(echo "$reply" | python3 -c "import json,sys; print(json.load(sys.stdin)['choices'][0]['message']['content'])")"
-          grep -hE "offloaded [0-9]+/[0-9]+ layers to GPU" ~/.wanna/logs/*.log || fail "Chat didn't run on the GPU"
+          # The engine's command line (the log's first line) says how many layers wanna.sh put on the GPU.
+          head -n 1 ~/.wanna/logs/llama-*.log | grep -oE -- "--n-gpu-layers [1-9][0-9]*" || fail "Chat didn't run on the GPU"
 
           # Quitting stops wanna.sh and the chat engine.
           osascript -e 'quit app "wanna.sh"'
