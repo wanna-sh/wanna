@@ -140,6 +140,9 @@ class Worker:
             env["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, self.gpus)) if self.gpus else ""
             env["WANNA_WORKER_TOKEN"] = self.token
             env["PYTHONUNBUFFERED"] = "1"
+            if sys.platform == "darwin":
+                # Operations the Apple GPU can't do yet run on the processor instead of failing.
+                env.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
             env.setdefault("HF_HUB_OFFLINE", "1")
             env["PYTHONPATH"] = str(Path(__file__).resolve().parents[2]) + os.pathsep + env.get("PYTHONPATH", "")
         logf = open(self.log_path, "w")

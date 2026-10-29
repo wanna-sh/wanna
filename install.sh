@@ -50,7 +50,13 @@ step "Checking this computer"
 case "$(uname -s)" in
   Linux)
     if grep -qi microsoft /proc/version 2>/dev/null; then note "Windows (WSL2)"; else note "Linux"; fi ;;
-  Darwin) note "macOS" ;;
+  Darwin)
+    if [ "$(uname -m)" = x86_64 ]; then
+      note "macOS (Intel). PyTorch isn't made for Intel Macs any more, so this installs chat and Code only."
+      WITH_ML=0
+    else
+      note "macOS"
+    fi ;;
   *) fail "This installer runs on Linux, macOS or Windows inside WSL2. On Windows, open a WSL terminal and run it there." ;;
 esac
 

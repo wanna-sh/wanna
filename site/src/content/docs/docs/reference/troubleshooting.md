@@ -26,11 +26,17 @@ or **Not working**:
 The Windows installer isn't code-signed yet. Click **More info**, then **Run anyway**. See
 [Install](/docs/start/install/#windows-download-the-app).
 
-### The Windows app says "wanna.sh couldn't start"
+### macOS says "wanna.sh" Not Opened
+
+The Mac app isn't signed by Apple yet. Open **System Settings → Privacy & Security**, scroll down, click **Open Anyway**
+next to the message about wanna.sh, then **Open**. See [Install](/docs/start/install/#mac-download-the-app).
+
+### The app says "wanna.sh couldn't start"
 
 The first start needs an internet connection to download Python and wanna.sh's core parts. Press **Try again**. If it
 keeps failing, press **Open the log folder** and include `setup.log` and `server.log` when you
-[report the problem](https://github.com/wanna-sh/wanna/issues). The logs are in `%LOCALAPPDATA%\sh.wanna.desktop\logs`.
+[report the problem](https://github.com/wanna-sh/wanna/issues). The logs are in `%LOCALAPPDATA%\sh.wanna.desktop\logs`
+on Windows and `~/Library/Application Support/sh.wanna.desktop/logs` on a Mac.
 
 ### The page says "The web UI hasn't been built yet"
 

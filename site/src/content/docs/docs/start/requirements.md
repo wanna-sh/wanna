@@ -13,10 +13,12 @@ to guess.
 | --- | --- |
 | **Linux** (x86-64) | Supported. |
 | **Windows 10 or 11** (64-bit) | Supported, with the [Windows app](/docs/start/install/#windows-download-the-app). Also runs inside [WSL2](https://learn.microsoft.com/windows/wsl/install) for people who prefer the command line. |
-| **macOS** | The installer and app run. Chat models use Apple's Metal graphics through llama.cpp. Picture, video, voice, transcription and music models run on the processor, which is much slower. |
+| **macOS 14 or newer**, Apple Silicon (M1 or newer) | Supported, with the [Mac app](/docs/start/install/#mac-download-the-app). Chat runs on the Mac's GPU with Metal. Pictures, video, voices, transcription and music use the GPU on macOS 15 or newer, and the processor on macOS 14. |
+| **macOS**, Intel | Chat and Code, with the [install command](/docs/start/install/#macos-from-the-command-line), on the processor. PyTorch, which pictures, video, voices and music need, isn't made for Intel Macs any more. |
 
 :::note
-wanna.sh is young, and it has been tested most on Windows (the app and WSL2) with NVIDIA graphics cards. If something doesn't
+wanna.sh is young, and it has been tested most on Windows (the app and WSL2) with NVIDIA graphics cards. The Mac app is
+tested automatically on Apple Silicon, but pictures, video and sound on a Mac's GPU are newer and less tested. If something doesn't
 work on your system, please [open an issue](https://github.com/wanna-sh/wanna/issues).
 :::
 
@@ -49,9 +51,9 @@ in **Settings** tells you whether the AI libraries can use your graphics card.
 
 ## Software
 
-**The Windows app needs nothing else.** It sets up everything it uses by itself.
+**The Windows and Mac apps need nothing else.** They set up everything they use by themselves.
 
-On Linux and macOS, the [install command](/docs/start/install/#linux-and-macos-one-command) checks for these and tells
+On Linux, and on a Mac from the command line, the [install command](/docs/start/install/#linux-one-command) checks for these and tells
 you what's missing:
 
 - **git**

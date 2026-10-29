@@ -1,7 +1,8 @@
 """A worker process that hosts exactly one Python model (diffusers or transformers).
 
 Started by the model manager with CUDA_VISIBLE_DEVICES already set, so "cuda" here means
-only the GPUs this model was assigned. Talks to the main server over local HTTP.
+only the GPUs this model was assigned. On a Mac with Apple Silicon, "mps" is its built-in GPU.
+Talks to the main server over local HTTP.
 """
 
 from __future__ import annotations
@@ -42,6 +43,8 @@ def _device_setup(gpu_count: int) -> str:
     torch = _torch()
     if torch.cuda.is_available() and gpu_count > 0:
         return "cuda"
+    if gpu_count > 0 and torch.backends.mps.is_available():
+        return "mps"
     return "cpu"
 
 
@@ -49,9 +52,15 @@ def _dtype(device: str, prefer: str = "float16"):
     torch = _torch()
     if device == "cpu":
         return torch.float32
-    if prefer == "bfloat16" and torch.cuda.is_bf16_supported():
+    # PyTorch uses the Apple GPU from macOS 15, which supports bfloat16 (it arrived in macOS 14).
+    if prefer == "bfloat16" and (device == "mps" or torch.cuda.is_bf16_supported()):
         return torch.bfloat16
     return torch.float16
+
+
+def _pipeline_device(device: str):
+    """The device argument for a transformers pipeline: GPU 0, the Apple GPU, or -1 for the processor."""
+    return {"cuda": 0, "mps": "mps"}.get(device, -1)
 
 
 def _accepts(fn, params: dict) -> dict:
@@ -107,7 +116,7 @@ class DiffusionHandler(Handler):
         video = args.task == "video"
         dtype = _dtype(self.device, "bfloat16" if video else "float16")
         kw = {"torch_dtype": dtype}
-        if args.variant and self.device == "cuda":
+        if args.variant and self.device != "cpu":
             kw["variant"] = args.variant
 
         multi_gpu = self.device == "cuda" and args.gpu_count > 1
@@ -132,11 +141,14 @@ class DiffusionHandler(Handler):
                     pipe.enable_model_cpu_offload()
                 else:
                     pipe.to("cuda")
-            if video and hasattr(self.pipe, "vae") and hasattr(self.pipe.vae, "enable_tiling"):
-                try:
-                    self.pipe.vae.enable_tiling()
-                except Exception:
-                    pass
+        elif self.device == "mps":
+            # The GPU shares the Mac's memory, so moving parts on and off it (memory saver) wouldn't save any.
+            pipe.to("mps")
+        if self.device != "cpu" and video and hasattr(self.pipe, "vae") and hasattr(self.pipe.vae, "enable_tiling"):
+            try:
+                self.pipe.vae.enable_tiling()
+            except Exception:
+                pass
         self.img2img = None
         self.torch = torch
         # Remember the model's own scheduler so "builtin" can restore it, and cache swapped-in ones.
@@ -242,8 +254,8 @@ class AudioGenHandler(Handler):
         super().__init__(args)
         from transformers import pipeline
 
-        dtype = _dtype(self.device) if self.device == "cuda" else None
-        kw = {"model": args.path, "device": 0 if self.device == "cuda" else -1}
+        dtype = _dtype(self.device) if self.device != "cpu" else None
+        kw = {"model": args.path, "device": _pipeline_device(self.device)}
         if dtype is not None and args.task == "sound":
             kw["dtype"] = dtype
         self.pipe = pipeline("text-to-audio", **kw)
@@ -315,8 +327,8 @@ class TranscribeHandler(Handler):
         super().__init__(args)
         from transformers import pipeline
 
-        kw = {"model": args.path, "device": 0 if self.device == "cuda" else -1}
-        if self.device == "cuda":
+        kw = {"model": args.path, "device": _pipeline_device(self.device)}
+        if self.device != "cpu":
             kw["dtype"] = _dtype(self.device)
         self.pipe = pipeline("automatic-speech-recognition", **kw)
 
@@ -359,6 +371,8 @@ class ChatHandler(Handler):
         if self.device == "cuda":
             kw["device_map"] = "auto"  # spreads across all visible (assigned) GPUs
         self.model = AutoModelForCausalLM.from_pretrained(args.path, **kw)
+        if self.device == "mps":
+            self.model.to("mps")
 
     def _inputs(self, p):
         msgs = [{"role": m["role"], "content": _text_content(m.get("content"))} for m in p["messages"]]
@@ -470,6 +484,8 @@ def _free_cache():
         torch = _torch()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
+        elif torch.backends.mps.is_available():
+            torch.mps.empty_cache()
     except Exception:
         pass
 

@@ -8,7 +8,8 @@ This walks you through downloading your first model and chatting with it.
 ## 1. Start wanna.sh
 
 - **Windows app:** open **wanna.sh** from the Start menu. It opens in its own window.
-- **Linux and macOS:** in a terminal, run `wanna`, leave the terminal open while you use it, and open
+- **Mac app:** open **wanna.sh** from Applications or Launchpad. It opens in its own window.
+- **Linux, or macOS from the command line:** in a terminal, run `wanna`, leave the terminal open while you use it, and open
   **http://localhost:7860** in your browser.
 
 ## 2. Pick a model

@@ -1,6 +1,6 @@
 ---
 title: Install
-description: Download the wanna.sh app for Windows, or install it with one command on Linux and macOS.
+description: Download the wanna.sh app for Windows or Mac, or install it with one command on Linux.
 ---
 
 ## Windows: download the app
@@ -33,9 +33,39 @@ Good to know:
 - **Where things are:** your models, pictures and settings are in `C:\Users\<you>\.wanna`, the app in
   `%LOCALAPPDATA%\wanna.sh`, and its Python and logs in `%LOCALAPPDATA%\sh.wanna.desktop`.
 
-## Linux and macOS: one command
+## Mac: download the app
 
-Open a terminal and run:
+1. Download **[wanna.sh for Mac](https://github.com/wanna-sh/wanna/releases/latest/download/wanna.sh-macos-arm64.dmg)**
+   (Apple Silicon: M1 or newer, macOS 14 or newer).
+2. Open the file you downloaded and drag **wanna.sh** into **Applications**.
+3. Open wanna.sh from Applications. The first time, it downloads Python and its core parts, which takes a minute or
+   two. After that it starts in a few seconds.
+
+Then continue with [your first chat](/docs/start/first-chat/).
+
+:::caution["wanna.sh" Not Opened]
+The app isn't signed by Apple yet, so the first time you open it macOS says it couldn't verify it. Click **Done**, open
+**System Settings**, go to **Privacy & Security**, scroll down and click **Open Anyway** next to the message about
+wanna.sh, then click **Open**. macOS remembers this, so you only do it once. You can check the download first on
+[GitHub](https://github.com/wanna-sh/wanna/releases/latest), which builds it from the public source code.
+:::
+
+Good to know:
+
+- **Chat runs on your Mac's GPU** with Metal. Pictures, video, voices and music need extra AI libraries (about 300 MB);
+  wanna.sh offers to download them the first time you open one of those pages. They use the GPU on macOS 15 or newer,
+  and the processor (much slower) on macOS 14.
+- **Memory:** your Mac's GPU shares its memory with everything else, and macOS lets it use only part of it. wanna.sh
+  asks macOS how much and rates each model against that.
+- **While the app is open,** other apps can use wanna.sh's [API](/docs/api/) at `http://localhost:7860`. Quitting it
+  (⌘Q) stops wanna.sh and frees the memory.
+- **Code** needs [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/) for its sandbox.
+- **Where things are:** your models, pictures and settings are in `~/.wanna`, and the app's Python and logs in
+  `~/Library/Application Support/sh.wanna.desktop`.
+
+## Linux: one command
+
+This also works on Macs with an Intel processor, for chat and Code. Open a terminal and run:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/wanna-sh/wanna/main/install.sh | bash
@@ -126,7 +156,10 @@ use this memory. If WSL2 runs out, it can stop suddenly. Microsoft explains how 
 [WSL configuration](https://learn.microsoft.com/windows/wsl/wsl-config).
 :::
 
-## macOS
+## macOS from the command line
+
+For Macs with an Intel processor, or if you prefer the terminal. Most people with Apple Silicon should use the
+[Mac app](#mac-download-the-app) instead.
 
 1. Install the Xcode command line tools for git: `xcode-select --install`.
 2. Install Node.js from [nodejs.org](https://nodejs.org) or with Homebrew (`brew install node`).

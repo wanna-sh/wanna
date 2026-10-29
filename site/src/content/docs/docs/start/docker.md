@@ -27,7 +27,7 @@ Without Code, Docker is also the more contained option. Turning Code on in Docke
 
 :::caution[macOS]
 Containers on a Mac can't use the Apple GPU, so everything would run on the processor. On a Mac, use the
-[normal install](/docs/start/install/#macos) instead.
+[Mac app](/docs/start/install/#mac-download-the-app) instead.
 :::
 
 ## Quick start

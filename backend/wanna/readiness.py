@@ -299,7 +299,7 @@ def system_check(refresh: bool = False) -> list[dict]:
         add("gpu", "Graphics cards", "ok", f"{names}. CUDA driver {drv[0]}.{drv[1]}." if drv else names)
     else:
         add("gpu", "Graphics cards", "warn", "No NVIDIA graphics card found. Chat and Code run on the processor, so pick "
-            "small models. Pictures, video, voices and music need an NVIDIA card in this version.")
+            "small models. Pictures, video, voices and music need an NVIDIA card or a Mac with Apple Silicon.")
 
     st = llamacpp.installer.state()
     if llamacpp.installer.installed():
@@ -317,13 +317,13 @@ def system_check(refresh: bool = False) -> list[dict]:
         ok, reason = addons.can_install()
         add("python", "Pictures, video, voices and music", "warn",
             "Not installed yet. Open Pictures, Videos, Read aloud, Transcribe or Music to add them (a one-time download, "
-            "about 3 GB)." if ok else reason)
-    elif t.get("cuda"):
-        add("python", "Pictures, video, voices and music", "ok", f"PyTorch {t.get('version')} with GPU support.")
+            f"{addons.download_size()})." if ok else reason)
+    elif t.get("cuda") or t.get("mps"):
+        where = "the Mac's GPU" if t.get("mps") and not t.get("cuda") else "GPU support"
+        add("python", "Pictures, video, voices and music", "ok", f"PyTorch {t.get('version')} with {where}.")
     else:
         add("python", "Pictures, video, voices and music", "warn",
-            f"PyTorch {t.get('version', '')} can't see a graphics card, so these run on the processor and are very slow."
-            + (" This Mac's GPU isn't supported yet." if t.get("mps") else ""))
+            f"PyTorch {t.get('version', '')} can't see a graphics card, so these run on the processor and are very slow.")
 
     from .code import sandbox
 
