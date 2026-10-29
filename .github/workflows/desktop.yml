@@ -163,17 +163,23 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           npm ci --no-fund --no-audit
-          if [ -z "$APPLE_SIGNING_IDENTITY" ]; then
+          # Secrets that aren't set arrive as empty strings, which Tauri would try to use.
+          for v in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            [ -n "${!v}" ] || unset "$v"
+          done
+          sign=()
+          if [ -z "${APPLE_SIGNING_IDENTITY:-}" ]; then
             # Apple Silicon only runs signed apps, so without a certificate the app gets an ad-hoc signature.
             echo "No certificate configured: the app will be unsigned (ad-hoc signature)."
-            sign='{"bundle":{"macOS":{"signingIdentity":"-"}}}'
+            sign=(--config '{"bundle":{"macOS":{"signingIdentity":"-"}}}')
           fi
-          npx tauri build --bundles app,dmg --config "{\"version\":\"$VERSION\"}" ${sign:+--config "$sign"}
+          npx tauri build --bundles app,dmg --config "{\"version\":\"$VERSION\"}" "${sign[@]}"
           ls src-tauri/target/release/bundle/dmg/
 
       - name: Install it and check wanna.sh starts, sees the GPU and chats
         run: |
-          dmg=$(ls desktop/src-tauri/target/release/bundle/dmg/*.dmg | head -1)
+          dmgs=(desktop/src-tauri/target/release/bundle/dmg/*.dmg)
+          dmg=${dmgs[0]}
           hdiutil attach -nobrowse -mountpoint "$RUNNER_TEMP/dmg" "$dmg"
           cp -R "$RUNNER_TEMP/dmg/wanna.sh.app" /Applications/
           hdiutil detach "$RUNNER_TEMP/dmg"
@@ -195,7 +201,7 @@ jobs:
             -d '{"repo_id": "bartowski/Llama-3.2-1B-Instruct-GGUF"}' >/dev/null || fail "Couldn't start the download"
           for _ in $(seq 1 60); do
             st=$(curl -sf http://127.0.0.1:7860/api/downloads | python3 -c "import json,sys; print(json.load(sys.stdin)[0]['status'])")
-            [ "$st" = done ] && break; [ "$st" = error ] && fail "The download failed"; sleep 5
+            [ "$st" = "done" ] && break; [ "$st" = "error" ] && fail "The download failed"; sleep 5
           done
           for _ in $(seq 1 40); do
             reply=$(curl -s -X POST http://127.0.0.1:7860/v1/chat/completions -H 'Content-Type: application/json' \

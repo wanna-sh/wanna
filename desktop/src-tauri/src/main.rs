@@ -86,6 +86,7 @@ fn set_error(app: &AppHandle, text: &str) {
 /// A command that doesn't flash a console window on Windows. Programs it starts share its hidden console, so the
 /// model engines wanna.sh starts don't open windows either.
 fn hidden(program: &Path) -> Command {
+    #[cfg_attr(not(windows), allow(unused_mut))]
     let mut cmd = Command::new(program);
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
