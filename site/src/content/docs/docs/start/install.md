@@ -8,7 +8,7 @@ description: Install wanna.sh with one command on Linux, macOS or Windows (WSL2)
 Open a terminal and run:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/surajkumar/wanna.sh/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/wanna-sh/wanna/main/install.sh | bash
 ```
 
 The installer:
@@ -42,7 +42,7 @@ export PATH="$HOME/.local/bin:$PATH"
 Pass options after `bash -s --`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/surajkumar/wanna.sh/main/install.sh | bash -s -- --chat-only
+curl -fsSL https://raw.githubusercontent.com/wanna-sh/wanna/main/install.sh | bash -s -- --chat-only
 ```
 
 | Option | What it does |
@@ -57,7 +57,7 @@ You can also set `WANNA_DIR` (same as `--dir`), `WANNA_BIN_DIR` (where the `wann
 If you'd rather read the script before running it (a good habit), download it first:
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/surajkumar/wanna.sh/main/install.sh
+curl -fsSLO https://raw.githubusercontent.com/wanna-sh/wanna/main/install.sh
 less install.sh
 bash install.sh
 ```
@@ -95,8 +95,8 @@ use this memory. If WSL2 runs out, it can stop suddenly. Microsoft explains how 
 If you prefer to do each step yourself:
 
 ```bash
-git clone https://github.com/surajkumar/wanna.sh.git
-cd wanna.sh
+git clone https://github.com/wanna-sh/wanna.git
+cd wanna
 
 # The app (Python 3.11 or newer)
 cd backend

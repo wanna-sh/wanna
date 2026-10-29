@@ -4,7 +4,7 @@
 #
 # SECURITY: this gives wanna.sh your host's Docker socket. Anything that controls the Docker socket can control
 # your computer as root. Read "Turning on Code" in the guide before using this:
-# https://surajkumar.github.io/wanna.sh/docs/start/docker/#turning-on-code
+# https://wanna-sh.github.io/wanna/docs/start/docker/#turning-on-code
 
 services:
   wanna:

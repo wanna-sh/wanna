@@ -5,13 +5,13 @@ import starlight from "@astrojs/starlight";
 import { satteri } from "@astrojs/markdown-satteri";
 import baseLinks from "./src/plugins/base-links.mjs";
 
-// Where the site is published. Leave CUSTOM_DOMAIN empty for https://surajkumar.github.io/wanna.sh/.
+// Where the site is published. Leave CUSTOM_DOMAIN empty for https://wanna-sh.github.io/wanna/.
 // To move to a custom domain, set it (e.g. "wanna.sh") and point the domain's DNS at GitHub Pages.
 const CUSTOM_DOMAIN = process.env.SITE_DOMAIN ?? "";
 
-const site = CUSTOM_DOMAIN ? `https://${CUSTOM_DOMAIN}` : "https://surajkumar.github.io";
-const base = CUSTOM_DOMAIN ? "/" : "/wanna.sh";
-const REPO = "https://github.com/surajkumar/wanna.sh";
+const site = CUSTOM_DOMAIN ? `https://${CUSTOM_DOMAIN}` : "https://wanna-sh.github.io";
+const base = CUSTOM_DOMAIN ? "/" : "/wanna";
+const REPO = "https://github.com/wanna-sh/wanna";
 
 /** Writes the CNAME file GitHub Pages needs for a custom domain. */
 const cname = {

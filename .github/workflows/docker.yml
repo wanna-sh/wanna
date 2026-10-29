@@ -1,4 +1,4 @@
-# Builds the wanna.sh image and publishes it to GitHub Container Registry (ghcr.io/surajkumar/wanna.sh).
+# Builds the wanna.sh image and publishes it to GitHub Container Registry (ghcr.io/wanna-sh/wanna).
 # Runs when a version tag (v1.2.3) is pushed, or by hand from the Actions tab. Not on every push: the full image
 # is about 7 GB unpacked.
 #

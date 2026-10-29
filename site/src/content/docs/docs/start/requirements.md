@@ -17,7 +17,7 @@ to guess.
 
 :::note
 wanna.sh is young, and it has been tested most on Windows with WSL2 and NVIDIA graphics cards. If something doesn't
-work on your system, please [open an issue](https://github.com/surajkumar/wanna.sh/issues).
+work on your system, please [open an issue](https://github.com/wanna-sh/wanna/issues).
 :::
 
 ## Graphics card

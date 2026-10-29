@@ -51,7 +51,7 @@ ENV PATH=/app/backend/.venv/bin:$PATH \
 
 LABEL org.opencontainers.image.title="wanna.sh" \
       org.opencontainers.image.description="Run AI models on your own computer: chat, pictures, video, voices, transcription, music and code." \
-      org.opencontainers.image.source="https://github.com/surajkumar/wanna.sh" \
+      org.opencontainers.image.source="https://github.com/wanna-sh/wanna" \
       org.opencontainers.image.licenses="MIT"
 
 EXPOSE 7860

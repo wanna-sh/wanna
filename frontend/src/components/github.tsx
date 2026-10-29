@@ -1,5 +1,5 @@
 // GitHub's mark, from the official Octicons set (mark-github-16). Lucide no longer ships brand logos.
-export const REPO_URL = "https://github.com/surajkumar/wanna.sh";
+export const REPO_URL = "https://github.com/wanna-sh/wanna";
 
 export function GitHubMark({ size = 16, className = "" }: { size?: number; className?: string }) {
   return (

@@ -33,8 +33,8 @@ Containers on a Mac can't use the Apple GPU, so everything would run on the proc
 ## Quick start
 
 ```bash
-git clone https://github.com/surajkumar/wanna.sh.git
-cd wanna.sh
+git clone https://github.com/wanna-sh/wanna.git
+cd wanna
 mkdir -p ~/.wanna
 docker compose up -d
 ```
@@ -42,7 +42,7 @@ docker compose up -d
 Open **http://localhost:7860**. The first start downloads the image (about 3.5 GB), so give it a few minutes. Then
 continue with [your first chat](/docs/start/first-chat/).
 
-Useful commands, run in the `wanna.sh` folder:
+Useful commands, run in the `wanna` folder:
 
 | Command | What it does |
 | --- | --- |
@@ -58,7 +58,7 @@ docker run -d --name wanna --gpus all \
   --user "$(id -u):$(id -g)" \
   -p 127.0.0.1:7860:7860 \
   -v ~/.wanna:/data \
-  ghcr.io/surajkumar/wanna.sh:latest
+  ghcr.io/wanna-sh/wanna:latest
 ```
 
 ## Settings for the container
@@ -90,8 +90,8 @@ your models. Don't run both at the same time on the same folder.
 
 | Image | What's in it |
 | --- | --- |
-| `ghcr.io/surajkumar/wanna.sh:latest` | Everything. |
-| `ghcr.io/surajkumar/wanna.sh:latest-chat` | Chat and Code only, without the AI libraries for pictures, video, voices and music. Several GB smaller. |
+| `ghcr.io/wanna-sh/wanna:latest` | Everything. |
+| `ghcr.io/wanna-sh/wanna:latest-chat` | Chat and Code only, without the AI libraries for pictures, video, voices and music. Several GB smaller. |
 
 Version tags such as `1.2.3` and `1.2.3-chat` are published too. To build the image yourself instead, run
 `docker compose build`, or `docker build --build-arg WITH_ML=0 .` for the chat-only image.

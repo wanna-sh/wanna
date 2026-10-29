@@ -49,4 +49,4 @@ Yes, through the API or from other devices on your network. See [Share on your n
 
 ### How do I contribute?
 
-The code is on [GitHub](https://github.com/surajkumar/wanna.sh). Issues and pull requests are welcome.
+The code is on [GitHub](https://github.com/wanna-sh/wanna). Issues and pull requests are welcome.

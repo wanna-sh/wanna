@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Install or update wanna.sh on Linux, macOS or Windows (inside WSL2).
 #
-#   curl -fsSL https://raw.githubusercontent.com/surajkumar/wanna.sh/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/wanna-sh/wanna/main/install.sh | bash
 #
 # Or, from a copy of the repository:  ./install.sh
 #
@@ -15,7 +15,7 @@
 
 set -euo pipefail
 
-REPO="${WANNA_REPO:-https://github.com/surajkumar/wanna.sh.git}"
+REPO="${WANNA_REPO:-https://github.com/wanna-sh/wanna.git}"
 BRANCH="${WANNA_BRANCH:-main}"
 DIR="${WANNA_DIR:-$HOME/wanna.sh}"
 BIN_DIR="${WANNA_BIN_DIR:-$HOME/.local/bin}"

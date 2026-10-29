@@ -350,7 +350,7 @@ class _Text(HTMLParser):
 
 
 # An honest name with a link: sites like Wikipedia refuse clients that pretend to be a browser.
-FETCH_HEADERS = {"User-Agent": "wanna.sh-code-agent/0.1 (+https://github.com/surajkumar/wanna.sh)"}
+FETCH_HEADERS = {"User-Agent": "wanna.sh-code-agent/0.1 (+https://github.com/wanna-sh/wanna)"}
 FETCH_MAX_BYTES = 25 * 1024 * 1024
 FETCH_MAX_CHARS = 20_000
 FETCH_MAX_REDIRECTS = 5

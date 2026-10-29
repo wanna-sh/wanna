@@ -1,7 +1,7 @@
 # Builds the website in site/ and publishes it to GitHub Pages.
 # One-time setup: repository Settings > Pages > Source: "GitHub Actions".
 # Custom domain: add a repository variable SITE_DOMAIN (e.g. wanna.sh) under Settings > Secrets and variables >
-# Actions > Variables. Leave it unset to publish at https://surajkumar.github.io/wanna.sh/.
+# Actions > Variables. Leave it unset to publish at https://wanna-sh.github.io/wanna/.
 name: Website
 
 on:

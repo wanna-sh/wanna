@@ -6,7 +6,7 @@ The public product page and documentation, built with [Astro](https://astro.buil
 ```bash
 cd site
 npm ci
-npm run dev       # http://localhost:4321/wanna.sh/
+npm run dev       # http://localhost:4321/wanna/
 npm run build     # static site in dist/
 ```
 
@@ -18,6 +18,6 @@ Write links from the site root, like `[Install](/docs/start/install/)`; `src/plu
 
 ## Where it's published
 
-By default the site is built for `https://surajkumar.github.io/wanna.sh/`. To use a custom domain, set the repository
+By default the site is built for `https://wanna-sh.github.io/wanna/`. To use a custom domain, set the repository
 variable `SITE_DOMAIN` (for example `wanna.sh`); the build then uses `/` as its base and writes the `CNAME` file. Locally:
 `SITE_DOMAIN=wanna.sh npm run build`.

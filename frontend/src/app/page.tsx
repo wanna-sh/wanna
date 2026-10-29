@@ -399,7 +399,7 @@ function Footer() {
             .
           </p>
           <a href={REPO_URL} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 hover:text-ink">
-            <GitHubMark size={15} /> surajkumar/wanna.sh
+            <GitHubMark size={15} /> wanna-sh/wanna
           </a>
         </div>
       </div>

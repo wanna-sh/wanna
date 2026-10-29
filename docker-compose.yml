@@ -1,4 +1,4 @@
-# wanna.sh in Docker. Full guide, including security: https://surajkumar.github.io/wanna.sh/docs/start/docker/
+# wanna.sh in Docker. Full guide, including security: https://wanna-sh.github.io/wanna/docs/start/docker/
 #
 #   mkdir -p ~/.wanna
 #   docker compose up -d            # then open http://localhost:7860
@@ -8,7 +8,7 @@
 
 services:
   wanna:
-    image: ghcr.io/surajkumar/wanna.sh:latest
+    image: ghcr.io/wanna-sh/wanna:latest
     build: .
     container_name: wanna
     # Run as your own user, so files in the data folder stay yours. Set WANNA_UID/WANNA_GID if yours aren't 1000.

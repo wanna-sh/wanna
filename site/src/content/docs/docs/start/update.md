@@ -8,7 +8,7 @@ description: Keep wanna.sh up to date, or remove it completely.
 Run the installer again. It updates the code, the app and the interface, and keeps your models, chats and settings:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/surajkumar/wanna.sh/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/wanna-sh/wanna/main/install.sh | bash
 ```
 
 Or, from the folder you installed to:
@@ -20,7 +20,7 @@ cd ~/wanna.sh
 
 Stop wanna.sh first (press **Ctrl+C** in its terminal), and start it again with `wanna` afterwards.
 
-Running in Docker? Run `docker compose pull && docker compose up -d` in the `wanna.sh` folder. See
+Running in Docker? Run `docker compose pull && docker compose up -d` in the `wanna` folder. See
 [Run in Docker](/docs/start/docker/).
 
 ## Uninstall
@@ -46,7 +46,7 @@ Running in Docker? Run `docker compose pull && docker compose up -d` in the `wan
    docker images | grep -E "wanna-sandbox|searxng|wanna.sh"   # then: docker rmi <image>
    ```
 
-   If you ran wanna.sh itself in Docker, also run `docker compose down` in the `wanna.sh` folder, and
+   If you ran wanna.sh itself in Docker, also run `docker compose down` in the `wanna` folder, and
    `docker network rm wanna-code` if you turned on Code.
 
 Chats are stored in your browser. To remove them, use **Chat → Chats → Delete all chats** before uninstalling, or clear

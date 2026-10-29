@@ -142,4 +142,4 @@ Models are downloaded from Hugging Face, and anyone can publish one, so wanna.sh
 ## Reporting a vulnerability
 
 Please report security problems privately through the **Security** tab of the
-[GitHub repository](https://github.com/surajkumar/wanna.sh/security), not in a public issue.
+[GitHub repository](https://github.com/wanna-sh/wanna/security), not in a public issue.
