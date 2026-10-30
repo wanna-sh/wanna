@@ -2,6 +2,11 @@
 
 Each version's section becomes its GitHub release notes (see `.github/workflows/release.yml`).
 
+## 0.3.4 (2026-10-30)
+
+- wanna.sh is now copyright Wannaverse. The app's footer links to [wannaverse.com](https://wannaverse.com), and it's
+  still open source under the MIT licence.
+
 ## 0.3.3 (2026-10-29)
 
 - **Chat can search the web.** With **Web** on, models that can use tools search the web and read pages when a
