@@ -4,6 +4,7 @@ import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
 import { satteri } from "@astrojs/markdown-satteri";
 import baseLinks from "./src/plugins/base-links.mjs";
+import { clarityScript } from "./src/analytics.mjs";
 
 // Where the site is published. Leave CUSTOM_DOMAIN empty for https://wanna-sh.github.io/wanna/.
 // To move to a custom domain, set it (e.g. "wanna.sh") and point the domain's DNS at GitHub Pages.
@@ -33,6 +34,7 @@ export default defineConfig({
       title: "wanna.sh",
       description: "Run AI on your own computer: chat, pictures, video, voices, transcription, music and code in one app.",
       favicon: "/favicon.svg",
+      head: [{ tag: "script", content: clarityScript }],
       customCss: ["@fontsource-variable/inter", "@fontsource-variable/jetbrains-mono", "./src/styles/theme.css"],
       social: [{ icon: "github", label: "GitHub", href: REPO }],
       editLink: { baseUrl: `${REPO}/edit/main/site/` },

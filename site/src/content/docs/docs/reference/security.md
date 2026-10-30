@@ -128,7 +128,8 @@ Models are downloaded from Hugging Face, and anyone can publish one, so wanna.sh
   and reads. Searches go to Brave if you added a Brave Search key, otherwise through a private SearXNG on your
   computer (when Docker is running), which forwards them to public search engines, otherwise to DuckDuckGo. Pages are
   read from this computer, and local and private-network addresses are never opened.
-- wanna.sh has no telemetry or analytics of its own.
+- wanna.sh has no telemetry or analytics of its own. (This website uses Microsoft Clarity to see which pages are
+  read; the app doesn't.)
 
 ## Settings that affect security
 
