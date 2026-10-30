@@ -2,7 +2,7 @@
 name = "wanna-desktop"
 version = "0.3.3"
 description = "wanna.sh desktop app"
-authors = ["Suraj Kumar"]
+authors = ["Wannaverse"]
 license = "MIT"
 repository = "https://github.com/wanna-sh/wanna"
 edition = "2021"

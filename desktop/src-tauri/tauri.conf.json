@@ -22,7 +22,7 @@
     "shortDescription": "Run AI on your own computer",
     "longDescription": "Chat, pictures, video, voices, transcription, music, a coding agent and document search, running privately on your own computer.",
     "category": "Productivity",
-    "copyright": "© 2026 Suraj Kumar. MIT licence.",
+    "copyright": "© 2026 Wannaverse. MIT licence.",
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
     "resources": {
       "../build/backend/": "backend/",

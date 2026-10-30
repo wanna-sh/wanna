@@ -392,7 +392,11 @@ function Footer() {
       <div className="border-t border-line">
         <div className={`${WRAP} py-6 flex flex-wrap items-center justify-between gap-4 text-[13px] text-slate`}>
           <p>
-            © 2026 Suraj Kumar. Open source under the{" "}
+            © 2026{" "}
+            <a href="https://wannaverse.com" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-ink">
+              Wannaverse
+            </a>
+            . Open source under the{" "}
             <a href={`${REPO_URL}/blob/main/LICENSE`} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-ink">
               MIT licence
             </a>
