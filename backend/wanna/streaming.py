@@ -62,10 +62,20 @@ PROMPT_COMPUTE_RATE = 214e9
 # - Starting, llama.cpp copies what goes on the graphics cards out of the mapped file at about this share of the
 #   one-thread reading speed the drive measurement finds (16.6 GB in about 100 s, against 0.77 GB/s measured).
 LOAD_COPY_SHARE = 0.21
-# - Under WSL with the models on a Windows drive (/mnt/c, shared through 9p), starting read the 61 GB file at about
-#   0.075 GB/s, though the drive test there finds about 0.27 GB/s: the test's file is still in Windows' own cache,
-#   which WSL can't empty. Starting there is estimated at this share of the measured speed.
-WSL_WINDOWS_DRIVE_SHARE = 0.27
+# - Under WSL with the models on a Windows drive (/mnt/c, shared through 9p), starting read the 61 GB file at 0.05 to
+#   0.07 GB/s over two runs (16 and 21 minutes), though the drive test there finds about 0.26 GB/s: the test's file
+#   is still in Windows' own cache, which WSL can't empty. Starting there is estimated at this share of the measured
+#   speed. Writing, on the other hand, went faster than the test predicts (Windows' own memory keeps part of the
+#   model), so the mapped speed there is raised by WSL_WINDOWS_DRIVE_MAPPED.
+WSL_WINDOWS_DRIVE_SHARE = 0.22
+WSL_WINDOWS_DRIVE_MAPPED = 1.4
+# - On Linux (WSL's own disk, 16 GB of memory) the model read much slower than the drive test: while writing, about
+#   0.7 GB/s against 3.6 measured (llama.cpp reads small scattered pieces, and each token has to push other pages out
+#   of memory first), and starting, about a third of the measured speed. Not yet checked on Linux outside WSL, where
+#   this may well be pessimistic. Windows drives under WSL read about as the drive test predicts (Windows' own memory
+#   caches the file too), so these don't apply there.
+LINUX_MAPPED_SHARE = 0.2
+LINUX_POPULATE_SHARE = 0.34
 
 
 # --- what a token touches, from the GGUF header ------------------------------------------------------------------------
@@ -582,6 +592,9 @@ def estimate(layout: dict, context: int | None = None, gpus: list[int] | None = 
         measure_drive_soon()  # never measured, or measured before this version measured everything it needs
     drive_speed = (measured or {}).get("mapped")
     copy_speed = (measured or {}).get("copy")
+    wsl_windows_drive = windows_drive_under_wsl()
+    if drive_speed and linux:
+        drive_speed *= WSL_WINDOWS_DRIVE_MAPPED if wsl_windows_drive else LINUX_MAPPED_SHARE
     ram_bw = ram_bandwidth()
     gpu_bw = _gpu_bandwidth(cards) or ram_bw
 
@@ -597,7 +610,7 @@ def estimate(layout: dict, context: int | None = None, gpus: list[int] | None = 
         "speeds": {"drive": drive_speed, "drive_direct": (measured or {}).get("direct"), "drive_copy": copy_speed,
                    "ram": ram_bw, "gpu": gpu_bw},
         "measuring_drive": measuring(),
-        "windows_drive_under_wsl": windows_drive_under_wsl(),
+        "windows_drive_under_wsl": wsl_windows_drive,
         "setting_on": setting_on(),
         "drive_error": (measured or {}).get("error"),
         "seconds_per_token": None,
@@ -646,7 +659,7 @@ def estimate(layout: dict, context: int | None = None, gpus: list[int] | None = 
         # Elsewhere the read-ahead runs alongside the copying, which slows that down.
         on_cards = always_gpu + experts_gpu
         if linux and measured.get("populate"):
-            populate = measured["populate"] * (WSL_WINDOWS_DRIVE_SHARE if out["windows_drive_under_wsl"] else 1)
+            populate = measured["populate"] * (WSL_WINDOWS_DRIVE_SHARE if wsl_windows_drive else LINUX_POPULATE_SHARE)
             out["start_seconds"] = layout["total"] / populate + on_cards / copy_speed
         else:
             out["start_seconds"] = layout["total"] / drive_speed + on_cards / (copy_speed * LOAD_COPY_SHARE)

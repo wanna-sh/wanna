@@ -373,9 +373,9 @@ export function SpeedEstimateView({
       </p>
       {data.windows_drive_under_wsl && (
         <p>
-          Your models are on a Windows drive, which WSL reads through file sharing, several times slower than its own
-          disk: starting this one reads the whole model that way. Keep big models in WSL&apos;s own disk (move
-          wanna.sh&apos;s data folder there with WANNA_HOME).
+          Your models are on a Windows drive, which WSL reads through file sharing: starting this one reads the whole
+          model that way, which is very slow. From WSL&apos;s own disk it starts much sooner, but may write more slowly.
+          Giving WSL more memory (in .wslconfig) helps either way.
         </p>
       )}
       {data.measuring_drive && <p className="text-slate">Measuring your drive&apos;s speed (about ten seconds)…</p>}

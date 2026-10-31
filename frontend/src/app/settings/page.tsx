@@ -236,9 +236,10 @@ function BigModels({ on, onChange }: { on: boolean; onChange: (v: boolean) => vo
       </label>
       {data?.windows_drive_under_wsl && (
         <p className="mt-4 text-[14px]">
-          Your models are on a Windows drive, which WSL reads through file sharing, several times slower than its own
-          disk. A model bigger than memory can take a quarter of an hour or more to start from there. For these, move
-          wanna.sh&apos;s data folder into WSL&apos;s own disk with WANNA_HOME.
+          Your models are on a Windows drive, which WSL reads through file sharing. A model bigger than memory can take
+          a quarter of an hour or more to start from there; from WSL&apos;s own disk (move wanna.sh&apos;s data folder
+          there with WANNA_HOME) it starts much sooner, but may write more slowly. Giving WSL more memory (in
+          .wslconfig) helps either way.
         </p>
       )}
       <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-[14px] text-slate">
