@@ -371,6 +371,13 @@ export function SpeedEstimateView({
           ? `It is a mixture-of-experts model: each token uses ${data.experts.used} of its ${data.experts.total} experts, so it reads about ${bytes(perToken)} a token rather than the whole model.`
           : `It isn't a mixture-of-experts model, so every token needs all of its weights: about ${bytes(perToken)} a token from the drive. Models like this are impractically slow from a drive.`}
       </p>
+      {data.windows_drive_under_wsl && (
+        <p>
+          Your models are on a Windows drive, which WSL reads through file sharing, several times slower than its own
+          disk: starting this one reads the whole model that way. Keep big models in WSL&apos;s own disk (move
+          wanna.sh&apos;s data folder there with WANNA_HOME).
+        </p>
+      )}
       {data.measuring_drive && <p className="text-slate">Measuring your drive&apos;s speed (about ten seconds)…</p>}
       {data.drive_error && !data.measuring_drive && (
         <p className="text-danger">Couldn&apos;t measure your drive: {data.drive_error}</p>

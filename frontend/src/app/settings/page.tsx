@@ -21,6 +21,7 @@ interface Settings {
 interface DriveSpeed {
   drive: { mapped?: number; direct?: number; error?: string; at: number } | null;
   measuring: boolean;
+  windows_drive_under_wsl: boolean;
 }
 
 export default function SettingsPage() {
@@ -233,6 +234,13 @@ function BigModels({ on, onChange }: { on: boolean; onChange: (v: boolean) => vo
           </span>
         </span>
       </label>
+      {data?.windows_drive_under_wsl && (
+        <p className="mt-4 text-[14px]">
+          Your models are on a Windows drive, which WSL reads through file sharing, several times slower than its own
+          disk. A model bigger than memory can take a quarter of an hour or more to start from there. For these, move
+          wanna.sh&apos;s data folder into WSL&apos;s own disk with WANNA_HOME.
+        </p>
+      )}
       <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-[14px] text-slate">
         <span>
           {data?.measuring

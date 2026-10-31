@@ -63,7 +63,8 @@ def system_check(refresh: bool = False):
 @router.get("/hardware/drive")
 def drive_speed():
     """How fast the drive models are stored on reads, as last measured (None until it has been)."""
-    return {"drive": streaming.drive(), "measuring": streaming.measuring()}
+    return {"drive": streaming.drive(), "measuring": streaming.measuring(),
+            "windows_drive_under_wsl": streaming.windows_drive_under_wsl()}
 
 
 @router.post("/hardware/drive/measure")

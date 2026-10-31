@@ -289,6 +289,8 @@ export interface SpeedEstimate {
   context: number;
   speeds: { drive: number | null; drive_direct: number | null; drive_copy: number | null; ram: number; gpu: number };
   measuring_drive: boolean;
+  /** WSL with the models on a Windows drive, read through WSL's file sharing: much slower. */
+  windows_drive_under_wsl: boolean;
   drive_error: string | null;
   /** Whether "Run models bigger than memory" is on. */
   setting_on: boolean;

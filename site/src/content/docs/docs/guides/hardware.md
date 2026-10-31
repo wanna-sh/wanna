@@ -88,6 +88,11 @@ in spare memory, and reads the remainder from the drive when a token needs it.
 - **Use a fast SSD.** wanna.sh measures the drive your models are saved on the first time it matters (it writes and
   reads a 2 GB test file, about ten seconds) and shows the result in Settings, with **Measure again**. A hard disk is
   far too slow. Reading doesn't wear out an SSD, but the drive stays busy, so other programs may feel slower.
+- **On Windows with WSL2, keep these models on WSL's own disk**, not on a Windows drive such as `/mnt/c`. WSL reads
+  Windows drives through file sharing, several times slower: on Linux, llama.cpp reads the whole model as it starts,
+  and a 61 GB model took 16 minutes to start from `/mnt/c`. On the same PC, WSL's own disk read that way about
+  14 times faster. wanna.sh warns when
+  your models are on a Windows drive.
 - Your download needs room: big versions can take hundreds of gigabytes. To keep models on another drive, move your
   [data folder](/docs/reference/files/) with `WANNA_HOME`.
 

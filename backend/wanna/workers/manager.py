@@ -475,13 +475,17 @@ def _private_bytes(p) -> int:
     pages and read them again later, which is how models bigger than memory run."""
     import psutil
 
+    mi = p.memory_info()
+    if hasattr(mi, "shared"):
+        # Linux: "shared" is every resident page backed by a file, so this leaves the process's own memory. (Its "uss"
+        # would count the model file's pages too, when no other process maps the file.)
+        return mi.rss - mi.shared
     try:
-        # Memory in use by this process alone (on Windows its private working set). Not "private bytes": the graphics
-        # driver commits gigabytes there that never take real memory.
+        # Windows: the private working set, without mapped file pages. Not "private bytes": the graphics driver
+        # commits gigabytes there that never take real memory.
         return p.memory_full_info().uss
     except psutil.Error:
-        mi = p.memory_info()
-        return mi.rss - getattr(mi, "shared", 0)  # Linux: pages mapped from the model file are shared
+        return mi.rss
 
 
 def _gpu_label(gpus: list[int]) -> str:

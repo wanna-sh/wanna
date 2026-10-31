@@ -62,6 +62,10 @@ PROMPT_COMPUTE_RATE = 214e9
 # - Starting, llama.cpp copies what goes on the graphics cards out of the mapped file at about this share of the
 #   one-thread reading speed the drive measurement finds (16.6 GB in about 100 s, against 0.77 GB/s measured).
 LOAD_COPY_SHARE = 0.21
+# - Under WSL with the models on a Windows drive (/mnt/c, shared through 9p), starting read the 61 GB file at about
+#   0.075 GB/s, though the drive test there finds about 0.27 GB/s: the test's file is still in Windows' own cache,
+#   which WSL can't empty. Starting there is estimated at this share of the measured speed.
+WSL_WINDOWS_DRIVE_SHARE = 0.27
 
 
 # --- what a token touches, from the GGUF header ------------------------------------------------------------------------
@@ -274,6 +278,18 @@ def _device() -> int:
     return os.stat(MODELS_DIR).st_dev
 
 
+def windows_drive_under_wsl(path: Path = MODELS_DIR) -> bool:
+    """Whether this is WSL and `path` is on a Windows drive, which WSL reads through 9p file sharing: much slower."""
+    if not gpu.in_wsl():
+        return False
+    best, fstype = "", ""
+    for part in psutil.disk_partitions(all=True):
+        mount = part.mountpoint.rstrip("/") + "/"
+        if str(Path(path).resolve()).startswith(mount) and len(mount) > len(best):
+            best, fstype = mount, part.fstype
+    return fstype in ("9p", "drvfs", "virtiofs")
+
+
 def drive() -> dict | None:
     """The last measurement of the drive models are stored on, if it's still the same drive."""
     d = _load_measured().get("drive")
@@ -378,8 +394,10 @@ class _Uncached:
 
 
 def _measure_drive(folder: Path, size: int = 2 << 30, chunk: int = 4 << 20, seconds: float = 3.0) -> dict:
-    """Write a 2 GB test file past the cache, then read random 4 MB pieces of it two ways: straight from the drive
-    (the drive's own speed), and through a memory map, the way llama.cpp reads a model it can't hold in memory."""
+    """Write a 2 GB test file past the cache, then read parts of it the ways llama.cpp reads a model: random 4 MB
+    pieces straight from the drive (the drive's own speed) and through a memory map (a model it can't hold in memory),
+    one thread in order through the map (copying to a graphics card), and on Linux, a part mapped and read in whole
+    up front (how llama.cpp starts there)."""
     import random
 
     if psutil.disk_usage(str(folder)).free < size * 3:
@@ -397,9 +415,11 @@ def _measure_drive(folder: Path, size: int = 2 << 30, chunk: int = 4 << 20, seco
 
         threads = min(8, os.cpu_count() or 4)
         pieces = list(range(0, size, chunk))
-        # Each reading gets its own third of the file, so none finds pieces another one brought into the cache.
-        third = len(pieces) // 3
-        first, second, last = pieces[:third], pieces[third:2 * third], pieces[2 * third:]
+        # Each reading gets its own part of the file, so none finds pieces another one brought into the cache.
+        populate = hasattr(mmap, "MAP_POPULATE")  # Linux
+        part = len(pieces) // (4 if populate else 3)
+        first, second, last = pieces[:part], pieces[part:2 * part], pieces[2 * part:3 * part]
+        rest = pieces[3 * part:] if populate else []
         random.shuffle(first)
         random.shuffle(second)
 
@@ -460,7 +480,17 @@ def _measure_drive(folder: Path, size: int = 2 << 30, chunk: int = 4 << 20, seco
                 copy_speed = run(mapped, last, 1)
             finally:
                 mm.close()
-        return {"direct": direct_speed, "mapped": mapped_speed, "copy": copy_speed}
+        out = {"direct": direct_speed, "mapped": mapped_speed, "copy": copy_speed}
+        if rest:
+            with open(test, "rb") as fh:
+                os.posix_fadvise(fh.fileno(), 0, 0, os.POSIX_FADV_SEQUENTIAL)  # as llama.cpp does
+                length = len(rest) * chunk
+                t0 = time.perf_counter()
+                m = mmap.mmap(fh.fileno(), length, flags=mmap.MAP_SHARED | mmap.MAP_POPULATE, prot=mmap.PROT_READ,
+                              offset=rest[0])
+                out["populate"] = length / (time.perf_counter() - t0)
+                m.close()
+        return out
     finally:
         buf.close()
         try:
@@ -547,8 +577,9 @@ def estimate(layout: dict, context: int | None = None, gpus: list[int] | None = 
         mode = "gpu"
 
     measured = drive()
-    if mode == "drive" and not (measured and measured.get("copy")) and not measuring():
-        measure_drive_soon()  # never measured, or measured before copying speed was
+    linux = sys.platform.startswith("linux")
+    if mode == "drive" and not (measured and measured.get("copy") and (measured.get("populate") or not linux))             and not measuring():
+        measure_drive_soon()  # never measured, or measured before this version measured everything it needs
     drive_speed = (measured or {}).get("mapped")
     copy_speed = (measured or {}).get("copy")
     ram_bw = ram_bandwidth()
@@ -566,6 +597,7 @@ def estimate(layout: dict, context: int | None = None, gpus: list[int] | None = 
         "speeds": {"drive": drive_speed, "drive_direct": (measured or {}).get("direct"), "drive_copy": copy_speed,
                    "ram": ram_bw, "gpu": gpu_bw},
         "measuring_drive": measuring(),
+        "windows_drive_under_wsl": windows_drive_under_wsl(),
         "setting_on": setting_on(),
         "drive_error": (measured or {}).get("error"),
         "seconds_per_token": None,
@@ -609,9 +641,15 @@ def estimate(layout: dict, context: int | None = None, gpus: list[int] | None = 
         out["prompt_seconds"] = prompt(UBATCH, hit)  # per 512 tokens
         out["short_prompt_seconds"] = prompt(20, hit)  # a short message, about 15 words
         out["first_prompt_seconds"] = prompt(20, 0.0)  # the first one after starting, with nothing in memory yet
-        # Starting, llama.cpp asks for the whole file to be read ahead, then copies what goes on the graphics cards.
-        out["start_seconds"] = (layout["total"] / drive_speed
-                                + (always_gpu + experts_gpu) / (copy_speed * LOAD_COPY_SHARE))
+        # Starting, llama.cpp reads the whole file in, then copies what goes on the graphics cards. On Linux it reads
+        # it all before going on (MAP_POPULATE): from a Windows drive under WSL, a 61 GB model took 16 minutes to start.
+        # Elsewhere the read-ahead runs alongside the copying, which slows that down.
+        on_cards = always_gpu + experts_gpu
+        if linux and measured.get("populate"):
+            populate = measured["populate"] * (WSL_WINDOWS_DRIVE_SHARE if out["windows_drive_under_wsl"] else 1)
+            out["start_seconds"] = layout["total"] / populate + on_cards / copy_speed
+        else:
+            out["start_seconds"] = layout["total"] / drive_speed + on_cards / (copy_speed * LOAD_COPY_SHARE)
     return out
 
 
