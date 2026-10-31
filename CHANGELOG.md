@@ -2,7 +2,7 @@
 
 Each version's section becomes its GitHub release notes (see `.github/workflows/release.yml`).
 
-## Unreleased
+## 0.4.0 (2026-10-31)
 
 - **Chat models bigger than memory.** Turn on **Settings → Run models bigger than memory** and chat models bigger than
   your graphics and system memory together run by reading from your drive as they write, the way llama.cpp maps a
@@ -19,8 +19,15 @@ Each version's section becomes its GitHub release notes (see `.github/workflows/
   3 bits) says what that costs. Versions such as TQ1_0 and Q1_0 are now recognised as Tiny.
 - Downloads that don't fit in the free space on your drive are refused up front, saying how much room they need.
 
+Running from the drive was tested on Windows with NVIDIA graphics cards and under WSL2 (from WSL's own disk and from
+a Windows drive), with Qwen3-30B-A3B at full precision (61 GB on a PC with 32 GB of memory). It hasn't been tested on
+Macs or on Linux outside WSL yet, where estimates may be off. Estimates for models as big as Kimi K3 are worked out,
+not measured.
+
 ### Fixes
 
+- The memory guard could stop a model that was only reading its file from the drive: on Linux it counted the file's
+  pages as the model's own memory, and on Windows it counted memory the graphics driver had reserved but never used.
 - A mixture-of-experts chat model too big for one graphics card could be put on the smallest card alone, with most
   of its experts left on the processor, when sharing it across cards was faster. It's now shared: Qwen3-30B-A3B at
   full precision went from 3 to about 4.7 tokens a second on an 8 GB and a 12 GB card.
