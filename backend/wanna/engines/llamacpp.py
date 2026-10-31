@@ -221,6 +221,7 @@ def server_command(
     model_path: str, port: int, context: int, gpus: list[int], split: list[float] | None,
     mmproj: str | None = None, alias: str | None = None, extra: list[str] | None = None,
     gpu_layers: int | None = None, embedding: bool = False, pooling: str | None = None,
+    overrides: str | None = None, from_drive: bool = False,
 ) -> tuple[list[str], dict]:
     """Build the llama-server command line and environment for a model placement."""
     cmd = [
@@ -251,11 +252,24 @@ def server_command(
         # oversized models spill to the CPU instead of failing.
         if gpu_layers is not None:
             cmd += ["--n-gpu-layers", str(gpu_layers)]
+            # The plan's layer count assumes its overrides (the experts it keeps with the processor). Passing a layer
+            # count also turns off llama-server's own fitting, so the overrides must come with it.
+            if overrides:
+                cmd += ["--override-tensor", overrides]
         if len(gpus) > 1 and split:
             cmd += ["--split-mode", "layer", "--tensor-split", ",".join(str(s) for s in split)]
     else:
         env["CUDA_VISIBLE_DEVICES"] = ""
         cmd += ["--n-gpu-layers", "0"]
+        if from_drive:
+            cmd += ["--fit", "off"]  # with no graphics card, fitting refuses a model bigger than memory
+    if from_drive:
+        # Read the model from the drive as it's needed: map it (never lock or copy it into memory), skip the warm-up
+        # (it routes through every expert, reading the whole model) and don't repack weights (a repacked copy lives in
+        # memory). Prompts are read by the processor's threads rather than by copying the experts it keeps to a
+        # graphics card on one thread: three times faster with Qwen3-30B-A3B from an NVMe drive (25 s, not 74 s, for
+        # 715 tokens).
+        cmd += ["--load-mode", "mmap", "--no-warmup", "--no-repack", "--no-op-offload"]
     cmd += extra or []
     return cmd, env
 

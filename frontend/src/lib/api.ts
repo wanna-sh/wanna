@@ -149,6 +149,8 @@ export interface Worker {
   gpus: number[];
   split: number[] | null;
   offload: boolean;
+  /** Chat models bigger than memory: read from the drive as they write. */
+  from_drive?: boolean;
   /** Chat models: conversation memory in tokens (null = the default from Settings). */
   context: number | null;
   /** Chat models placed by llama.cpp's planner: layers on the graphics cards / in total. */
@@ -190,7 +192,7 @@ export interface InstalledModel {
   created_at: number;
 }
 
-export type VerdictLevel = "great" | "good" | "slow" | "no" | "unknown";
+export type VerdictLevel = "great" | "good" | "slow" | "disk" | "no" | "unknown";
 
 /** How well a model will run on this computer, in plain words. */
 export interface Verdict {
@@ -198,6 +200,8 @@ export interface Verdict {
   label: string;
   detail: string;
   need: number | null;
+  /** "Too big" chat models that could run from the drive if "Run models bigger than memory" were on. */
+  drive_possible?: boolean;
 }
 
 export interface HubResult {
@@ -249,11 +253,17 @@ export interface Variant {
   weights: number;
   rank: number;
   quant?: string;
+  /** GGUF versions: bits per weight, from the file size and the model's parameter count. */
+  bits?: number | null;
   vision?: boolean;
   verdict: Verdict | null;
+  /** Whether it fits in the free space on the drive models are saved to. */
+  fits_disk?: boolean;
 }
 
 export interface HubDetails extends Omit<HubResult, "installed"> {
+  /** "llamacpp" for GGUF chat and search models, "diffusers" or "transformers" for the rest. */
+  engine: string | null;
   supported: boolean;
   license?: string;
   tags: string[];
@@ -261,6 +271,41 @@ export interface HubDetails extends Omit<HubResult, "installed"> {
   recommended: string | null;
   /** Local ids of versions of this model already installed. */
   installed: string[];
+  disk_free?: number;
+}
+
+/** How fast a chat model runs here, worked out from its file and this computer's measured speeds. */
+export interface SpeedEstimate {
+  /** Where each token's weights come from at worst: all on graphics cards, partly system memory, or partly the drive. */
+  mode: "gpu" | "ram" | "drive";
+  bytes_per_token: { gpu: number; ram: number; drive: number };
+  model_bytes: number;
+  moe: boolean;
+  experts: { total: number; used: number };
+  /** Share of the experts the processor needs that are found in memory rather than read from the drive. */
+  memory_hit: number;
+  /** The same for a model that keeps using a few experts more than the rest. */
+  memory_hit_fast: number;
+  context: number;
+  speeds: { drive: number | null; drive_direct: number | null; drive_copy: number | null; ram: number; gpu: number };
+  measuring_drive: boolean;
+  drive_error: string | null;
+  /** Whether "Run models bigger than memory" is on. */
+  setting_on: boolean;
+  seconds_per_token: number | null;
+  tokens_per_second: number | null;
+  /** Reading the drive: the fast end, for models that favour some experts. */
+  tokens_per_second_fast: number | null;
+  /** Reading the drive: seconds to read each 512 tokens of a message before replying. */
+  prompt_seconds: number | null;
+  /** Reading the drive: seconds to read a short message (about 20 tokens). */
+  short_prompt_seconds: number | null;
+  /** Reading the drive: the same for the first message after starting, with nothing in memory yet (a minimum). */
+  first_prompt_seconds: number | null;
+  /** Reading the drive: seconds to start. */
+  start_seconds: number | null;
+  /** Installed models: tokens a second measured on this computer, once it has run. */
+  measured_tokens_per_second?: number | null;
 }
 
 export interface Download {

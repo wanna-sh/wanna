@@ -9,11 +9,13 @@ import {
   type BrowseResult,
   type HubDetails,
   type InstalledModel,
+  type SpeedEstimate,
   type Task,
   type Variant,
+  type Verdict,
 } from "@/lib/api";
 import { usePoll } from "@/lib/hooks";
-import { bytes, compact } from "@/lib/format";
+import { bytes, compact, duration, tokenSpeed } from "@/lib/format";
 import { TASKS } from "@/lib/tasks";
 import { Button, Notice, Progress, VerdictBadge } from "./ui";
 import { MlAddon } from "./addons";
@@ -95,8 +97,15 @@ export function ModelSheet({
   const [dl, setDl] = useState<Download | null>(null);
   const [startError, setStartError] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
+  // Versions that would run from the drive need a deliberate yes before downloading.
+  const [estimate, setEstimate] = useState<SpeedEstimate | null>(null);
+  const [understood, setUnderstood] = useState(false);
 
   const variant = picked ?? data?.recommended ?? null;
+  const chosen = data?.variants.find((v) => v.id === variant);
+  const lowBits = chosen && (chosen.rank <= 1 || (chosen.bits != null && chosen.bits < 3));
+  const fromDrive = estimate?.mode === "drive";
+  const shownVerdict = (v: Variant) => (v.id === chosen?.id ? fromEstimate(v.verdict, estimate) : v.verdict);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -164,7 +173,7 @@ export function ModelSheet({
 
             {data.supported && data.verdict && (
               <div className="mt-5 rounded-xl bg-paper border border-line p-4">
-                <VerdictBadge verdict={data.verdict} detail />
+                <VerdictBadge verdict={chosen ? shownVerdict(chosen) : data.verdict} detail />
                 {data.needs_image && (
                   <p className="text-[13px] mt-2">This model brings a picture to life, so you&apos;ll need a starting picture.</p>
                 )}
@@ -197,7 +206,9 @@ export function ModelSheet({
               <fieldset className="mt-7">
                 <legend className="font-medium mb-1">Choose a version</legend>
                 <p className="text-sm text-slate mb-3">
-                  Smaller versions download faster and use less memory. Bigger ones are a little smarter.
+                  {data.engine === "llamacpp"
+                    ? "Each version is the same model compressed by a different amount (quantized). Fewer bits per weight make it smaller and faster but less accurate: about 4 bits or more is close to the original, below 3 the drop is noticeable."
+                    : "Smaller versions download faster and use less memory. Bigger ones are a little smarter."}
                 </p>
                 <div className="flex flex-col gap-2">
                   {shown.map((v) => (
@@ -212,7 +223,10 @@ export function ModelSheet({
                         name="variant"
                         className="mt-1.5 accent-[var(--accent)]"
                         checked={variant === v.id}
-                        onChange={() => setVariant(v.id)}
+                        onChange={() => {
+                          setVariant(v.id);
+                          setUnderstood(false);
+                        }}
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap justify-between gap-x-3">
@@ -222,13 +236,21 @@ export function ModelSheet({
                               <span className="ml-2 text-[13px] font-medium text-accent">Best for you</span>
                             )}
                           </span>
-                          <span className="tabular-nums text-slate">{bytes(v.size)}</span>
+                          <span className="tabular-nums text-slate">
+                            {v.bits ? `${v.bits} bits, ` : ""}
+                            {bytes(v.size)}
+                          </span>
                         </div>
                         {v.description && <div className="text-sm text-slate">{v.description}</div>}
                         <div className="mt-1">
-                          <VerdictBadge verdict={v.verdict} />
+                          <VerdictBadge verdict={shownVerdict(v)} />
                         </div>
                         {v.vision && <div className="text-[13px] text-slate">Can also look at pictures you attach.</div>}
+                        {v.fits_disk === false && (
+                          <div className="text-[13px] text-danger">
+                            Bigger than the {bytes(data.disk_free)} free on the drive models are saved to.
+                          </div>
+                        )}
                       </div>
                     </label>
                   ))}
@@ -241,13 +263,55 @@ export function ModelSheet({
               </fieldset>
             )}
 
+            {data.supported && data.task === "chat" && chosen && (
+              <div className="mt-5 flex flex-col gap-3">
+                {lowBits && (
+                  <Notice>
+                    This version is heavily compressed
+                    {chosen.bits ? ` (about ${chosen.bits} bits per weight)` : ""}. It is much smaller, but it makes
+                    noticeably more mistakes than the original, especially with facts, maths and code. Pick a version
+                    with 4 or more bits if your computer can hold it.
+                  </Notice>
+                )}
+                <SpeedEstimateView
+                  key={chosen.id}
+                  path={`/api/hub/estimate?repo_id=${encodeURIComponent(repoId)}&variant_id=${encodeURIComponent(chosen.id)}`}
+                  onEstimate={setEstimate}
+                />
+                {fromDrive && (
+                  <label className="flex items-start gap-3 text-[15px]">
+                    <input
+                      type="checkbox"
+                      checked={understood}
+                      onChange={(e) => setUnderstood(e.target.checked)}
+                      className="mt-1 size-4 accent-[var(--accent)]"
+                    />
+                    <span>I understand this version is bigger than my computer&apos;s memory and will reply very slowly.</span>
+                  </label>
+                )}
+                {fromDrive && !estimate?.setting_on && (
+                  <Notice>
+                    To run it, turn on &ldquo;Run models bigger than memory&rdquo; in{" "}
+                    <Link className="text-accent underline" href="/settings/">
+                      Settings
+                    </Link>
+                    . You can download it first.
+                  </Notice>
+                )}
+              </div>
+            )}
+
             <div className="mt-7 flex flex-col gap-3">
               {startError && <Notice tone="error">{startError}</Notice>}
               {data.installed.length > 0 && !dl && (
                 <p className="text-sm text-ok">Already installed: {data.installed.join(", ")}</p>
               )}
               {!dl && data.supported && (
-                <Button onClick={start} disabled={!variant} className="self-start">
+                <Button
+                  onClick={start}
+                  disabled={!variant || (fromDrive && !understood) || chosen?.fits_disk === false}
+                  className="self-start"
+                >
                   Download {bytes(variants.find((v) => v.id === variant)?.size)}
                 </Button>
               )}
@@ -263,6 +327,135 @@ export function ModelSheet({
       </div>
     </div>
   );
+}
+
+/** How fast a chat model runs here. For one bigger than memory, what reading it from the drive means in practice. */
+export function SpeedEstimateView({
+  path,
+  onEstimate,
+}: {
+  path: string;
+  onEstimate?: (e: SpeedEstimate | null) => void;
+}) {
+  const { data, error, refresh } = usePoll<SpeedEstimate>(path);
+  useEffect(() => {
+    // The drive is measured the first time it matters (about ten seconds); check back until it's done.
+    if (!data?.measuring_drive) return;
+    const t = setTimeout(refresh, 2000);
+    return () => clearTimeout(t);
+  }, [data, refresh]);
+  useEffect(() => onEstimate?.(data), [data, onEstimate]);
+
+  if (error) return <p className="text-[13px] text-slate">Couldn&apos;t estimate its speed here: {error}</p>;
+  if (!data) return <p className="text-[13px] text-slate">Working out how fast it runs on this computer…</p>;
+  const measured = data.measured_tokens_per_second;
+  if (data.mode !== "drive") {
+    const tps = measured ?? data.tokens_per_second;
+    if (!tps) return null;
+    return (
+      <p className="text-[14px]">
+        {measured ? "Measured here" : "Estimated here"}: {tokenSpeed(tps)}
+        {data.mode === "ram" && !measured ? ", with part of it on the processor" : ""}.
+      </p>
+    );
+  }
+  const perToken = data.bytes_per_token.drive;
+  const spt = data.seconds_per_token;
+  return (
+    <div className="rounded-xl bg-paper border border-caution/50 p-4 text-[14px] flex flex-col gap-2">
+      <div className="font-medium text-[15px]">Runs from your drive</div>
+      <p>
+        At {bytes(data.model_bytes)} it is bigger than your graphics and system memory, so for each token it reads
+        what they can&apos;t hold from your drive.{" "}
+        {data.moe
+          ? `It is a mixture-of-experts model: each token uses ${data.experts.used} of its ${data.experts.total} experts, so it reads about ${bytes(perToken)} a token rather than the whole model.`
+          : `It isn't a mixture-of-experts model, so every token needs all of its weights: about ${bytes(perToken)} a token from the drive. Models like this are impractically slow from a drive.`}
+      </p>
+      {data.measuring_drive && <p className="text-slate">Measuring your drive&apos;s speed (about ten seconds)…</p>}
+      {data.drive_error && !data.measuring_drive && (
+        <p className="text-danger">Couldn&apos;t measure your drive: {data.drive_error}</p>
+      )}
+      {spt != null && (
+        <ul className="list-disc pl-5 flex flex-col gap-1">
+          {measured ? (
+            <li>
+              Writing: measured here at {tokenSpeed(measured)}. A 300-token reply (about 225 words) takes about{" "}
+              {duration(300 / measured)}.
+            </li>
+          ) : (
+            <li>
+              Writing: {speedRange(1 / spt, data.tokens_per_second_fast)}. A 300-token reply (about 225 words) takes{" "}
+              {durationRange(300 * spt, data.tokens_per_second_fast ? 300 / data.tokens_per_second_fast : null)}. The
+              faster end is for models that keep using the same experts, and conversations that stay on one topic.
+            </li>
+          )}
+          {data.short_prompt_seconds != null && (
+            <li>
+              Before it replies it reads your message: about {duration(data.short_prompt_seconds)} for a short one
+              {data.prompt_seconds != null ? `, about ${duration(data.prompt_seconds)} for every 400 words` : ""}. The
+              earlier conversation counts the first time
+              {data.first_prompt_seconds != null && data.first_prompt_seconds > data.short_prompt_seconds * 1.25
+                ? `, and the first message after it starts takes ${duration(data.first_prompt_seconds)} or more`
+                : ""}
+              .
+            </li>
+          )}
+          {data.start_seconds != null && data.start_seconds > 30 && <li>Starting: about {duration(data.start_seconds)}.</li>}
+        </ul>
+      )}
+      {data.speeds.drive != null && (
+        <p className="text-[13px] text-slate">
+          Estimated from this computer: drive {bytes(data.speeds.drive)}/s as a model reads it, memory{" "}
+          {bytes(data.speeds.ram)}/s, and {Math.round(data.memory_hit * 100)}% of the experts it needs found in memory
+          when it uses them all equally. Reading doesn&apos;t wear out an SSD, but the drive stays busy, so other
+          programs may feel slower. A hard disk would be far slower still.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** "about 1 to 3 tokens a second", or one figure when the two are close. */
+function speedRange(slow: number, fast: number | null): string {
+  if (!fast || fast < slow * 1.25) return tokenSpeed(slow);
+  if (slow >= 1) return `about ${slow.toFixed(1)} to ${fast >= 10 ? Math.round(fast) : fast.toFixed(1)} tokens a second`;
+  return `between ${tokenSpeed(slow).replace("about ", "")} and ${tokenSpeed(fast).replace("about ", "")}`;
+}
+
+/** "about 2 to 5 minutes", or one figure when the two round the same. */
+function durationRange(long: number, short: number | null): string {
+  if (!short || duration(short) === duration(long)) return `about ${duration(long)}`;
+  return `about ${duration(short)} to ${duration(long)}`;
+}
+
+/**
+ * The rating for a version once its file has been read. Ratings in lists go by size alone; the estimate knows what
+ * each token really uses, so a model whose size suggests the drive may fit in memory after all, and the other way round.
+ */
+function fromEstimate(sized: Verdict | null, e: SpeedEstimate | null): Verdict | null {
+  if (!sized || !e) return sized;
+  const bySize = sized.level === "disk" || sized.level === "no";
+  if (e.mode === "drive" && !bySize) {
+    return {
+      ...sized,
+      level: "disk",
+      label: "Runs from your drive, very slowly",
+      detail: "Each token needs more than your graphics and system memory can hold, so it reads the rest from your drive.",
+      drive_possible: !e.setting_on,
+    };
+  }
+  if (e.mode !== "drive" && bySize) {
+    return {
+      ...sized,
+      level: e.mode === "gpu" ? "good" : "slow",
+      label: e.mode === "gpu" ? "Runs well here" : "Runs, but slowly",
+      detail:
+        "It needs less memory than its size suggests: part of the file is only looked up a little at a time, so it fits in your graphics and system memory" +
+        (e.mode === "ram" ? ", with part of it on the processor." : "."),
+      drive_possible: false,
+    };
+  }
+  return sized;
 }
 
 function quantPref(v: Variant): number {

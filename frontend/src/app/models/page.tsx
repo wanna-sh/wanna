@@ -9,6 +9,7 @@ import { MODEL_TASKS, TASKS } from "@/lib/tasks";
 import { ago, bytes, gpuName, prettyName } from "@/lib/format";
 import { Button, Field, LinkButton, LiveDot, Notice, PageHeader, inputClass } from "@/components/ui";
 import { CopyButton, SaveButton } from "@/components/save";
+import { SpeedEstimateView } from "@/components/models";
 
 export default function ModelsPage() {
   const { data, refresh } = useModels(undefined, 2500);
@@ -141,7 +142,8 @@ function ModelRow({ m, gpus, onChange }: { m: InstalledModel; gpus: Gpu[]; onCha
   const spill = w?.gpu_layers != null && w?.total_layers ? w.total_layers - w.gpu_layers : 0;
   const status = w
     ? `${w.status === "loading" ? "Starting on" : "Running on"} ${on}${w.offload ? ", memory saver on" : ""}` +
-      (spill > 0 ? `, ${spill} of ${w.total_layers} layers on the processor (slower)` : "")
+      (spill > 0 ? `, ${spill} of ${w.total_layers} layers on the processor (slower)` : "") +
+      (w.from_drive ? ", reading the rest from your drive (very slow)" : "")
     : "Not running";
   const speed = m.speed ? `About ${Math.round(m.speed)} tokens a second here. ` : "";
   // How each memory size would run here, from llama.cpp's planner (fetched when Options opens).
@@ -213,6 +215,11 @@ function ModelRow({ m, gpus, onChange }: { m: InstalledModel; gpus: Gpu[]; onCha
                 ))}
               </select>
             </Field>
+          )}
+          {m.task === "chat" && m.engine === "llamacpp" && (
+            <div className="sm:col-span-2">
+              <SpeedEstimateView path={`/api/models/${m.id}/estimate`} />
+            </div>
           )}
           <div className="sm:col-span-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-[14px] text-slate">
             <span className="break-all">From {m.repo_id}</span>

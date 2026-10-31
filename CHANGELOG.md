@@ -2,6 +2,34 @@
 
 Each version's section becomes its GitHub release notes (see `.github/workflows/release.yml`).
 
+## Unreleased
+
+- **Chat models bigger than memory.** Turn on **Settings → Run models bigger than memory** and chat models bigger than
+  your graphics and system memory together run by reading from your drive as they write, the way llama.cpp maps a
+  model file. It's very slow, and works best with mixture-of-experts models such as Kimi K3 or DeepSeek, which read
+  only a few of their experts for each token. Get models rates these **Runs from your drive, very slowly** whether
+  or not the setting is on (saying how to turn it on), and before you download one you have to confirm you understand.
+  Models with large tables llama.cpp reads a little at a time (such as Qwen3.8 Flash Next) are judged by what they
+  really keep in memory, so they aren't mistaken for models that need the drive.
+- **Speed estimates before you download.** For chat models, the version you pick shows how fast it will write on this
+  computer, worked out from the model's own file (read from Hugging Face without downloading it) and measured speeds
+  of your graphics cards, memory and drive. For a model that reads from the drive, it also says how long reading your
+  message and starting take. **My models** shows the same under **Options**.
+- **Compression is explained.** Chat versions show their bits per weight, and picking a heavily compressed one (below
+  3 bits) says what that costs. Versions such as TQ1_0 and Q1_0 are now recognised as Tiny.
+- Downloads that don't fit in the free space on your drive are refused up front, saying how much room they need.
+
+### Fixes
+
+- A mixture-of-experts chat model too big for one graphics card could be put on the smallest card alone, with most
+  of its experts left on the processor, when sharing it across cards was faster. It's now shared: Qwen3-30B-A3B at
+  full precision went from 3 to about 4.7 tokens a second on an 8 GB and a 12 GB card.
+- The speed **My models** measured for a chat model could be how fast it read a long message rather than how fast it
+  wrote, which for models that run partly on the processor is often much higher.
+- Mixture-of-experts chat models too big for the graphics cards could run out of graphics memory: wanna.sh passed
+  llama.cpp's planned layer count without the plan's choice of which experts stay with the processor. Both are passed
+  now.
+
 ## 0.3.4 (2026-10-30)
 
 - wanna.sh is now copyright Wannaverse. The app's footer links to [wannaverse.com](https://wannaverse.com), and it's

@@ -52,11 +52,46 @@ most that fits fully on your cards.
 ## Protecting your computer
 
 Models that don't fit on the graphics card can spill into system memory. Before starting one, wanna.sh checks there is
-enough free memory, and it watches memory while models run, stopping a model before your computer runs out. Free
+enough free memory, and it watches memory while models run, stopping a model before your computer runs out. Parts of a
+model read from its file don't count: the system frees those by itself when it needs the room. Free
 swap space counts as memory: with swap, a model that needs more memory than is free makes your computer slower for a
 while instead of being stopped.
 
 On Windows with WSL2, see the note on [WSL2 memory](/docs/start/install/#windows-with-wsl2).
+
+## Models bigger than memory
+
+A chat model bigger than your graphics and system memory together can still run, if you allow it: turn on
+**Settings → Models bigger than memory → Run models bigger than memory**. It's off until you do.
+
+Such a model runs by reading what doesn't fit from your drive as it writes. llama.cpp maps the model file into memory
+instead of loading it: your graphics cards hold what they can, the operating system keeps as much of the rest as fits
+in spare memory, and reads the remainder from the drive when a token needs it.
+
+- **Mixture-of-experts models** (Kimi, DeepSeek, Qwen "A3B" models and others) are the ones worth running this way:
+  each token uses only a few of the model's experts, so it reads a small share of the model. Kimi K3 uses 16 of its
+  896 experts per token, for example.
+- **Other models** need every weight for every token, so they read the whole model from the drive each time and are
+  impractically slow.
+- **It is slow.** Before you download one, wanna.sh estimates on your computer how long a token takes, how long it
+  takes to read your message before replying, and how long starting takes. As a guide, Kimi K3 (2.8 trillion parameters) in
+  its 595 GB UD-IQ1_S version is estimated at about 7 seconds a token, a minute to read a short message and 6 minutes to
+  start, on a PC with 32 GB of memory, 20 GB of graphics memory and an NVMe drive. Qwen3-30B-A3B at full precision
+  (61 GB, 3 of its 30 billion parameters used per token) measured 4 to 6 tokens a second on the same PC. Smaller isn't always faster: a version that keeps the parts every token uses larger can be
+  slower, and the estimate for each version shows it. More memory helps most: what memory holds isn't read from the
+  drive.
+- **Reading your message takes a while too.** Reading a prompt sends tokens to almost every expert, so it reads most of
+  the model from the drive for every 400 words or so. The first message after it starts is the slowest, because
+  nothing is in memory yet.
+- **The estimate is a range** when the speed depends on the model: some models keep using the same few experts, which
+  then stay in memory, so they run faster than when experts are used evenly (as Kimi K3 is trained to).
+- **Use a fast SSD.** wanna.sh measures the drive your models are saved on the first time it matters (it writes and
+  reads a 2 GB test file, about ten seconds) and shows the result in Settings, with **Measure again**. A hard disk is
+  far too slow. Reading doesn't wear out an SSD, but the drive stays busy, so other programs may feel slower.
+- Your download needs room: big versions can take hundreds of gigabytes. To keep models on another drive, move your
+  [data folder](/docs/reference/files/) with `WANNA_HOME`.
+
+While one runs, **My models** says *reading the rest from your drive*, and its speed estimate is under **Options**.
 
 ## No graphics card?
 

@@ -44,6 +44,8 @@ DEFAULT_SETTINGS = {
     "idle_unload_minutes": 0,
     # Default context length for chat models.
     "default_context": 8192,
+    # Let chat models bigger than graphics and system memory together run by reading from the drive (very slow).
+    "stream_from_drive": False,
 }
 
 _lock = threading.Lock()

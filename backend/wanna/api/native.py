@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
-from .. import addons, catalog, db, gpu, hub, jobs, presets, readiness, samplers
+from .. import addons, catalog, db, gpu, hub, jobs, presets, readiness, samplers, streaming
 from ..config import MODELS_DIR, OUTPUTS_DIR, UPLOADS_DIR, load_settings, save_settings
 from ..downloads import manager as downloads
 from ..engines import llamacpp
@@ -58,6 +58,19 @@ def install_ml_addon():
 def system_check(refresh: bool = False):
     """Is this computer ready? One line per area, each ok / warn / fail."""
     return readiness.system_check(refresh)
+
+
+@router.get("/hardware/drive")
+def drive_speed():
+    """How fast the drive models are stored on reads, as last measured (None until it has been)."""
+    return {"drive": streaming.drive(), "measuring": streaming.measuring()}
+
+
+@router.post("/hardware/drive/measure")
+def measure_drive():
+    """Measure the models drive again, in the background: writes and reads a 2 GB test file (about ten seconds)."""
+    streaming.measure_drive_soon()
+    return {"drive": streaming.drive(), "measuring": True}
 
 
 @router.post("/engines/llamacpp/install")
@@ -107,6 +120,17 @@ def hub_model(repo_id: str):
         raise HTTPException(404, f"Couldn't load this model from Hugging Face: {e}")
     d["installed"] = [m["id"] for m in db.list_models() if m["repo_id"] == repo_id]
     return d
+
+
+@router.get("/hub/estimate")
+def hub_estimate(repo_id: str, variant_id: str, context: int | None = None):
+    """How fast one version of a chat model would run here, from its file headers (read without downloading it)."""
+    try:
+        return streaming.for_variant(repo_id, variant_id, context)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(502, f"Couldn't read this model's details from Hugging Face: {e}")
 
 
 # --- downloads --------------------------------------------------------------
@@ -206,6 +230,18 @@ def model_memory(model_id: str):
     if not m or m["engine"] != "llamacpp":
         raise HTTPException(404, "Only chat models have memory options")
     return readiness.memory_options(m)
+
+
+@router.get("/models/{model_id}/estimate")
+def model_estimate(model_id: str, context: int | None = None):
+    """How fast this chat model runs here: estimated from its file, and measured once it has run."""
+    m = db.get_model(model_id)
+    if not m or m["engine"] != "llamacpp" or m["task"] != "chat":
+        raise HTTPException(404, "Only chat models have speed estimates")
+    try:
+        return streaming.for_model(m, context)
+    except (OSError, ValueError) as e:
+        raise HTTPException(500, f"Couldn't read the model file: {e}")
 
 
 @router.get("/models/{model_id}/log", response_class=PlainTextResponse)

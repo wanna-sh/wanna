@@ -152,6 +152,8 @@ def fit_plan(model: dict, context: int, gpus: list[int] | None = None) -> dict |
     args = r.stdout.strip().splitlines()[-1] if r.stdout.strip() else ""
     ngl = re.search(r"-ngl (-?\d+)", args)
     ts = re.search(r"-ts ([\d,]+)", args)
+    # Which tensors stay with the processor, e.g. the experts of a mixture-of-experts model that doesn't fit.
+    ot = re.search(r'-ot "([^"]+)"', args)
     if not ngl:
         return None
     try:
@@ -164,8 +166,10 @@ def fit_plan(model: dict, context: int, gpus: list[int] | None = None) -> dict |
         "context": context,
         "gpu_layers": gl,
         "total_layers": layers,
-        "full_gpu": bool(visible) and layers > 0 and gl >= layers,
+        # Every layer on the cards isn't enough: the plan may still keep the experts with the processor.
+        "full_gpu": bool(visible) and layers > 0 and gl >= layers and not ot,
         "split": [float(x) for x in ts.group(1).split(",")] if ts else None,
+        "overrides": ot.group(1) if ot else None,
         "gpus": visible,
     }
     with _plan_lock:
@@ -239,7 +243,7 @@ def _loaded_elsewhere(model_id: str | None) -> list[str]:
 
 # --- measured speed ------------------------------------------------------------------------------------------------
 
-_SPEED = re.compile(r"eval time =\s+[\d.]+ ms /\s+(\d+) tokens \(\s*[\d.]+ ms per token,\s+([\d.]+) tokens per second\)")
+_SPEED = re.compile(r"(?<!prompt )eval time =\s+[\d.]+ ms /\s+(\d+) tokens \(\s*[\d.]+ ms per token,\s+([\d.]+) tokens per second\)")
 
 
 def measured_speed(model_id: str) -> float | None:

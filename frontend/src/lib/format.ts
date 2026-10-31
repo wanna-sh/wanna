@@ -65,3 +65,23 @@ export function hardwareSummary(gpus: { name: string; memory: number }[], ram: n
   const total = gpus.reduce((a, g) => a + g.memory, 0);
   return `${cards.join(" and ")}, ${mem(total)} of graphics memory in total, and ${system}`;
 }
+
+/** 40 -> "40 seconds", 200 -> "3 minutes", 9000 -> "2.5 hours". */
+export function duration(s: number): string {
+  if (s < 59.5) {
+    const n = Math.max(1, Math.round(s));
+    return `${n} second${n === 1 ? "" : "s"}`;
+  }
+  if (s < 3570) {
+    const n = Math.round(s / 60);
+    return `${n} minute${n === 1 ? "" : "s"}`;
+  }
+  const h = Math.round((s / 3600) * 2) / 2;
+  return `${h} hour${h === 1 ? "" : "s"}`;
+}
+
+/** "about 12 tokens a second", or "about 1 token every 6 seconds" below one a second. */
+export function tokenSpeed(perSecond: number): string {
+  if (perSecond >= 1) return `about ${perSecond >= 10 ? Math.round(perSecond) : perSecond.toFixed(1)} tokens a second`;
+  return `about 1 token every ${duration(1 / perSecond)}`;
+}

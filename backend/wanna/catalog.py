@@ -13,7 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import psutil
 
-from . import gpu, hub
+from . import gpu, hub, streaming
 
 log = logging.getLogger("wanna.catalog")
 
@@ -94,6 +94,8 @@ def rate(task: str, weights: int | None, b: dict | None = None) -> dict:
         if weights * 1.2 <= b["ram"] * 0.7:
             return {**out, "level": "slow", "label": "Runs, but slowly",
                     "detail": "No graphics card found, so it will run on the processor."}
+        if task == "chat":
+            return {**out, **_from_drive(weights, b)}
         return {**out, "level": "no", "label": "Too big for this computer",
                 "detail": f"Needs about {_gb(weights * 1.2)} of system memory to run; this computer has {_gb(b['ram'])}."}
     if need <= b["best_gpu"]:
@@ -105,6 +107,8 @@ def rate(task: str, weights: int | None, b: dict | None = None) -> dict:
     if task == "chat" and need <= b["all_gpus"] + b["ram"] * 0.5:
         return {**out, "level": "slow", "label": "Runs, but slowly",
                 "detail": f"Needs about {_gb(need)} of graphics memory to run. Part of it runs on the processor, so replies come slowly."}
+    if task == "chat":
+        return {**out, **_from_drive(weights, b)}
     if task != "chat" and weights * 1.15 <= b["ram"] * 0.6:
         return {**out, "level": "slow", "label": "Runs, but slowly",
                 "detail": f"Needs about {_gb(need)} of graphics memory to run, more than your graphics cards have. "
@@ -112,6 +116,25 @@ def rate(task: str, weights: int | None, b: dict | None = None) -> dict:
     room = b["all_gpus"] if splits else b["best_gpu"]
     return {**out, "level": "no", "label": "Too big for this computer",
             "detail": f"Needs about {_gb(need)} of graphics memory to run; you have {_gb(room)}."}
+
+
+def _from_drive(weights: int, b: dict) -> dict:
+    """Chat models too big for graphics and system memory together run from the drive, if the person allows it."""
+    # Memory left for the model once the system and other programs have theirs.
+    room = b["all_gpus"] + streaming.ram_cache(b["ram"])
+    if weights <= room:
+        return {"level": "slow", "label": "Runs, but slowly",
+                "detail": f"About {_gb(weights)}: it fills most of your system memory, so close other programs while "
+                          "it runs. Most of it runs on the processor, so replies come slowly."}
+    detail = (f"About {_gb(weights)}, more than the {_gb(room)} of graphics and system memory it could use, so it "
+              "reads from your drive as it writes. Open it for a speed estimate: some models use only a small part "
+              "of themselves for each token, and need less memory than their size suggests.")
+    if streaming.setting_on():
+        return {"level": "disk", "label": "Runs from your drive, very slowly", "detail": detail}
+    # Shown all the same, so people can find these models, with what it takes to run them.
+    return {"level": "disk", "label": "Runs from your drive, very slowly",
+            "detail": detail + " To run models like this, turn on \"Run models bigger than memory\" in Settings.",
+            "drive_possible": True}
 
 
 def _gb(n: float) -> str:

@@ -21,6 +21,7 @@ Everything wanna.sh downloads or makes lives in one data folder, `~/.wanna` by d
 | `logs/` | A log per running model, useful when one won't start. |
 | `wanna.db` | The list of installed models, your gallery, Knowledge libraries and their passages, and API keys (stored as fingerprints, not the keys themselves). |
 | `settings.json` | Your settings. |
+| `hardware.json` | The measured speed of the drive models are saved on, for speed estimates. |
 | `downloads.json` | Downloads in progress, so they can resume. |
 | `workers.pid` | Model processes wanna.sh started, so leftovers are stopped after a crash. |
 

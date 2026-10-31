@@ -186,6 +186,11 @@ function YourComputer({ budget }: { budget: Budget | undefined }) {
           <Legend level="good" label="Runs well here" text="Shares the work between your graphics cards." />
         )}
         <Legend level="slow" label="Runs, but slowly" text="Too big for your graphics cards, so it leans on the processor." />
+        <Legend
+          level="disk"
+          label="Runs from your drive, very slowly"
+          text="Chat models bigger than your memory, read from your drive as they write. Needs “Run models bigger than memory” in Settings."
+        />
         <Legend level="no" label="Too big for this computer" text="Won't run here. Hidden while the filter is on." />
       </dl>
       )}
@@ -193,7 +198,7 @@ function YourComputer({ budget }: { budget: Budget | undefined }) {
   );
 }
 
-function Legend({ level, label, text }: { level: "great" | "good" | "slow" | "no"; label: string; text: string }) {
+function Legend({ level, label, text }: { level: "great" | "good" | "slow" | "disk" | "no"; label: string; text: string }) {
   return (
     <div className="flex gap-3">
       <dt className="shrink-0 min-w-[150px]">

@@ -187,6 +187,7 @@ const VERDICT_GAUGE: Record<Verdict["level"], [number, string]> = {
   great: [3, "bg-ink"],
   good: [3, "bg-ink"],
   slow: [2, "bg-caution"],
+  disk: [1, "bg-caution"],
   no: [1, "bg-danger"],
   unknown: [0, ""],
 };

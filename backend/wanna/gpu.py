@@ -120,6 +120,22 @@ def _str(v) -> str:
     return v.decode() if isinstance(v, bytes) else v
 
 
+@functools.lru_cache(maxsize=16)
+def memory_bandwidth(index: int) -> float | None:
+    """Peak memory bandwidth of an NVIDIA card in bytes a second: bus width times the doubled memory clock
+    (448 GB/s for an RTX 3070, 360 GB/s for an RTX 3060). None when unknown."""
+    if not _NVML:
+        return None
+    try:
+        with _lock:
+            h = pynvml.nvmlDeviceGetHandleByIndex(index)
+            bus_bits = pynvml.nvmlDeviceGetMemoryBusWidth(h)
+            mhz = pynvml.nvmlDeviceGetMaxClockInfo(h, pynvml.NVML_CLOCK_MEM)
+    except pynvml.NVMLError:
+        return None
+    return bus_bits / 8 * mhz * 1e6 * 2 if bus_bits and mhz else None
+
+
 def in_wsl() -> bool:
     """Running inside WSL2, where system memory is WSL's share of the PC's (half, by default)."""
     try:

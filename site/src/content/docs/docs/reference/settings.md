@@ -28,6 +28,13 @@ searches through a private SearXNG instance on your computer. With one, Brave is
 | **Stop idle models after** | Never, 5 minutes, 15 minutes, 1 hour | Unloads models you haven't used for a while, freeing graphics memory. |
 | **Chat memory** | Short (4K), Standard (8K), Long (16K), Very long (32K) | How much of a conversation chat models remember, unless set per model in **My models → Options**. |
 
+## Models bigger than memory
+
+**Run models bigger than memory** (off by default): lets chat models bigger than your graphics and system memory
+together run by reading from your drive while they write. Very slow; see
+[Models bigger than memory](/docs/guides/hardware/#models-bigger-than-memory). Below it, the speed of the drive your
+models are saved on, as last measured, with **Measure again**. The measurement is kept in `~/.wanna/hardware.json`.
+
 ## Security
 
 **Require API key**: when on, every request to the API needs a key from **API & apps**. The interface on this computer

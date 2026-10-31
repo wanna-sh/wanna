@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import re
+import shutil
 from functools import lru_cache
 
 from huggingface_hub import HfApi
 
-from .config import hf_token
+from .config import MODELS_DIR, hf_token
 
 # Friendly task taxonomy shown in the UI.
 TASKS = {
@@ -78,7 +79,7 @@ WEIGHT_EXT = (".safetensors", ".bin", ".ckpt", ".pt", ".pth", ".onnx", ".onnx_da
 JUNK_EXT = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".mp4", ".webm", ".wav", ".mp3", ".pdf")
 
 QUANT_RE = re.compile(
-    r"(?:^|[-_.])((?:UD-)?(?:I?Q[1-8](?:_[0-9A-Z]+)*|F16|BF16|F32|FP16|FP8|MXFP4(?:_MOE)?))(?=[-_.]|$)",
+    r"(?:^|[-_.])((?:UD-)?(?:I?Q[1-8](?:_[0-9A-Z]+)*|TQ[12]_0|F16|BF16|F32|FP16|FP8|MXFP4(?:_MOE)?))(?=[-_.]|$)",
     re.IGNORECASE,
 )
 SPLIT_RE = re.compile(r"-(\d{5})-of-(\d{5})\.gguf$")
@@ -87,7 +88,7 @@ NOT_A_MODEL_RE = re.compile(r"(imatrix|(^|[/_.-])mtp([/_.-]|$)|(^|[/_.-])draft([
 
 # Rough quality ladder used to explain quantisation in plain words.
 QUANT_TIERS = [
-    (("Q2", "IQ1", "IQ2"), 1, "Tiny", "Smallest download, noticeably less smart."),
+    (("Q1", "TQ", "Q2", "IQ1", "IQ2"), 1, "Tiny", "Smallest download, noticeably less smart."),
     (("Q3", "IQ3"), 2, "Small", "Small, a bit less smart."),
     (("Q4", "IQ4", "MXFP4"), 3, "Balanced", "Best balance of size and smarts. Recommended."),
     (("Q5",), 4, "Good", "Slightly smarter, a bit bigger."),
@@ -210,8 +211,11 @@ def details(repo_id: str) -> dict:
 
     if engine == "llamacpp":
         out["variants"] = gguf_variants(files)
+        params = (getattr(info, "gguf", None) or {}).get("total")
         for v in out["variants"]:
             v["weights"] = v["size"]
+            # How compressed this version is: the original models store 16 bits per weight (some 8 or 4).
+            v["bits"] = round(v["model_size"] * 8 / params, 1) if params else None
     elif engine in ("diffusers", "transformers"):
         components = _diffusers_components(repo_id) if engine == "diffusers" else None
         chosen, variant = select_repo_files(files, engine, components)
@@ -234,8 +238,11 @@ def details(repo_id: str) -> dict:
     from .catalog import TESTED, budget, rate
 
     b = budget()
+    free = shutil.disk_usage(MODELS_DIR).free
     for v in out["variants"]:
         v["verdict"] = rate(task, v["weights"], b) if task else None
+        v["fits_disk"] = v["size"] <= free
+    out["disk_free"] = free
     out["tested"] = repo_id in TESTED
     out["needs_image"] = task == "video" and _needs_image(repo_id)
     out["recommended"] = recommend_variant(out["variants"])
@@ -296,6 +303,7 @@ def gguf_variants(files: list[dict]) -> list[dict]:
                 "rank": tier["rank"],
                 "files": files_,
                 "size": size,
+                "model_size": g["size"],
                 "vision": bool(projector),
             }
         )
@@ -320,6 +328,10 @@ def recommend_variant(variants: list[dict]) -> str | None:
         return max(good_quality,
                    key=lambda v: (min(v["rank"], 6), v["verdict"]["level"] == "great", -v["size"]))["id"]
     slow = [v for v in variants if (v.get("verdict") or {}).get("level") == "slow" and v["rank"] >= 3]
+    if not slow and any((v.get("verdict") or {}).get("level") == "disk" for v in variants):
+        # Read from the drive, smaller is usually faster, so start from the smallest. Not always: versions that keep
+        # the parts every token uses larger can be slower; the speed estimate for each version shows which.
+        return min(variants, key=lambda v: v["size"])["id"]
     pool = slow or [v for v in variants if v["rank"] >= 3] or variants
     return min(pool, key=lambda v: v["size"])["id"]
 

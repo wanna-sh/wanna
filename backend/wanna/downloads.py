@@ -307,6 +307,16 @@ class DownloadManager:
                 if d.repo_id == repo_id and d.variant["id"] == variant["id"] and d.status in ("queued", "downloading"):
                     return d
             dl = Download(repo_id, variant, details)
+            # Parts already downloaded (from an interrupted download) don't need the room again.
+            missing = variant["size"] - (_dir_size(dl.dest) if dl.dest.exists() else 0)
+            free = shutil.disk_usage(MODELS_DIR).free
+            if missing > free:
+                raise ValueError(
+                    f"Not enough free space: this version needs {missing / 1e9:.0f} GB more and the drive models are "
+                    f"saved to ({MODELS_DIR}) has {free / 1e9:.0f} GB free. Free some space, choose a smaller version, "
+                    "or move wanna.sh's data folder to a bigger drive with WANNA_HOME (see \"Files, folders and "
+                    "options\" in the guide)."
+                )
             self._downloads[dl.id] = dl
         threading.Thread(target=dl.run, daemon=True, name=f"download-{dl.id}").start()
         self.save_pending()

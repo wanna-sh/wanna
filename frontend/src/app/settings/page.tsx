@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { CircleAlert, CircleCheck, CircleX, Loader2 } from "lucide-react";
 import { api, type SystemCheckItem } from "@/lib/api";
 import { usePoll, useSystem } from "@/lib/hooks";
-import { bytes, gpuName, mem } from "@/lib/format";
+import { ago, bytes, gpuName, mem } from "@/lib/format";
 import { Button, Field, Notice, PageHeader, Panel, inputClass } from "@/components/ui";
 
 interface Settings {
@@ -15,6 +15,12 @@ interface Settings {
   require_api_key: boolean;
   idle_unload_minutes: number;
   default_context: number;
+  stream_from_drive: boolean;
+}
+
+interface DriveSpeed {
+  drive: { mapped?: number; direct?: number; error?: string; at: number } | null;
+  measuring: boolean;
 }
 
 export default function SettingsPage() {
@@ -152,6 +158,8 @@ export default function SettingsPage() {
             </div>
           </Panel>
 
+          <BigModels on={s.stream_from_drive} onChange={(v) => save({ stream_from_drive: v })} />
+
           <Panel>
             <h2 className="font-display text-[1.25rem] leading-snug mb-1">Security</h2>
             <label className="flex items-start gap-3 mt-3 text-[15px]">
@@ -189,6 +197,62 @@ export default function SettingsPage() {
         </div>
       )}
     </>
+  );
+}
+
+/** Chat models bigger than graphics and system memory together: off unless the person chooses it. */
+function BigModels({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+  const { data, refresh } = usePoll<DriveSpeed>("/api/hardware/drive");
+  useEffect(() => {
+    if (!data?.measuring) return;
+    const t = setTimeout(refresh, 2000);
+    return () => clearTimeout(t);
+  }, [data, refresh]);
+  const d = data?.drive;
+  return (
+    <Panel>
+      <h2 className="font-display text-[1.25rem] leading-snug mb-1">Models bigger than memory</h2>
+      <p className="text-slate text-[15px]">
+        A chat model bigger than your graphics and system memory together can still run: it reads what doesn&apos;t
+        fit from your drive while it writes. That is very slow, from a few tokens a second to one every few seconds or
+        more, and best for mixture-of-experts models, which use only part of themselves for each token. Before you
+        download one, wanna.sh estimates its speed on this computer.
+      </p>
+      <label className="flex items-start gap-3 mt-4 text-[15px]">
+        <input
+          type="checkbox"
+          checked={on}
+          onChange={(e) => onChange(e.target.checked)}
+          className="mt-1 size-4 accent-[var(--accent)]"
+        />
+        <span>
+          <span className="font-medium">Run models bigger than memory</span>
+          <span className="block text-slate">
+            Your drive stays busy while they run, so other programs may feel slower. Reading doesn&apos;t wear out an
+            SSD. On a hard disk it is far too slow to be useful.
+          </span>
+        </span>
+      </label>
+      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-[14px] text-slate">
+        <span>
+          {data?.measuring
+            ? "Measuring the drive models are saved on (about ten seconds)…"
+            : d?.mapped
+              ? `The drive models are saved on reads ${bytes(d.mapped)}/s the way a model reads it (${bytes(d.direct)}/s at best), measured ${ago(d.at)}.`
+              : d?.error
+                ? `Couldn't measure the drive models are saved on: ${d.error}`
+                : "The drive models are saved on hasn't been measured yet."}
+        </span>
+        {!data?.measuring && (
+          <button
+            className="underline underline-offset-2 hover:text-ink"
+            onClick={() => api.post("/api/hardware/drive/measure").then(refresh)}
+          >
+            {d ? "Measure again" : "Measure it"}
+          </button>
+        )}
+      </div>
+    </Panel>
   );
 }
 

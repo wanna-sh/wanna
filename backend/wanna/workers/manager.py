@@ -17,7 +17,7 @@ from pathlib import Path
 
 import httpx
 
-from .. import db, gpu
+from .. import db, gpu, streaming
 from ..config import HOME, LOGS_DIR, OUTPUTS_DIR, load_settings
 from ..engines import llamacpp
 from ..knowledge.families import family
@@ -101,6 +101,7 @@ class Worker:
         self.progress: dict = {}
         self.estimated_bytes = model.get("size_bytes", 0)
         self.plan: dict | None = None  # llama-fit-params result used for this load
+        self.from_drive = False  # bigger than memory: read from the drive as it runs
         # The engine's port is on 127.0.0.1, but other programs and web pages (via DNS rebinding) could still reach it.
         # Every request to it carries this secret; only wanna.sh knows it.
         self.token = secrets.token_urlsafe(24)
@@ -120,6 +121,7 @@ class Worker:
                 self.model["path"], self.port, self.context or load_settings()["default_context"],
                 self.gpus, self.split, mmproj=meta.get("mmproj"), alias=self.id,
                 gpu_layers=(self.plan or {}).get("gpu_layers") if self.plan else None,
+                overrides=(self.plan or {}).get("overrides"), from_drive=self.from_drive,
                 embedding=self.task == "embed",
                 pooling=family(self.model["repo_id"])["pooling"] if self.task == "embed" else None,
             )
@@ -207,6 +209,7 @@ class Worker:
             "gpus": self.gpus,
             "split": self.split,
             "offload": self.offload,
+            "from_drive": self.from_drive,
             "context": self.context,
             "gpu_layers": (self.plan or {}).get("gpu_layers"),
             "total_layers": (self.plan or {}).get("total_layers"),
@@ -293,24 +296,28 @@ class ModelManager:
                 raise LoadError("The chat engine is still being set up. This happens once; please try again shortly.")
 
             need = self._estimate(model, context)
+            from_drive = model["engine"] == "llamacpp" and model["task"] == "chat" and streaming.needs_drive(model, gpus)
+            if from_drive and not streaming.setting_on():
+                raise LoadError(streaming.refusal(model))
             if model["engine"] == "llamacpp" and gpus != []:
                 planned = self._plan_llama(model, context or load_settings()["default_context"], gpus)
                 if planned:
                     worker = Worker(model, planned["gpus"], planned["split"] if len(planned["gpus"]) > 1 else None,
                                     context, False)
-                    worker.plan, worker.estimated_bytes = planned, need
+                    worker.plan, worker.estimated_bytes, worker.from_drive = planned, need, from_drive
                     self.workers[model_id] = worker
                     worker.start()
                     _record_pids([w.proc.pid for w in self.workers.values() if w.proc and w.proc.poll() is None])
                     spill = planned["total_layers"] - planned["gpu_layers"]
                     self._log(f"Loading {model_id} on {_gpu_label(planned['gpus'])}"
-                              + (f" with {spill} of {planned['total_layers']} layers on the processor (slower)." if spill > 0 else "."))
+                              + (f" with {spill} of {planned['total_layers']} layers on the processor (slower)" if spill > 0 else "")
+                              + (", reading the rest from the drive as it writes (very slow)." if from_drive else "."))
                     return worker
             if gpus == []:
                 plan = {"gpus": [], "split": None, "fits": True, "reason": "Running on the processor, as requested."}
             else:
                 plan = gpu.plan_placement(need, gpus, self._reserved(), allow_split=True)
-            if not plan["fits"] and not gpus:
+            if not plan["fits"] and not gpus and not from_drive:
                 # Make room by unloading the least recently used models, then plan again.
                 for w in sorted(self.workers.values(), key=lambda w: w.last_used):
                     if w.status in ("loading", "ready") and not w.progress.get("busy"):
@@ -340,11 +347,12 @@ class ModelManager:
                 plan = {**plan, "gpus": [roomiest], "split": None,
                         "reason": f"Too big to keep fully on a GPU; streaming it through GPU {roomiest} (slower)."}
             worker = Worker(model, plan["gpus"], plan["split"], context, use_offload)
-            worker.estimated_bytes = need
+            worker.estimated_bytes, worker.from_drive = need, from_drive
             self.workers[model_id] = worker
             worker.start()
             _record_pids([w.proc.pid for w in self.workers.values() if w.proc and w.proc.poll() is None])
-            self._log(f"Loading {model_id} on {_gpu_label(plan['gpus'])}. {plan['reason']}")
+            self._log(f"Loading {model_id} on {_gpu_label(plan['gpus'])}. {plan['reason']}"
+                      + (" Reading it from the drive as it writes (very slow)." if from_drive else ""))
             return worker
 
     def unload(self, model_id: str) -> None:
@@ -430,13 +438,17 @@ class ModelManager:
             for w in list(self.workers.values()):
                 if w.proc and w.proc.poll() is None:
                     try:
-                        victims.append((psutil.Process(w.proc.pid).memory_info().rss, w))
+                        victims.append((_private_bytes(psutil.Process(w.proc.pid)), w))
                     except psutil.Error:
                         pass
             if not victims:
                 continue
             rss, w = max(victims, key=lambda v: v[0])
-            log.warning("System memory almost exhausted; stopping %s (%.1f GB RSS)", w.id, rss / 1e9)
+            if rss < 1024**3:
+                # Model files mapped into memory don't count: the system drops those pages by itself when it needs
+                # the room. Stopping a worker this small wouldn't free enough to matter.
+                continue
+            log.warning("System memory almost exhausted; stopping %s (%.1f GB of its own memory)", w.id, rss / 1e9)
             w.error = ("Stopped because your computer ran out of system memory. Close other programs, "
                        "stop other models, or try a smaller model.")
             w.status = "error"
@@ -456,6 +468,20 @@ class ModelManager:
                 if minutes and w.status == "ready" and time.time() - w.last_used > minutes * 60:
                     self._log(f"{w.id} was idle for {minutes} minutes")
                     self.unload(w.id)
+
+
+def _private_bytes(p) -> int:
+    """Memory only this process holds. A model file mapped into memory isn't counted: the system can drop those
+    pages and read them again later, which is how models bigger than memory run."""
+    import psutil
+
+    try:
+        # Memory in use by this process alone (on Windows its private working set). Not "private bytes": the graphics
+        # driver commits gigabytes there that never take real memory.
+        return p.memory_full_info().uss
+    except psutil.Error:
+        mi = p.memory_info()
+        return mi.rss - getattr(mi, "shared", 0)  # Linux: pages mapped from the model file are shared
 
 
 def _gpu_label(gpus: list[int]) -> str:
