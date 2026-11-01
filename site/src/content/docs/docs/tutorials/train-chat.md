@@ -115,7 +115,7 @@ downloaded again if you train that model again.
 ## Where it's kept
 
 Each trained chat model is a folder in `~/.wanna/training`: your examples, what it learned (`lora.gguf`, a llama.cpp
-LoRA adapter, about 20 to 200 MB, and `adapter/`, the same in the format Hugging Face's PEFT reads), and the sample
+LoRA adapter: 22 MB for Llama 3.2 1B, 87 MB for Qwen3 8B; and `adapter/`, the same in the format Hugging Face's PEFT reads), and the sample
 replies. **Delete** on the Train page, or deleting the trained model in **My models**, removes the folder, and the
 copy in `models/matched` once no trained model uses it.
 
