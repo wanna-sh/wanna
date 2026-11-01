@@ -135,7 +135,7 @@ class Decision(BaseModel):
 
 
 @router.post("/projects/{pid}/approve")
-def approve(pid: str, d: Decision):
+async def approve(pid: str, d: Decision):  # async: it resolves a future on the server's event loop
     _project(pid)
     if not agent.approve(pid, d.event_id, d.decision):
         raise HTTPException(409, "That request is no longer waiting for approval.")
@@ -143,7 +143,7 @@ def approve(pid: str, d: Decision):
 
 
 @router.post("/projects/{pid}/stop")
-def stop(pid: str):
+async def stop(pid: str):
     _project(pid)
     agent.stop(pid)
     return {"ok": True}

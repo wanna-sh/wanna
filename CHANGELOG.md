@@ -2,6 +2,19 @@
 
 Each version's section becomes its GitHub release notes (see `.github/workflows/release.yml`).
 
+## Unreleased
+
+- **Agents: an AI that runs around the clock.** The new **Agents** page runs AIs that keep working on their own toward
+  goals you give them, on your own chat model. Each has a Linux sandbox of its own (the same as Code's), where it
+  writes and runs programs and keeps them running as services: wanna.sh restarts them when they stop and after
+  restarts. It waits until something happens, or keeps thinking if you choose **Always thinking**, and wakes for your
+  messages, schedules it sets itself, files its own programs write to `/workspace/.inbox`, and a webhook link other
+  apps can post to. It tells you things with notifications: on its page, as a badge in the menu, on this computer, and
+  on your phone through ntfy, or in Discord or Slack. It summarises its memory when it fills and keeps notes in
+  `MEMORY.md`. Secrets are given to its services as environment variables and hidden from the model. A limit on steps
+  an hour, help when it repeats itself and retries after failures keep it on track, and agents that were on come back
+  on when wanna.sh starts. `/api/agents` does all of this from apps.
+
 ## 0.7.0 (2026-11-01)
 
 - **Train your own picture style.** The new **Train** page teaches a Stable Diffusion 1.5 or SDXL picture model a

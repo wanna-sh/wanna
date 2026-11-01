@@ -3,34 +3,7 @@
 import Link from "next/link";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import {
-  ArrowLeft,
-  BookOpen,
-  Check,
-  ChevronRight,
-  Circle,
-  CircleDot,
-  Download,
-  ExternalLink,
-  FilePen,
-  FilePlus,
-  FileText,
-  FolderTree,
-  Globe,
-  Hand,
-  ListTodo,
-  Loader2,
-  Plus,
-  RotateCcw,
-  Search,
-  Settings,
-  SquareTerminal,
-  Wrench,
-  X,
-  type LucideIcon,
-} from "lucide-react";
+import { ArrowLeft, ChevronRight, Download, Loader2, Plus, RotateCcw, Settings, SquareTerminal } from "lucide-react";
 import {
   API_BASE,
   api,
@@ -45,9 +18,10 @@ import {
   type Todo,
 } from "@/lib/api";
 import { useModels, usePoll } from "@/lib/hooks";
-import { ago, bytes } from "@/lib/format";
+import { ago } from "@/lib/format";
 import { ModelMenu, OptionChip, PromptBar, SidePanel } from "@/components/studio";
 import { KnowledgeMenu } from "@/components/knowledge";
+import { EventView, FileViewer, FilesPanel, IconButton, PreviewPanel, TasksPanel } from "@/components/steps";
 import { Button, Field, Notice, PageHeader, inputClass } from "@/components/ui";
 
 const APPROVAL_OPTIONS: { value: ApprovalMode; label: string; hint: string }[] = [
@@ -335,7 +309,7 @@ function Workspace({ pid, status }: { pid: string; status: DockerStatus | null }
                 <EventView
                   key={e.id}
                   e={e}
-                  pid={pid}
+                  base={`/api/code/projects/${pid}`}
                   onOpenFile={setViewing}
                   live={running && i === events.length - 1}
                 />
@@ -413,12 +387,12 @@ function Workspace({ pid, status }: { pid: string; status: DockerStatus | null }
         </div>
         <div className="flex-1 overflow-y-auto min-h-0 p-4">
           {tab === "tasks" && <TasksPanel todos={todos} />}
-          {tab === "files" && <FilesPanel pid={pid} running={running} onOpen={setViewing} />}
-          {tab === "preview" && <PreviewPanel project={p} />}
+          {tab === "files" && <FilesPanel base={`/api/code/projects/${pid}`} running={running} onOpen={setViewing} />}
+          {tab === "preview" && <PreviewPanel ports={p?.ports} shells={p?.shells} />}
         </div>
       </aside>
 
-      {viewing && <FileViewer pid={pid} path={viewing} onClose={() => setViewing(null)} />}
+      {viewing && <FileViewer base={`/api/code/projects/${pid}`} path={viewing} onClose={() => setViewing(null)} />}
       {p && (
         <ProjectSettings
           open={settings}
@@ -432,386 +406,6 @@ function Workspace({ pid, status }: { pid: string; status: DockerStatus | null }
           }}
         />
       )}
-    </div>
-  );
-}
-
-function IconButton({ icon: Icon, label, onClick, disabled }: { icon: LucideIcon; label: string; onClick: () => void; disabled?: boolean }) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={label}
-      title={label}
-      className="size-9 grid place-items-center rounded-full text-slate hover:text-ink hover:bg-well disabled:opacity-35 disabled:hover:bg-transparent"
-    >
-      <Icon size={17} />
-    </button>
-  );
-}
-
-// --- events ------------------------------------------------------------------------------------------------------
-
-function EventView({
-  e,
-  pid,
-  onOpenFile,
-  live,
-}: {
-  e: CodeEvent;
-  pid: string;
-  onOpenFile: (path: string) => void;
-  /** The newest event while the agent is working. */
-  live: boolean;
-}) {
-  if (e.type === "user") {
-    return (
-      <li className="self-end max-w-[85%] mt-3 rounded-3xl bg-well px-4 py-2.5 whitespace-pre-wrap text-[15px]">{e.text}</li>
-    );
-  }
-  if (e.type === "assistant") {
-    if (!e.text && !e.thinking) return null;
-    return (
-      <li>
-        {e.thinking && (
-          <details className="group mb-1">
-            <summary className="cursor-pointer text-[13px] text-slate select-none list-none inline-flex items-center gap-1">
-              <ChevronRight size={13} className="group-open:rotate-90 transition-transform" aria-hidden />
-              {live && !e.text ? "Thinking…" : "Thought"}
-            </summary>
-            <p className="mt-1 ml-4 text-[13px] text-slate whitespace-pre-wrap max-h-60 overflow-y-auto">{e.thinking}</p>
-          </details>
-        )}
-        {e.text && (
-          <div className="prose-chat text-[15.5px] leading-relaxed">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{e.text}</ReactMarkdown>
-          </div>
-        )}
-      </li>
-    );
-  }
-  if (e.type === "tool") return <ToolCard e={e} pid={pid} onOpenFile={onOpenFile} />;
-  if (e.type === "error") {
-    return (
-      <li>
-        <Notice tone="error">{e.text}</Notice>
-      </li>
-    );
-  }
-  return <li className="text-[14px] text-slate">{e.text}</li>;
-}
-
-const TOOL_ICONS: Record<string, LucideIcon> = {
-  read_file: FileText,
-  write_file: FilePlus,
-  edit_file: FilePen,
-  multi_edit: FilePen,
-  list_files: FolderTree,
-  glob: Search,
-  grep: Search,
-  bash: SquareTerminal,
-  bash_output: SquareTerminal,
-  kill_shell: SquareTerminal,
-  todo_write: ListTodo,
-  web_fetch: Globe,
-  web_search: Globe,
-  search_knowledge: BookOpen,
-};
-
-/** A plain-words label for what a tool call did. */
-function summary(e: CodeEvent): string {
-  const a = (e.args ?? {}) as Record<string, string>;
-  switch (e.name) {
-    case "read_file":
-      return `Read ${a.path}`;
-    case "write_file":
-      return `Wrote ${a.path}`;
-    case "edit_file":
-    case "multi_edit":
-      return `Edited ${a.path}`;
-    case "list_files":
-      return `Listed ${a.path || "the project"}`;
-    case "glob":
-      return `Found files matching ${a.pattern}`;
-    case "grep":
-      return `Searched the code for "${a.pattern}"`;
-    case "bash":
-      return a.description ? `${a.description}` : `Ran ${a.command}`;
-    case "bash_output":
-      return "Checked a background command";
-    case "kill_shell":
-      return "Stopped a background command";
-    case "todo_write":
-      return "Updated the task list";
-    case "web_fetch":
-      return `Read ${a.url}`;
-    case "web_search":
-      return `Searched the web for "${a.query}"`;
-    case "search_knowledge":
-      return `Searched your documents for "${a.query}"`;
-    default:
-      return `Used your tool ${e.name ?? ""}`;
-  }
-}
-
-function ToolCard({ e, pid, onOpenFile }: { e: CodeEvent; pid: string; onOpenFile: (path: string) => void }) {
-  const Icon = TOOL_ICONS[e.name ?? ""] ?? Wrench; // the person's own tools
-  const a = (e.args ?? {}) as Record<string, unknown>;
-  const waiting = e.status === "awaiting_approval";
-  const [open, setOpen] = useState(false);
-  const path = typeof a.path === "string" ? a.path : null;
-  const statusIcon =
-    e.status === "running" ? (
-      <Loader2 size={14} className="animate-spin text-slate" aria-label="Running" />
-    ) : e.status === "done" ? (
-      <Check size={14} className="text-ok" aria-label="Done" />
-    ) : e.status === "error" ? (
-      <X size={14} className="text-danger" aria-label="Failed" />
-    ) : e.status === "denied" || e.status === "stopped" ? (
-      <X size={14} className="text-slate" aria-label={e.status} />
-    ) : (
-      <Hand size={14} className="text-caution" aria-label="Waiting for you" />
-    );
-
-  return (
-    <li className={`rounded-xl border ${waiting ? "border-caution/60 bg-paper" : "border-line"} text-[14px]`}>
-      <button
-        onClick={() => setOpen(!open)}
-        aria-expanded={open}
-        className="w-full flex items-center gap-2.5 px-3 py-2 text-left"
-      >
-        <Icon size={15} className="text-slate shrink-0" aria-hidden />
-        <span className={`min-w-0 flex-1 truncate ${e.name === "bash" && !a.description ? "font-mono text-[13px]" : ""}`}>
-          {summary(e)}
-        </span>
-        {statusIcon}
-        <ChevronRight size={14} className={`text-slate transition-transform ${open ? "rotate-90" : ""}`} aria-hidden />
-      </button>
-
-      {waiting && <Approval e={e} pid={pid} />}
-
-      {open && (
-        <div className="border-t border-line px-3 py-2.5 flex flex-col gap-2">
-          {e.name === "bash" && typeof a.command === "string" && (
-            <pre className="rounded-lg bg-well p-2.5 text-[12.5px] font-mono whitespace-pre-wrap break-all">$ {a.command}</pre>
-          )}
-          {e.diff ? (
-            <Diff text={e.diff} />
-          ) : (
-            e.result && (
-              <pre className="rounded-lg bg-well p-2.5 text-[12.5px] font-mono whitespace-pre-wrap max-h-80 overflow-auto">{e.result}</pre>
-            )
-          )}
-          {path && e.status === "done" && e.name !== "read_file" && (
-            <button className="self-start text-[13px] underline underline-offset-2 text-slate hover:text-ink" onClick={() => onOpenFile(path)}>
-              Open {path}
-            </button>
-          )}
-          {e.ports && Object.keys(e.ports).length > 0 && (
-            <p className="text-[13px] text-slate">If this started a server, open it from the Preview tab.</p>
-          )}
-        </div>
-      )}
-    </li>
-  );
-}
-
-function Approval({ e, pid }: { e: CodeEvent; pid: string }) {
-  const a = (e.args ?? {}) as Record<string, string>;
-  const [sent, setSent] = useState(false);
-  const decide = async (decision: "allow" | "deny" | "always") => {
-    setSent(true);
-    try {
-      await api.post(`/api/code/projects/${pid}/approve`, { event_id: e.id, decision });
-    } catch {
-      setSent(false);
-    }
-  };
-  let preview: string | null = null;
-  if (e.name === "bash") preview = `$ ${a.command}`;
-  else if (e.name === "write_file") preview = (a.content ?? "").split("\n").slice(0, 30).join("\n");
-  else if (e.name === "edit_file") preview = `- ${(a.old_string ?? "").split("\n").join("\n- ")}\n+ ${(a.new_string ?? "").split("\n").join("\n+ ")}`;
-  const custom = !e.name || !(e.name in TOOL_ICONS);
-  if (custom) preview = JSON.stringify(e.args ?? {}, null, 2);
-  return (
-    <div className="border-t border-line px-3 py-3 flex flex-col gap-3">
-      <p className="text-[14px]">
-        {e.name === "bash"
-          ? "The agent wants to run this command:"
-          : custom
-            ? `The agent wants to run your tool ${e.name}, which you trust to run on this computer, with:`
-            : `The agent wants to change ${a.path}:`}
-      </p>
-      {preview && (
-        <pre className="rounded-lg bg-well p-2.5 text-[12.5px] font-mono whitespace-pre-wrap break-all max-h-60 overflow-auto">{preview}</pre>
-      )}
-      <div className="flex flex-wrap gap-2">
-        <Button disabled={sent} onClick={() => decide("allow")}>
-          Allow
-        </Button>
-        {e.name === "bash" && (
-          <Button tone="quiet" disabled={sent} onClick={() => decide("always")} title="Don't ask again for exactly this command">
-            Always allow this command
-          </Button>
-        )}
-        <Button tone="quiet" disabled={sent} onClick={() => decide("deny")}>
-          Deny
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function Diff({ text }: { text: string }) {
-  return (
-    <pre className="rounded-lg bg-well p-2.5 text-[12.5px] font-mono overflow-auto max-h-96">
-      {text.split("\n").map((line, i) => {
-        const cls = line.startsWith("+++") || line.startsWith("---")
-          ? "text-slate"
-          : line.startsWith("+")
-            ? "text-ok"
-            : line.startsWith("-")
-              ? "text-danger"
-              : line.startsWith("@@")
-                ? "text-slate"
-                : "";
-        return (
-          <div key={i} className={`whitespace-pre ${cls}`}>
-            {line || " "}
-          </div>
-        );
-      })}
-    </pre>
-  );
-}
-
-// --- side panels ---------------------------------------------------------------------------------------------------
-
-function TasksPanel({ todos }: { todos: Todo[] }) {
-  if (!todos.length) {
-    return <p className="text-[14px] text-slate">The agent lists its plan here when a request has several steps.</p>;
-  }
-  return (
-    <ul className="flex flex-col gap-2.5 text-[14px]">
-      {todos.map((t, i) => (
-        <li key={i} className="flex gap-2.5">
-          {t.status === "completed" ? (
-            <Check size={16} className="text-ok shrink-0 mt-0.5" aria-label="Done" />
-          ) : t.status === "in_progress" ? (
-            <CircleDot size={16} className="text-caution shrink-0 mt-0.5" aria-label="In progress" />
-          ) : (
-            <Circle size={16} className="text-slate shrink-0 mt-0.5" aria-label="To do" />
-          )}
-          <span className={t.status === "completed" ? "text-slate line-through" : ""}>{t.content}</span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function FilesPanel({ pid, running, onOpen }: { pid: string; running: boolean; onOpen: (path: string) => void }) {
-  // Refresh often while the agent works, so new files show up as they're written.
-  const { data } = usePoll<{ path: string; size: number }[]>(`/api/code/projects/${pid}/files`, running ? 2500 : 10000);
-  if (!data) return <p className="text-[14px] text-slate">Loading…</p>;
-  if (!data.length) return <p className="text-[14px] text-slate">No files yet.</p>;
-  return (
-    <ul className="flex flex-col text-[13px] font-mono">
-      {data.map((f) => {
-        const depth = f.path.split("/").length - 1;
-        return (
-          <li key={f.path}>
-            <button
-              onClick={() => onOpen(f.path)}
-              className="w-full flex justify-between gap-2 rounded-md px-2 py-1 text-left hover:bg-well"
-              style={{ paddingLeft: 8 + depth * 12 }}
-              title={f.path}
-            >
-              <span className="truncate">{f.path.split("/").pop()}</span>
-              <span className="text-slate shrink-0">{bytes(f.size)}</span>
-            </button>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-function PreviewPanel({ project }: { project: CodeProject | null }) {
-  const ports = Object.entries(project?.ports ?? {});
-  const shells = project?.shells ?? [];
-  return (
-    <div className="flex flex-col gap-4 text-[14px]">
-      <p className="text-slate">
-        When the agent starts a web server in the sandbox on port 3000, 5173, 8000 or 8080, open it here.
-      </p>
-      {ports.length === 0 ? (
-        <p className="text-slate">The sandbox isn&apos;t running yet. It starts the first time the agent runs a command.</p>
-      ) : (
-        <ul className="flex flex-col gap-2">
-          {ports.map(([inside, outside]) => (
-            <li key={inside}>
-              <a
-                href={`http://localhost:${outside}/`}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center justify-between gap-2 rounded-xl border border-line px-3 py-2 hover:bg-well"
-              >
-                <span>
-                  Port {inside}
-                  <span className="block text-[12px] text-slate">localhost:{outside}</span>
-                </span>
-                <ExternalLink size={15} className="text-slate" aria-hidden />
-              </a>
-            </li>
-          ))}
-        </ul>
-      )}
-      {shells.length > 0 && (
-        <div>
-          <h3 className="text-[13px] text-slate mb-1.5">Running in the background</h3>
-          <ul className="flex flex-col gap-1.5">
-            {shells.map((s) => (
-              <li key={s.shell_id} className="font-mono text-[12.5px] rounded-lg bg-well px-2.5 py-1.5 break-all">
-                {s.command}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function FileViewer({ pid, path, onClose }: { pid: string; path: string; onClose: () => void }) {
-  const { data, error } = usePoll<string>(`/api/code/projects/${pid}/file?path=${encodeURIComponent(path)}`, 0);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-  const lines = typeof data === "string" ? data.split("\n") : [];
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-center p-4" role="dialog" aria-modal="true" aria-label={path}>
-      <button className="absolute inset-0 bg-black/50" onClick={onClose} aria-label="Close" />
-      <div className="relative w-full max-w-[960px] max-h-[85dvh] flex flex-col rounded-2xl border border-line bg-fog">
-        <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-line">
-          <span className="font-mono text-[13px] truncate">{path}</span>
-          <button onClick={onClose} className="size-8 grid place-items-center rounded-full hover:bg-well" aria-label="Close">
-            <X size={16} />
-          </button>
-        </div>
-        <div className="overflow-auto">
-          {error && <p className="p-4 text-danger text-[14px]">{error}</p>}
-          <pre className="text-[12.5px] font-mono py-3">
-            {lines.map((l, i) => (
-              <div key={i} className="flex">
-                <span className="w-12 shrink-0 pr-3 text-right text-slate select-none">{i + 1}</span>
-                <span className="whitespace-pre pr-4">{l || " "}</span>
-              </div>
-            ))}
-          </pre>
-        </div>
-      </div>
     </div>
   );
 }

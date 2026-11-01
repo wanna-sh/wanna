@@ -458,9 +458,18 @@ export interface CodeProject {
 
 export interface CodeEvent {
   id: string;
-  type: "user" | "assistant" | "tool" | "notice" | "error";
+  /** inbox and notify come from agents only. */
+  type: "user" | "assistant" | "tool" | "notice" | "error" | "inbox" | "notify";
   time: number;
   text?: string;
+  /** An agent's inbox: where it came from (webhook, program, schedule, wanna.sh) and who sent it. */
+  source?: string;
+  by?: string;
+  /** A notification an agent sent. */
+  title?: string;
+  urgent?: boolean;
+  /** More to show on request, e.g. the summary an agent wrote of its memory. */
+  detail?: string;
   thinking?: string;
   name?: string;
   args?: Record<string, unknown>;
@@ -483,10 +492,19 @@ export type CodeStreamMessage =
 
 /** Follow a project's agent events (Server-Sent Events over fetch, so the UI header is sent). */
 export function followCode(pid: string, onMessage: (m: CodeStreamMessage) => void, signal: AbortSignal) {
+  followEvents(`/api/code/projects/${pid}/events`, onMessage, signal);
+}
+
+/** Follow an agent's events, as followCode does a project's. */
+export function followAgent(id: string, onMessage: (m: AgentStreamMessage) => void, signal: AbortSignal) {
+  followEvents(`/api/agents/${id}/events`, onMessage, signal);
+}
+
+function followEvents<M>(path: string, onMessage: (m: M) => void, signal: AbortSignal) {
   const connect = async () => {
     while (!signal.aborted) {
       try {
-        const r = await fetch(`${API_BASE}/api/code/projects/${pid}/events`, { headers: HEADERS, signal });
+        const r = await fetch(`${API_BASE}${path}`, { headers: HEADERS, signal });
         if (!r.ok || !r.body) throw new Error(String(r.status));
         const reader = r.body.getReader();
         const decoder = new TextDecoder();
@@ -511,6 +529,72 @@ export function followCode(pid: string, onMessage: (m: CodeStreamMessage) => voi
   };
   connect();
 }
+
+// --- agents ---------------------------------------------------------------------------------------
+
+export type AgentPace = "when_needed" | "always";
+
+export interface AgentNotification {
+  id: string;
+  time: number;
+  title: string;
+  message: string;
+  urgent: boolean;
+  read: boolean;
+}
+
+export interface AgentService {
+  name: string;
+  command: string;
+  running: boolean;
+  /** Times it was restarted in the last 10 minutes. */
+  restarts: number[];
+  /** Why it isn't restarted any more ("gave up" after crashing repeatedly), or null. */
+  stopped: string | null;
+  started: number | null;
+}
+
+export interface AgentStatus {
+  state: "off" | "starting" | "working" | "waiting" | "resting" | "failed";
+  note: string;
+  wait_until: number | null;
+  inbox: number;
+  schedules: { id: string; note: string; next: number; every: number | null }[];
+  compactions: number;
+  services: AgentService[];
+  notifications: AgentNotification[];
+}
+
+export interface Agent {
+  id: string;
+  name: string;
+  goals: string;
+  created: number;
+  updated: number;
+  on: boolean;
+  model: string | null;
+  context: number | null;
+  pace: AgentPace;
+  approval: "auto" | "ask_commands";
+  always_allow: string[];
+  max_steps_per_hour: number;
+  notify_url: string;
+  /** Secret names; values are never sent to the page (null keeps the stored value). */
+  secrets: Record<string, string | null>;
+  knowledge: string[];
+  hook_token: string;
+}
+
+/** The list: state is just its name there, with how many notifications are unread. */
+export type AgentSummary = Agent & { state: AgentStatus["state"]; unread: number; latest: AgentNotification | null };
+export type AgentDetail = Agent & { state: AgentStatus; running: boolean; ports?: Record<string, number> };
+
+export type AgentStreamMessage =
+  | { type: "snapshot"; events: CodeEvent[]; todos: Todo[]; running: boolean; state: AgentStatus }
+  | { type: "upsert"; event: CodeEvent }
+  | { type: "todos"; todos: Todo[] }
+  | { type: "status"; running: boolean }
+  | { type: "state"; state: AgentStatus; running: boolean };
 
 // --- readiness ------------------------------------------------------------------------------------
 

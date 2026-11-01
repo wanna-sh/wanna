@@ -19,6 +19,7 @@ PROJECTS_DIR.mkdir(parents=True, exist_ok=True)
 META_DIR.mkdir(parents=True, exist_ok=True)
 
 APPROVAL_MODES = ("ask_commands", "ask_all", "auto")
+AGENT_PREFIX = "agent_"
 # Folders that are never interesting to list or search.
 IGNORED_DIRS = {".git", "node_modules", "__pycache__", ".venv", "venv", ".next", "dist", "build", ".cache", ".mypy_cache",
                 ".pytest_cache", ".turbo", ".idea", ".vscode"}
@@ -40,6 +41,10 @@ def valid_id(pid: str) -> bool:
 
 
 def folder(pid: str) -> Path:
+    # Agents (wanna/agents.py) work in the same kind of sandbox, with a workspace kept beside the agent. Their ids
+    # have an underscore, which project ids (slugs) never do.
+    if pid.startswith(AGENT_PREFIX):
+        return HOME / "agents" / pid.removeprefix(AGENT_PREFIX) / "workspace"
     return PROJECTS_DIR / pid
 
 

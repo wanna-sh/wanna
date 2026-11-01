@@ -54,9 +54,12 @@ def _id() -> str:
 
 
 class Session:
+    LABEL = "Code"  # what needs the model, in error messages
+    WORK = "work on code"
+
     def __init__(self, pid: str):
         self.pid = pid
-        data = projects.load_session(pid)
+        data = self._load()
         self.messages: list[dict] = data.get("messages", [])
         self.events: list[dict] = data.get("events", [])
         self.todos: list[dict] = data.get("todos", [])
@@ -70,6 +73,15 @@ class Session:
         for e in self.events:
             if e.get("status") in ("running", "awaiting_approval"):
                 e["status"] = "stopped"
+
+    def _load(self) -> dict:
+        return projects.load_session(self.pid)
+
+    def _meta(self) -> dict:
+        return projects.get(self.pid) or {}
+
+    def _schemas(self) -> list[dict]:
+        return tools.schemas_for(self._meta())
 
     # --- events ------------------------------------------------------------------------------------------
 
@@ -129,14 +141,14 @@ class Session:
             self.set_running(False)
             self.save()
 
-    async def _loop(self) -> None:
-        meta = projects.get(self.pid) or {}
+    async def _prepare(self, meta: dict, why: str = "for coding"):
+        """Load the model with the memory it needs. Returns (worker, model, context)."""
         model = manager.resolve(meta.get("model"), "chat")
         if model["engine"] != "llamacpp":
-            raise LoadError("Code needs a GGUF chat model (the kind that runs on llama.cpp). Pick one in the model menu.")
+            raise LoadError(f"{self.LABEL} needs a GGUF chat model (the kind that runs on llama.cpp). Pick one in the model menu.")
         ab = readiness.abilities(model)
         if ab and not ab.get("tools"):
-            raise LoadError(f"{model['id']} can't use tools, so it can't work on code. Pick a model marked "
+            raise LoadError(f"{model['id']} can't use tools, so it can't {self.WORK}. Pick a model marked "
                             "\"Can use tools\" in the model menu, such as Qwen, Gemma 4 or Llama 3.")
         if meta.get("context"):
             context = int(meta["context"])
@@ -146,11 +158,16 @@ class Session:
             context = worker.context if worker and worker.context else await asyncio.to_thread(readiness.recommended_context, model)
         worker = manager.get(model["id"])
         if worker and worker.context != context:
-            self.emit({"type": "notice", "text": f"Restarting {model['id']} with more memory for coding "
+            self.emit({"type": "notice", "text": f"Restarting {model['id']} with more memory {why} "
                                                   f"({context // 1024}K)."})
         if not worker or worker.context != context:
             worker = await asyncio.to_thread(manager.load, model["id"], None, context)
         worker = await manager.ensure_ready(model)
+        return worker, model, context
+
+    async def _loop(self) -> None:
+        meta = projects.get(self.pid) or {}
+        worker, model, context = await self._prepare(meta)
 
         cutoffs = 0
         for step in range(MAX_STEPS):
@@ -198,7 +215,7 @@ class Session:
                 result = await self._run_tool(c, meta)
                 self.messages.append({"role": "tool", "tool_call_id": c["id"], "content": result})
                 self.save()
-                meta = projects.get(self.pid) or meta  # "always allow" may have changed
+                meta = self._meta() or meta  # "always allow" may have changed
         self.emit({"type": "notice", "text": f"Paused after {MAX_STEPS} steps. Say \"continue\" to keep going."})
 
     async def _call_model(self, worker, model_id: str, context: int) -> dict:
@@ -216,7 +233,7 @@ class Session:
         payload = {
             "model": model_id,
             "messages": [{"role": "system", "content": self._system()}] + fitted,
-            "tools": tools.schemas_for(projects.get(self.pid) or {}),
+            "tools": self._schemas(),
             "stream": True,
             "temperature": 0.3,
             # Cap private reasoning so one step can't spend the whole memory thinking (llama.cpp honours this per request).
@@ -296,23 +313,9 @@ class Session:
             return f"Todo list updated ({done}/{len(self.todos)} completed)."
 
         if self._needs_approval(name, args, meta):
-            event["status"] = "awaiting_approval"
-            self.touch(event)
-            fut = asyncio.get_running_loop().create_future()
-            self.approvals[event["id"]] = fut
-            decision = await fut
-            self.approvals.pop(event["id"], None)
-            if decision == "deny":
-                event["status"], event["result"] = "denied", "You declined this."
-                self.touch(event)
-                return "The user declined this action. Ask them how they'd like to proceed, or try a different approach."
-            if decision == "always" and name == "bash":
-                m = projects.get(self.pid) or meta
-                if args.get("command") not in m["always_allow"]:
-                    m["always_allow"].append(args.get("command"))
-                    projects.save(m)
-            event["status"] = "running"
-            self.touch(event)
+            denied = await self._ask(event, name, args)
+            if denied:
+                return denied
 
         before = self._snapshot_file(name, args)
         result = await asyncio.to_thread(tools.call, self.pid, name, args, self.cancel)
@@ -326,6 +329,30 @@ class Session:
         return result
 
     # --- helpers ------------------------------------------------------------------------------------------
+
+    async def _ask(self, event: dict, name: str, args: dict) -> str | None:
+        """Wait for the person to decide on a tool call. Returns what to tell the model if they declined."""
+        event["status"] = "awaiting_approval"
+        self.touch(event)
+        fut = asyncio.get_running_loop().create_future()
+        self.approvals[event["id"]] = fut
+        decision = await fut
+        self.approvals.pop(event["id"], None)
+        if decision == "deny":
+            event["status"], event["result"] = "denied", "You declined this."
+            self.touch(event)
+            return "The user declined this action. Ask them how they'd like to proceed, or try a different approach."
+        if decision == "always" and name == "bash":
+            self._always_allow(args.get("command"))
+        event["status"] = "running"
+        self.touch(event)
+        return None
+
+    def _always_allow(self, command: str | None) -> None:
+        m = projects.get(self.pid)
+        if m is not None and command not in m["always_allow"]:
+            m["always_allow"].append(command)
+            projects.save(m)
 
     def _needs_approval(self, name: str, args: dict, meta: dict) -> bool:
         mode = meta.get("approval", "ask_commands")

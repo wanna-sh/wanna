@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import {
   AudioLines,
   BookOpen,
+  Bot,
   Boxes,
   Clapperboard,
   Code,
@@ -26,7 +27,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import type { Download as DownloadT, Task } from "@/lib/api";
+import type { AgentSummary, Download as DownloadT, Task } from "@/lib/api";
 import { usePoll, useSystem } from "@/lib/hooks";
 import { TASKS, TASK_ORDER } from "@/lib/tasks";
 import { gpuName, mem } from "@/lib/format";
@@ -95,6 +96,7 @@ export default function Shell({ children }: { children: ReactNode }) {
               <NavItem href="/code/" active={path.startsWith("/code")} icon={SquareTerminal}>
                 Code
               </NavItem>
+              <AgentsItem active={path.startsWith("/agents")} />
             </NavGroup>
             <NavGroup title="Library">
               {LIBRARY.map((l) => (
@@ -152,11 +154,14 @@ function NavItem({
   href,
   active,
   icon: Icon,
+  badge,
   children,
 }: {
   href: string;
   active: boolean;
   icon: LucideIcon;
+  /** A count shown at the end, e.g. unread notifications. */
+  badge?: number;
   children: ReactNode;
 }) {
   return (
@@ -170,8 +175,37 @@ function NavItem({
       >
         <Icon size={17} strokeWidth={1.75} aria-hidden />
         {children}
+        {!!badge && (
+          <span className="ml-auto min-w-5 h-5 px-1.5 grid place-items-center rounded-full bg-accent text-accent-ink text-[11px] font-medium">
+            <span className="sr-only">, unread notifications: </span>
+            {badge}
+          </span>
+        )}
       </Link>
     </li>
+  );
+}
+
+/** Agents, with their unread notifications. New ones also show as notifications on this computer, if allowed. */
+function AgentsItem({ active }: { active: boolean }) {
+  const { data } = usePoll<AgentSummary[]>("/api/agents", 15000);
+  const seen = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (!data) return;
+    const latest = data.filter((a) => a.latest && !a.latest.read);
+    if (seen.current && typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+      for (const a of latest) {
+        if (!seen.current.has(a.latest!.id)) new Notification(`${a.name}: ${a.latest!.title}`, { body: a.latest!.message, tag: a.latest!.id });
+      }
+    }
+    // The first load only remembers what's there, so opening wanna.sh doesn't repeat old notifications.
+    seen.current = new Set([...(seen.current ?? []), ...latest.map((a) => a.latest!.id)]);
+  }, [data]);
+  const unread = (data ?? []).reduce((n, a) => n + a.unread, 0);
+  return (
+    <NavItem href="/agents/" active={active} icon={Bot} badge={active ? 0 : unread}>
+      Agents
+    </NavItem>
   );
 }
 

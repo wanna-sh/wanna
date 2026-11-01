@@ -18,8 +18,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import tasks, training
+from . import agents, tasks, training
 from .downloads import manager as downloads
+from .api import agents as agents_api
 from .api import code, knowledge, native, openai, tools, train, web
 from .api import tasks as tasks_api
 from .config import DOCKER_NETWORK, OUTPUTS_DIR
@@ -38,7 +39,9 @@ async def lifespan(app: FastAPI):
     knowledge_index.resume()
     training.stop_leftovers()
     tasks.LOOP = asyncio.get_running_loop()  # trained tasks run as tools from worker threads
+    agents.resume()
     yield
+    agents.shutdown()
     training.shutdown()
     manager.unload_all()
 
@@ -179,6 +182,8 @@ app.include_router(web.router)
 app.include_router(tools.router)
 app.include_router(train.router)
 app.include_router(tasks_api.router)
+app.include_router(agents_api.router)
+app.include_router(agents_api.hooks)
 app.mount("/files", StaticFiles(directory=OUTPUTS_DIR), name="files")
 
 

@@ -16,6 +16,7 @@ Everything wanna.sh downloads or makes lives in one data folder, `~/.wanna` by d
 | `tools/` | [Your own tools](/docs/tutorials/tools/), one Python file each. |
 | `tool-packages/` | Packages that tools you trust asked for. Tools in the sandbox keep theirs in a Docker volume, `wanna-tools-packages`. |
 | `projects/` | [Code](/docs/tutorials/code/) projects, one folder each. |
+| `agents/` | [Agents](/docs/tutorials/agents/), one folder each: `agent.json` (settings, including its secrets), `session.json` (its conversation, inbox, schedules, services and notifications) and `workspace/`, the folder its sandbox sees. |
 | `training/` | [Trained picture styles](/docs/tutorials/train/) and [chat models](/docs/tutorials/train-chat/), one folder each: your examples, what it learned (a LoRA) and samples. |
 | `tasks/` | [Your own tasks](/docs/tutorials/tasks/), one folder each: their examples and answers, what each learned, and how it did. |
 | `knowledge/` | The original files in your [Knowledge](/docs/tutorials/knowledge/) libraries, one folder per library. |

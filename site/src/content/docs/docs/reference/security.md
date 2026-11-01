@@ -99,6 +99,24 @@ What the sandbox does *not* protect: **the project folder itself.** The agent ca
 use the internet as it likes. **Approval** controls this: *Ask before commands* (the default) shows you every command
 first, *Ask before any change* shows every edit too. Keep important work in git.
 
+## Agents
+
+[Agents](/docs/tutorials/agents/) work alone, around the clock, so they get the same sandbox as Code, with the same
+firewall and limits, one per agent. It sees only the agent's workspace (`~/.wanna/agents/<id>/workspace`). Programs it
+keeps running (services) run in that sandbox too, and keep running while the agent is off until you stop its sandbox.
+
+- **Approval** is *Don't ask* by default, since nobody may be watching. That includes [tools you trust](#your-own-tools)
+  to run on this computer: an agent with *Don't ask* can use them without asking. Turn trust off for tools an agent
+  shouldn't use, or choose *Ask before commands* (the agent stops until you answer).
+- **Secrets** you give an agent are stored in its `agent.json` and passed to its services as environment variables.
+  The model is told their names; values that show up in output are hidden from it. Its own programs can read them, so
+  give it tokens limited to what it needs.
+- **Webhook links** work without an API key, by the secret in the link: anyone with it can send the agent text. Keep it
+  private, or make a new one in the agent's settings.
+- Text arriving from webhooks, websites and other people could try to talk the agent into something (prompt
+  injection). It's told to treat such text as information, not instructions, but that isn't a guarantee: give an agent
+  only the goals, secrets and tools it needs.
+
 ## Your own tools
 
 [Your own tools](/docs/tutorials/tools/) are code the AI decides to run, possibly written by someone else, so they get

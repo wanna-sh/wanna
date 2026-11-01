@@ -66,6 +66,7 @@ export default defineConfig({
             { slug: "docs/tutorials/music" },
             { slug: "docs/tutorials/code" },
             { slug: "docs/tutorials/tools" },
+            { slug: "docs/tutorials/agents" },
           ],
         },
         {

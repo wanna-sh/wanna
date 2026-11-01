@@ -1,7 +1,7 @@
-"""Keep the computer from going to sleep while wanna.sh is downloading.
+"""Keep the computer from going to sleep while wanna.sh is downloading, or an agent is on.
 
 Only idle sleep is held off: the screen still locks and turns off, and closing a laptop's lid or choosing Sleep still
-puts it to sleep. Each system's own mechanism is used, and released as soon as the last download finishes:
+puts it to sleep. Each system's own mechanism is used, and released as soon as the last download finishes and the last agent is turned off:
 
 - macOS: `caffeinate -i`, which also lets go by itself if wanna.sh exits;
 - Windows: a power request (SetThreadExecutionState with ES_SYSTEM_REQUIRED);
@@ -57,7 +57,7 @@ def _start():
     if os.environ.get("WANNA_IN_DOCKER") or not shutil.which("systemd-inhibit"):
         return None
     proc = subprocess.Popen(
-        ["systemd-inhibit", "--what=sleep", "--mode=block", "--who=wanna.sh", "--why=Downloading a model",
+        ["systemd-inhibit", "--what=sleep", "--mode=block", "--who=wanna.sh", "--why=Downloading a model or running an agent",
          "tail", f"--pid={os.getpid()}", "-f", "/dev/null"],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
