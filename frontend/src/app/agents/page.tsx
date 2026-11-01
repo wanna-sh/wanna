@@ -27,6 +27,7 @@ import {
   type AgentStatus,
   type AgentSummary,
   type CodeEvent,
+  type InstalledModel,
   type KnowledgeLibrary,
   type KnowledgeStatus,
   type MemoryOptions,
@@ -55,6 +56,21 @@ const EXAMPLES = [
   "Check https://example.com every 5 minutes and notify me straight away if it's down or slow.",
   "Research small, fast chat models that run on 8 GB graphics cards, and keep a report up to date in report.md.",
 ];
+
+/** Below this many billion parameters, a model rarely manages to work alone. */
+const SMALL_MODEL = 4;
+
+function SmallModelNotice({ model }: { model?: InstalledModel }) {
+  const params = model?.abilities?.params;
+  if (!model || !params || params >= SMALL_MODEL) return null;
+  return (
+    <Notice tone="info">
+      {model.meta.title || model.id} is a small model (about {params < 1 ? `${Math.round(params * 1000)}M` : `${params}B`}{" "}
+      parameters). Working alone is hard for small models: it may repeat what its tools said instead of answering, or go
+      round in circles. A model of 7B or more works much better.
+    </Notice>
+  );
+}
 
 const STATE_LABELS: Record<AgentStatus["state"], string> = {
   off: "Off",
@@ -191,6 +207,7 @@ function AgentList({ status }: { status: DockerStatus | null }) {
               ))}
             </select>
           </Field>
+          <SmallModelNotice model={toolModels.find((m) => m.id === chosen)} />
           {problem && <Notice tone="error">{problem}</Notice>}
           <Button type="submit" disabled={!name.trim() || !goals.trim() || !chosen || busy} className="justify-self-start">
             <Plus size={16} aria-hidden /> {busy ? "Creating…" : "Create and turn on"}
@@ -404,6 +421,11 @@ function Workspace({ id, status }: { id: string; status: DockerStatus | null }) 
             </Notice>
           </div>
         )}
+        {currentModel?.abilities?.tools && (currentModel.abilities.params ?? SMALL_MODEL) < SMALL_MODEL && (
+          <div className="mb-3">
+            <SmallModelNotice model={currentModel} />
+          </div>
+        )}
         {state?.state === "failed" && state.note && (
           <div className="mb-3">
             <Notice tone="error">{state.note}</Notice>
@@ -543,10 +565,19 @@ function StatusPanel({ state, onOpen }: { state: AgentStatus | null; onOpen: (pa
             {state.services.map((s) => (
               <li key={s.name} className="rounded-lg bg-well px-2.5 py-1.5">
                 <span className="flex items-center gap-2">
-                  <span className={`inline-block size-2 rounded-full ${s.running ? "bg-ok" : "bg-caution"}`} aria-hidden />
+                  <span
+                    className={`inline-block size-2 rounded-full ${s.running ? "bg-ok" : s.stopped === "finished" ? "bg-line" : "bg-caution"}`}
+                    aria-hidden
+                  />
                   <span className="font-medium">{s.name}</span>
                   <span className="text-slate text-[12px]">
-                    {s.running ? "running" : s.stopped === "gave up" ? "kept crashing, stopped" : "stopped"}
+                    {s.running
+                      ? "running"
+                      : s.stopped === "finished"
+                        ? "finished"
+                        : s.stopped === "gave up"
+                          ? "kept crashing, stopped"
+                          : `stopped${s.exit ? ` (exit code ${s.exit})` : ""}`}
                   </span>
                   <button
                     className="ml-auto text-[12px] underline underline-offset-2 text-slate hover:text-ink"

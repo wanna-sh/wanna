@@ -2,6 +2,17 @@
 
 Each version's section becomes its GitHub release notes (see `.github/workflows/release.yml`).
 
+## Unreleased
+
+- Agents' programs that exit cleanly have finished: they're no longer restarted over and over as if they had crashed.
+  A program that crashes wakes its agent the first time it's restarted, not every time.
+- Agents are told that their programs can't use their tools (such as web search), and to use a schedule for work that
+  needs them, instead of writing programs that can't work.
+- Agents' schedules repeat at most every 5 minutes, so one can't wake its model every minute all day.
+- The Agents page warns when an agent's model is small (under about 4B): small models struggle to work on their own.
+  Chat models' sizes come from their files.
+- An agent's error no longer reads "The model didn't answer: ." when the problem came without a message.
+
 ## 0.8.0 (2026-11-01)
 
 - **Agents: an AI that runs around the clock.** The new **Agents** page runs AIs that keep working on their own toward

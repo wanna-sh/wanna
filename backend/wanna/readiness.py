@@ -33,7 +33,8 @@ FIT_MARGIN_MB = 512  # free graphics memory to leave on each card when planning
 # --- GGUF metadata (read from the file header; the weights are never loaded) ---------------------------------
 
 _GGUF_SCALARS = {0: "<B", 1: "<b", 2: "<H", 3: "<h", 4: "<I", 5: "<i", 6: "<f", 7: "<?", 10: "<Q", 11: "<q", 12: "<d"}
-_WANTED = re.compile(r"^(general\.architecture|general\.name|[\w.]+\.(context_length|block_count)|tokenizer\.chat_template)$")
+_WANTED = re.compile(r"^(general\.architecture|general\.name|general\.size_label|[\w.]+\.(context_length|block_count)|"
+                     r"tokenizer\.chat_template)$")
 
 
 @lru_cache(maxsize=64)
@@ -84,6 +85,7 @@ def gguf_info(path: str) -> dict:
         "name": out.get("general.name"),
         "context_length": out.get(f"{arch}.context_length"),
         "layers": out.get(f"{arch}.block_count"),
+        "params": _billions(out.get("general.size_label")),
         # A template that mentions tools can format tool definitions and calls.
         "tools": bool(re.search(r"\btools\b", template)),
         # Reasoning models open a thinking block or expose a switch for it in their template.
@@ -106,7 +108,17 @@ def abilities(model: dict) -> dict:
         "vision": bool((model.get("meta") or {}).get("mmproj")),
         "trained_context": info["context_length"],
         "layers": info["layers"],
+        "params": info["params"],
     }
+
+
+def _billions(label) -> float | None:
+    """A model's size in billions of parameters from its label: "1B", "7.5B", "30B-A3B" (all of a mixture of experts),
+    "8x7B" (roughly), "135M"."""
+    m = re.match(r"\s*(?:(\d+)x)?(\d+(?:\.\d+)?)\s*([MBT])", str(label or ""), re.I)
+    if not m:
+        return None
+    return int(m.group(1) or 1) * float(m.group(2)) * {"M": 0.001, "B": 1, "T": 1000}[m.group(3).upper()]
 
 
 # --- memory planning with llama.cpp's own fitter ----------------------------------------------------------------

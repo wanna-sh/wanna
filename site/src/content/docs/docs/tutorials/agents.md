@@ -19,8 +19,9 @@ What it does is up to you. For example:
 
 - **Docker** must be installed and running. Everything the agent runs happens in its sandbox, never directly on your
   computer. See [What its computer can reach](#what-its-computer-can-reach).
-- **A chat model that can use tools.** Bigger models do much better at working on their own: a model of 14B or more
-  is a good start.
+- **A chat model that can use tools.** Bigger models do much better at working on their own. Small models (under
+  about 4B) tend to repeat what their tools said instead of answering, or go round in circles, and the page warns you
+  when you pick one. A model of 7B or more works much better.
 - **wanna.sh has to keep running.** Agents work while wanna.sh is running. If you close the desktop app, they stop and
   come back on when you open it again. For a true 24/7 agent, run wanna.sh with [Docker](/docs/start/docker/) or on
   Linux, on a computer that stays on. While an agent is on, wanna.sh keeps the computer from going to sleep when it's
@@ -62,7 +63,7 @@ its inbox:
 | From | What |
 | --- | --- |
 | **You** | Messages from its page or the API. |
-| **Schedule** | Times it set for itself, once or regularly ("check the status page every hour"). |
+| **Schedule** | Times it set for itself, once or regularly ("check the status page every hour"), at most every 5 minutes. |
 | **Its programs** | Anything its own programs write to `/workspace/.inbox/` (one file per message, text or JSON). |
 | **Webhook** | Text or JSON other apps post to its webhook link. |
 | **wanna.sh** | Things wanna.sh tells it, such as a program of its that crashed. |
@@ -72,11 +73,16 @@ part and only wakes itself for what needs judgement. A site watcher checks the s
 and wakes the agent only when the site is down. A Discord bot answers simple questions itself and hands the agent the
 hard ones.
 
+Its programs can't use the agent's own tools (web search, notifications and the rest), or reach wanna.sh: they use the
+internet directly, through websites, APIs and RSS feeds. Work that needs the agent's tools or judgement, such as
+searching and summarising the news each morning, is a schedule: the agent does it itself when the schedule wakes it.
+
 ### Programs that keep running
 
 Programs the agent keeps running are **services**: a bot, a server, a poller. wanna.sh starts them again when they
-stop, after a restart of wanna.sh or of the computer, and tells the agent when it had to. A service that stops 5 times in
-10 minutes isn't restarted again until the agent fixes it. Each service's output goes to `.agent/logs/<name>.log`
+crash, and after a restart of wanna.sh or of the computer, and tells the agent the first time it had to. A service that
+stops 5 times in 10 minutes isn't restarted again until the agent fixes it. A program that does its job and exits
+cleanly (exit code 0) has *finished*: it isn't restarted, and the agent is told to use a schedule for jobs like that. Each service's output goes to `.agent/logs/<name>.log`
 in the workspace (the **Log** link under **Status**).
 
 ### Memory

@@ -260,7 +260,15 @@ export interface InstalledModel {
   last_error: string | null;
   defaults: Record<string, number>;
   /** Chat models: what the model file says it can do. */
-  abilities?: { tools: boolean; thinks: boolean; vision: boolean; trained_context: number | null; layers: number | null };
+  abilities?: {
+    tools: boolean;
+    thinks: boolean;
+    vision: boolean;
+    trained_context: number | null;
+    layers: number | null;
+    /** Billions of parameters, from the file's size label (all of them, for a mixture of experts). */
+    params?: number | null;
+  };
   /** Chat models: measured tokens per second on this computer, once it has run. */
   speed?: number | null;
   /** Picture models only: samplers this model can switch between (empty when it can't). */
@@ -549,9 +557,11 @@ export interface AgentService {
   running: boolean;
   /** Times it was restarted in the last 10 minutes. */
   restarts: number[];
-  /** Why it isn't restarted any more ("gave up" after crashing repeatedly), or null. */
+  /** Why it isn't restarted: "finished" (it exited cleanly), "gave up" (it kept crashing), or a problem; null if it is. */
   stopped: string | null;
   started: number | null;
+  /** Its last exit code, when it stopped by itself. */
+  exit: string | null;
 }
 
 export interface AgentStatus {

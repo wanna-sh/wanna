@@ -64,6 +64,7 @@ SAME_CALLS = 3  # the same tool call with the same arguments this many times in 
 FAILURE_BACKOFF = (15, 30, 60, 120, 300, 600)  # seconds before trying again after a step fails
 SERVICE_RESTARTS = 5  # restarts within SERVICE_WINDOW before wanna.sh stops restarting a service
 SERVICE_WINDOW = 600
+MIN_EVERY_MINUTES = 5  # schedules repeat at most this often; faster polling belongs in the agent's programs
 SERVICE_LOG_LIMIT = 5_000_000  # bytes; a service log over this keeps only its last part
 NAME_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
 SECRET_RE = re.compile(r"^[A-Z_][A-Z0-9_]{0,63}$")
@@ -75,7 +76,9 @@ Your goals
 
 Your computer
 - /workspace is your own Linux sandbox (Node 24, npm, Python 3.11, pip, git) with internet access. It's yours: keep files there, install things and run programs. It can't reach the user's computer or local network.
-- Programs that should keep running (bots, servers, pollers, watchers) are services: service_start keeps one running, restarts it if it stops and brings it back after a restart. Its output goes to .agent/logs/<name>.log, which you can read. Use bash with background only for quick experiments.
+- Your tools (web_search, web_fetch, notify, schedule and the rest) are yours alone. Programs you write can't call them, and can't reach wanna.sh or the user's computer: they use the internet directly (HTTP APIs, RSS feeds, websites).
+- Programs that keep running (bots, servers, loops that watch something) are services: service_start keeps one running, restarts it if it crashes and brings it back after a restart. Its output goes to .agent/logs/<name>.log, which you can read. A program that does its job and exits isn't a service. Use bash with background only for quick experiments.
+- For work to do now and then, especially work that needs your tools or judgement (searching, reading, summarising), use schedule and do it yourself when it wakes you.
 - Let your programs handle routine work, and hand you what needs judgement: a program wakes you by writing a file (text or JSON, one file per message) into /workspace/.inbox/. It arrives as a message within seconds.
 - Servers listening on 0.0.0.0 port 3000, 5173, 8000 or 8080 can be opened by the user from your page.
 {secrets}
@@ -109,7 +112,8 @@ AGENT_SCHEMAS = [
         {"minutes": {"type": "number", "description": "Wake up after this many minutes at the latest."},
          "reason": {"type": "string", "description": "A few words on what you're waiting for."}},
         []),
-    _fn("schedule", "Wake yourself up later, once or regularly, with a note to yourself about what to do.",
+    _fn("schedule", "Wake yourself up later, once or regularly (at most every 5 minutes), with a note to yourself "
+        "about what to do.",
         {"note": {"type": "string", "description": "What to do then, e.g. \"Check the status page\"."},
          "in_minutes": {"type": "number", "description": "Minutes from now for the first time (default: every_minutes, or 60)."},
          "every_minutes": {"type": "number", "description": "Repeat this often. Leave out for once."}},
@@ -344,7 +348,7 @@ class Agent(Session):
         return {
             "state": self.state, "note": self.state_note, "wait_until": self.wait_until,
             "inbox": len(self.inbox), "schedules": self.schedules, "compactions": self.compactions,
-            "services": [{"name": n, **{k: s.get(k) for k in ("command", "running", "restarts", "stopped", "started")}}
+            "services": [{"name": n, **{k: s.get(k) for k in ("command", "running", "restarts", "stopped", "started", "exit")}}
                          for n, s in self.services.items()],
             "notifications": self.notifications[-20:],
         }
@@ -705,15 +709,17 @@ class Agent(Session):
         return "Waiting until something arrives."
 
     async def _tool_schedule(self, note: str, in_minutes: float | None = None, every_minutes: float | None = None) -> str:
-        every = max(1.0, float(every_minutes)) if every_minutes else None
+        every = max(float(MIN_EVERY_MINUTES), float(every_minutes)) if every_minutes else None
         first = float(in_minutes) if in_minutes is not None else (every or 60.0)
         if len(self.schedules) >= 50:
             raise AgentError("You have 50 schedules already. Remove some with unschedule first.")
         s = {"id": _id()[:6], "note": note.strip()[:500], "next": time.time() + max(0.5, first) * 60, "every": every}
         self.schedules.append(s)
         self.save()
+        shortest = (f" ({MIN_EVERY_MINUTES} minutes is the shortest; for anything faster, write a service that checks "
+                    "and writes to /workspace/.inbox when you're needed)") if every_minutes and float(every_minutes) < every else ""
         return (f"Scheduled {s['id']}: first at {_now_text(s['next'])}"
-                + (f", then every {_minutes(every)}." if every else "."))
+                + (f", then every {_minutes(every)}{shortest}." if every else "."))
 
     async def _tool_unschedule(self, id: str) -> str:
         before = len(self.schedules)
@@ -734,15 +740,24 @@ class Agent(Session):
             raise AgentError("You have 10 services already. Stop one first.")
         if name in self.services:
             await asyncio.to_thread(self._kill_service, name)
-        self.services[name] = {"command": command, "restarts": [], "running": False, "stopped": None}
-        await asyncio.to_thread(self._start_service, name)
-        await asyncio.sleep(2)
-        await asyncio.to_thread(self._check_services, False)
+        # "checking": this call reports how it started, so the ticker leaves it alone until then.
+        self.services[name] = {"command": command, "restarts": [], "running": False, "stopped": None, "exit": None,
+                               "checking": True}
+        try:
+            await asyncio.to_thread(self._start_service, name)
+            await asyncio.sleep(2)
+            await asyncio.to_thread(self._check_services, False)
+        finally:
+            self.services[name].pop("checking", None)
         s = self.services[name]
         tail = self._log_tail(name, 1500)
         self.save()
+        if s["stopped"] == "finished":
+            return (f"{name} finished straight away (exit code 0), so it isn't a program that keeps running and won't be "
+                    "restarted. For a job to do regularly, use schedule and run it with bash when it wakes you. Its log:\n"
+                    f"{tail or '(empty)'}")
         if not s["running"]:
-            return f"{name} stopped straight away. Its log:\n{tail or '(empty)'}"
+            return f"{name} stopped straight away{_exit_text(s)}. Its log:\n{tail or '(empty)'}"
         return f"{name} is running. Log so far:\n{tail or '(nothing yet)'}"
 
     async def _tool_service_stop(self, name: str) -> str:
@@ -782,8 +797,10 @@ class Agent(Session):
         container = sandbox.ensure(self.pid)
         self._log_path(name).parent.mkdir(parents=True, exist_ok=True)
         log_file = f".agent/logs/{name}.log"
-        inner = (f"echo \"--- started $(date -u +%FT%TZ) ---\" >> {log_file}; "
-                 f"setsid bash -lc {sandbox._quote(s['command'])} >> {log_file} 2>&1 < /dev/null & "
+        inner = (f"echo \"--- started $(date -u +%FT%TZ) ---\" >> {log_file}; rm -f /tmp/wanna-service-{name}.exit; "
+                 # An outer shell keeps the exit code: a program that exits cleanly has finished, not crashed.
+                 f"setsid bash -c 'bash -lc \"$0\"; echo $? > /tmp/wanna-service-{name}.exit' "
+                 f"{sandbox._quote(s['command'])} >> {log_file} 2>&1 < /dev/null & "
                  f"echo $! > /tmp/wanna-service-{name}.pid")
         secret_values = self._meta().get("secrets") or {}
         env_flags = [f for k in secret_values for f in ("-e", k)]  # values go through the environment, not the command line
@@ -801,26 +818,43 @@ class Agent(Session):
             return
         subprocess.run(["docker", "exec", container, "bash", "-c",
                         f"p=$(cat /tmp/wanna-service-{name}.pid 2>/dev/null) && kill -TERM -$p 2>/dev/null; "
-                        f"rm -f /tmp/wanna-service-{name}.pid"], capture_output=True, timeout=20)
+                        f"rm -f /tmp/wanna-service-{name}.pid /tmp/wanna-service-{name}.exit"], capture_output=True,
+                       timeout=20)
 
     def _check_services(self, restart: bool = True) -> None:
-        """Which services are running; with restart, start the stopped ones again (unless they keep crashing)."""
+        """Which services are running; with restart, start the crashed ones again (unless they keep crashing).
+
+        A service that exited cleanly (exit code 0) has finished: it isn't restarted, and the agent is told once.
+        """
         if not self.services:
             return
         container = sandbox.ensure(self.pid)  # starts the sandbox again after a reboot
         names = list(self.services)
-        script = "; ".join(f"kill -0 $(cat /tmp/wanna-service-{n}.pid 2>/dev/null) 2>/dev/null && echo {n}" for n in names)
-        r = subprocess.run(["docker", "exec", container, "bash", "-c", script + "; true"],
+        # One line per service: its name, then "running" or its exit code ("none" when it was killed, or the sandbox
+        # restarted).
+        script = "; ".join(
+            f"if kill -0 $(cat /tmp/wanna-service-{n}.pid 2>/dev/null) 2>/dev/null; then echo {n} running; "
+            f"else echo {n} $(cat /tmp/wanna-service-{n}.exit 2>/dev/null || echo none); fi" for n in names)
+        r = subprocess.run(["docker", "exec", container, "bash", "-c", script],
                            capture_output=True, text=True, timeout=30)
-        alive = set(r.stdout.split())
+        status = dict(line.split(maxsplit=1) for line in r.stdout.splitlines() if " " in line)
         for n in names:
             s = self.services.get(n)
-            if s is None:
+            if s is None or n not in status or (restart and s.get("checking")):
                 continue
             self._trim_log(n)
-            was = s.get("running")
-            s["running"] = n in alive
-            if s["running"] or not restart or s.get("stopped") == "gave up":
+            s["running"] = status[n] == "running"
+            if s["running"] or s.get("stopped") in ("gave up", "finished"):
+                continue
+            s["exit"] = None if status[n] == "none" else status[n]
+            if s["exit"] == "0":
+                s["stopped"] = "finished"
+                if restart:
+                    self._from_thread("wanna.sh", f"Your service {n} finished (exit code 0), so it wasn't restarted. "
+                                      "Services are for programs that keep running; for a job to do regularly, use "
+                                      "schedule and run it with bash when it wakes you.")
+                continue
+            if not restart:
                 continue
             now = time.time()
             s["restarts"] = [t for t in s.get("restarts", []) if now - t < SERVICE_WINDOW]
@@ -837,9 +871,9 @@ class Agent(Session):
             except sandbox.SandboxError as e:
                 s["stopped"] = str(e)
                 continue
-            if was:
-                self._from_thread("wanna.sh", f"Your service {n} had stopped, so it was restarted. The end of its log "
-                                  f"before that:\n{tail}")
+            if len(s["restarts"]) == 1:  # the first in a while; after that, only when it's given up on
+                self._from_thread("wanna.sh", f"Your service {n} stopped{_exit_text(s)}, so it was restarted. The end "
+                                  f"of its log before that:\n{tail}")
 
     def _trim_log(self, name: str) -> None:
         p = self._log_path(name)
@@ -972,12 +1006,18 @@ def _minutes(m: float) -> str:
     return f"{m:g} minutes"
 
 
+def _exit_text(s: dict) -> str:
+    return f" (exit code {s['exit']})" if s.get("exit") not in (None, "0") else ""
+
+
 def _friendly(e: Exception) -> str:
     if isinstance(e, httpx.ConnectError):
         return "Couldn't reach the model; it may have stopped."
     if isinstance(e, httpx.HTTPError):
-        return f"The model didn't answer: {e}."
-    return f"{e}" if isinstance(e, RuntimeError) else f"{type(e).__name__}: {e}"
+        return f"The model didn't answer ({str(e).strip() or type(e).__name__})."
+    if isinstance(e, RuntimeError) and str(e).strip():
+        return str(e)
+    return f"{type(e).__name__}: {e}".rstrip(": ")
 
 
 # --- registry --------------------------------------------------------------------------------------------------
