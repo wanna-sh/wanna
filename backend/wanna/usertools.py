@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import importlib.util
 import json
 import logging
 import os
@@ -440,14 +441,18 @@ def _ensure_packages(deps: list[str], sandboxed: bool) -> None:
         else:
             from .addons import _uv
 
+            # uv (from the desktop app or the installer), else pip if this Python has it.
             uv = _uv()
-            if uv is None:
+            if uv:
+                cmd = [uv, "pip", "install", "--python", sys.executable, "--target", str(HOST_PACKAGES), *missing]
+            elif importlib.util.find_spec("pip"):
+                cmd = [sys.executable, "-m", "pip", "install", "--quiet", "--target", str(HOST_PACKAGES), *missing]
+            else:
                 raise ToolError("Installing this tool's packages needs uv, which wanna.sh's installer sets up. "
                                 "Run the installer again.")
             HOST_PACKAGES.mkdir(exist_ok=True)
             kwargs = {"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}
-            r = subprocess.run([uv, "pip", "install", "--python", sys.executable, "--target", str(HOST_PACKAGES), *missing],
-                               capture_output=True, text=True, errors="replace", timeout=600, **kwargs)
+            r = subprocess.run(cmd, capture_output=True, text=True, errors="replace", timeout=600, **kwargs)
             code, out, err = r.returncode, r.stdout, r.stderr
         if code != 0:
             raise ToolError(f"Couldn't install {', '.join(missing)}: {(err or out).strip()[-600:]}")
