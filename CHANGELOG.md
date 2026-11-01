@@ -2,7 +2,7 @@
 
 Each version's section becomes its GitHub release notes (see `.github/workflows/release.yml`).
 
-## Unreleased
+## 0.7.0 (2026-11-01)
 
 - **Train your own picture style.** The new **Train** page teaches a Stable Diffusion 1.5 or SDXL picture model a
   subject (a person, a pet, a thing) or a style from 3 to 50 of your pictures, on your own graphics card. Choose
