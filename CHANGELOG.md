@@ -2,7 +2,7 @@
 
 Each version's section becomes its GitHub release notes (see `.github/workflows/release.yml`).
 
-## Unreleased
+## 0.8.1 (2026-11-01)
 
 - Agents' programs that exit cleanly have finished: they're no longer restarted over and over as if they had crashed.
   A program that crashes wakes its agent the first time it's restarted, not every time.
