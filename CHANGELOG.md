@@ -2,7 +2,7 @@
 
 Each version's section becomes its GitHub release notes (see `.github/workflows/release.yml`).
 
-## Unreleased
+## 0.5.0 (2026-11-01)
 
 - **Your own tools.** Write a Python function on the new **Tools** page (or as a file in `~/.wanna/tools`) and the AI
   can use it: in Chat with the new **Tools** switch, in Code alongside the agent's own tools, and from apps by adding
@@ -12,6 +12,8 @@ Each version's section becomes its GitHub release notes (see `.github/workflows/
 - Tools run in a Docker sandbox (the internet, but not your files, your local network or other tools). One you trust
   can run directly on this computer instead; editing it takes the trust away, and in Code the agent asks before using
   it.
+
+Tested on Windows with Docker Desktop, in Chat, Code and the API, with Gemma 4 E4B. Not yet tested on Macs or Linux.
 
 ## 0.4.0 (2026-10-31)
 
