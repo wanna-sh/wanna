@@ -577,7 +577,7 @@ export interface KnowledgeStatus {
   downloading: Download[];
 }
 
-// --- training your own picture styles (LoRA) -------------------------------------------------------------------
+// --- training your own picture styles and chat models (LoRA) ----------------------------------------------------
 
 export interface TrainedStyle {
   id: string;
@@ -601,25 +601,61 @@ export interface TrainModel {
 }
 
 export type TrainStage =
-  | "queued" | "preparing" | "training" | "saving" | "samples" | "done" | "error" | "stopped" | "interrupted";
+  | "queued" | "downloading" | "preparing" | "training" | "saving" | "samples" | "done" | "error" | "stopped"
+  | "interrupted";
 
 export interface TrainRun {
   id: string;
+  type: "picture" | "chat";
   name: string;
-  preset: "subject" | "style";
+  /** subject and style train picture models; voice (your writing) and chats (example chats) train chat models. */
+  preset: "subject" | "style" | "voice" | "chats";
   trigger: string;
   what: string;
   model: string;
   model_title: string | null;
-  kind: "sd" | "sdxl";
+  kind: "sd" | "sdxl" | "chat";
   steps: number;
-  pictures: number;
   created: number;
-  status: { stage: TrainStage; message?: string; step?: number; steps?: number; loss?: number; seconds_left?: number; seconds?: number };
-  /** Finished, with a trained style ready to use. */
+  status: {
+    stage: TrainStage; message?: string; step?: number; steps?: number; loss?: number; seconds_left?: number;
+    seconds?: number; done_bytes?: number; total_bytes?: number;
+    /** Chat runs: the strength it was saved at (lower than 1 when full strength made replies repeat). */
+    strength?: number;
+  };
+  /** Finished, with a trained style or chat model ready to use. */
   ready: boolean;
-  samples: string[];
-  prompt: string;
+  // Picture runs:
+  pictures?: number;
+  samples?: string[];
+  prompt?: string;
+  // Chat runs:
+  examples?: number;
+  /** How the original was held while training: at full precision, or in 4 bits. */
+  mode?: "bf16" | "4bit";
+  original?: string;
+  /** The installed chat model it became. */
+  chat_model?: string | null;
+  replies?: { prompt: string; before: string; after: string }[];
+}
+
+export interface TrainChatModel {
+  id: string;
+  repo_id: string;
+  title: string;
+  /** The original (trainable) weights, downloaded once the first time it's trained. */
+  original: string | null;
+  original_bytes: number | null;
+  downloaded: boolean;
+  /** How it would train here; null when it can't. */
+  plan: { mode: "bf16" | "4bit"; cards: number[]; needs: number; card: string } | null;
+  seconds_per_example: number | null;
+  why_not: string | null;
+}
+
+export interface TrainChatOverview {
+  ready: TrainOverview["ready"];
+  models: TrainChatModel[];
 }
 
 export interface TrainOverview {

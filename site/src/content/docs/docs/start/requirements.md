@@ -39,7 +39,8 @@ You don't have to work any of this out yourself: [Get models](/docs/guides/model
 computer.
 
 [Training your own picture style](/docs/tutorials/train/) needs an NVIDIA graphics card: 6 GB for Stable Diffusion
-1.5, 12 GB for SDXL.
+1.5, 12 GB for SDXL. [Training a chat model](/docs/tutorials/train-chat/) needs one too, sized to the model: about
+3 GB for a 1B model, and 8 GB for an 8B model (trained in 4 bits).
 
 Keep your NVIDIA driver up to date. After installing, the [system check](/docs/reference/troubleshooting/#the-system-check)
 in **Settings** tells you whether the AI libraries can use your graphics card.

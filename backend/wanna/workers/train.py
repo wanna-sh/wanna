@@ -53,7 +53,7 @@ def main(folder: Path) -> None:
     import torch
     from PIL import Image, ImageOps
 
-    run = json.loads((folder / "run.json").read_text())
+    run = json.loads((folder / "run.json").read_text(encoding="utf-8"))
     started = time.time()
     say(stage="preparing", message="Loading the picture model")
 

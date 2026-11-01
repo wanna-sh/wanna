@@ -11,11 +11,19 @@ Each version's section becomes its GitHub release notes (see `.github/workflows/
   Pictures with it chosen; afterwards pick it under **Style**, with a strength setting under **More settings**.
 - **Trained styles in the API.** `/v1/images/generations` and `/api/generate/image` take `lora` (a trained style's
   id) and `lora_strength`, and `/api/training` starts, follows and manages training from apps.
-- Training needs one more library, PEFT. The Train page offers to install it if your AI libraries came before this
-  version.
+- **Train a chat model.** The Train page's **Chat** side teaches a chat model your writing voice (from your writing:
+  text, Markdown or PDF files, or pasted) or how to answer (from example chats: typed in, or .jsonl, .json or .csv
+  files). It trains on the model's original version, downloaded once, at full precision when it fits on your
+  graphics card and in 4 bits (QLoRA) when it doesn't, across several cards if needed. The result is a chat model of
+  its own in Chat, Code and the API, running in llama.cpp on a copy of the model made from the same original, with
+  sample replies before and after on the Train page. `/api/training/chat` starts it from apps.
+- Training needs more libraries, PEFT and bitsandbytes. The Train page offers to install them if your AI libraries
+  came before this version.
+- The AI libraries install now skips libraries meant for other systems.
 
 Tested on Windows with an RTX 3060 12 GB: Stable Diffusion 1.5 (400 steps in under 4 minutes, 3.4 GB of graphics
-memory) and SDXL (400 steps in about 13 minutes, 9.8 GB at most). Not yet tested on Linux. Training isn't available on
+memory) and SDXL (400 steps in about 13 minutes, 9.8 GB at most); Llama 3.2 1B (writing voice, under 2 minutes with
+its download, 2.8 GB) and Qwen3 8B in 4 bits (30 example chats, about 4 minutes, 7.0 GB). Not yet tested on Linux. Training isn't available on
 Macs yet.
 
 ## 0.6.0 (2026-11-01)

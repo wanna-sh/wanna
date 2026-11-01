@@ -218,10 +218,22 @@ def delete_model(model_id: str):
     if not m:
         raise HTTPException(404, "Not installed")
     manager.unload(model_id)
+    trained = (m.get("meta") or {}).get("trained")
+    if trained:  # a chat model trained here shares its files with the one it came from: remove only the training
+        db.delete_model(model_id)
+        try:
+            training.delete(trained)
+        except training.TrainError:
+            pass
+        return {"ok": True}
     target = (MODELS_DIR / model_id).resolve()
     if target.is_relative_to(MODELS_DIR.resolve()) and target != MODELS_DIR.resolve():
         shutil.rmtree(target, ignore_errors=True)
     db.delete_model(model_id)
+    for other in db.list_models():  # chat models trained from it run on their own copy, but shared its picture reader
+        if (other.get("meta") or {}).get("base") == model_id and other["meta"].get("mmproj"):
+            manager.unload(other["id"])
+            db.update_model_meta(other["id"], {"mmproj": None})
     return {"ok": True}
 
 

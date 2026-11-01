@@ -1,7 +1,8 @@
-"""Training your own picture styles (LoRAs) under /api/training: see training.py."""
+"""Training your own picture styles and chat models (LoRAs) under /api/training: see training.py."""
 
 from __future__ import annotations
 
+import json
 import re
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -38,6 +39,35 @@ async def start(model: str = Form(...), preset: str = Form(...), trigger: str = 
         pictures.append((f.filename or "picture.png", data))
     try:
         return training.create(model, preset, name, trigger, what, pictures, steps)
+    except training.TrainError as e:
+        raise _fail(e)
+
+
+@router.get("/chat-models")
+def chat_models():
+    """Installed chat models that can be trained here, each with the original it trains on and how."""
+    return {"ready": training.chat_ready(), "models": training.chat_models()}
+
+
+@router.post("/chat")
+async def start_chat(model: str = Form(...), preset: str = Form(...), name: str = Form(""),
+                     text: str = Form(""), examples: str = Form(""), steps: int | None = Form(None),
+                     files: list[UploadFile] = File(default=[])):
+    """Start training a chat model: "voice" (your writing, as files or pasted text) or "chats" (example
+    conversations, as .jsonl/.json/.csv files or `examples`, a JSON list of {"prompt", "reply"})."""
+    uploads = []
+    for f in files[:50]:
+        data = await f.read(MAX_PICTURE + 1)
+        if len(data) > MAX_PICTURE:
+            raise HTTPException(413, f"{f.filename} is over 30 MB.")
+        uploads.append((f.filename or "file.txt", data))
+    try:
+        typed = json.loads(examples) if examples.strip() else []
+    except json.JSONDecodeError:
+        raise HTTPException(400, "examples should be a JSON list of {\"prompt\": ..., \"reply\": ...}.") from None
+    try:
+        return training.create_chat(model, preset, name, uploads, text, typed if isinstance(typed, list) else [],
+                                    steps)
     except training.TrainError as e:
         raise _fail(e)
 

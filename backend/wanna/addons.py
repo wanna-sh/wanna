@@ -74,8 +74,16 @@ def torch_backend() -> tuple[str | None, str]:
 
 def ml_requirements() -> list[str]:
     """The [ml] extra's requirements, read from wanna.sh's own package metadata."""
-    reqs = importlib.metadata.requires("wanna") or []
-    return [r.split(";")[0].strip() for r in reqs if re.search(r"""extra\s*==\s*["']ml["']""", r)]
+    from packaging.requirements import Requirement  # comes with huggingface_hub
+
+    out = []
+    for r in importlib.metadata.requires("wanna") or []:
+        if not re.search(r"""extra\s*==\s*["']ml["']""", r):
+            continue
+        req = Requirement(r)
+        if req.marker is None or req.marker.evaluate({"extra": "ml"}):  # skips ones for other systems
+            out.append(f"{req.name}{req.specifier}")
+    return out
 
 
 def download_size() -> str:

@@ -10,16 +10,16 @@ Everything wanna.sh downloads or makes lives in one data folder, `~/.wanna` by d
 
 | Path | What's in it |
 | --- | --- |
-| `models/` | Downloaded models. |
+| `models/` | Downloaded models. `models/originals/` holds the original versions of chat models you've [trained](/docs/tutorials/train-chat/) (free to delete; downloaded again if you train that model again), and `models/matched/` the copies trained chat models run on. |
 | `outputs/` | Pictures, videos, recordings and music you've made. Also served at `http://localhost:7860/files/`. |
 | `uploads/` | Files you've attached or uploaded. |
 | `tools/` | [Your own tools](/docs/tutorials/tools/), one Python file each. |
 | `tool-packages/` | Packages that tools you trust asked for. Tools in the sandbox keep theirs in a Docker volume, `wanna-tools-packages`. |
 | `projects/` | [Code](/docs/tutorials/code/) projects, one folder each. |
-| `training/` | [Trained picture styles](/docs/tutorials/train/), one folder each: your pictures, the trained LoRA and sample pictures. |
+| `training/` | [Trained picture styles](/docs/tutorials/train/) and [chat models](/docs/tutorials/train-chat/), one folder each: your examples, what it learned (a LoRA) and samples. |
 | `knowledge/` | The original files in your [Knowledge](/docs/tutorials/knowledge/) libraries, one folder per library. |
 | `code/` | Code conversations and project settings. |
-| `engines/` | The chat engine (llama.cpp) wanna.sh downloaded for your system. |
+| `engines/` | The chat engine (llama.cpp) wanna.sh downloaded for your system, and llama.cpp's converter in `engines/llama-convert/` once you've trained a chat model. |
 | `searxng/` | Settings for the private search engine Code uses. |
 | `logs/` | A log per running model, useful when one won't start. |
 | `wanna.db` | The list of installed models, your gallery, Knowledge libraries and their passages, and API keys (stored as fingerprints, not the keys themselves). |

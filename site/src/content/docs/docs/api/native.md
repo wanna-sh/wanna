@@ -68,18 +68,20 @@ Files go in by id, never by path: upload them first with `POST /api/uploads` (mu
 
 ## Training
 
-[Training your own picture style](/docs/tutorials/train/) from apps:
+[Training your own picture style](/docs/tutorials/train/) or [chat model](/docs/tutorials/train-chat/) from apps:
 
 | Endpoint | What it does |
 | --- | --- |
-| `GET /api/training` | Whether this computer can train (`ready`), the picture models it can train (`models`, with a time estimate per step), and every run (`runs`). |
-| `POST /api/training` | Start training. Multipart form: `model`, `preset` (`subject` or `style`), `trigger`, `what` (for subjects, such as `dog`), `name`, optional `steps`, and 3 to 50 `files`. |
-| `GET /api/training/{id}` | One run: its `status` (`stage` is `preparing`, `training`, `saving`, `samples`, `done`, `stopped`, `interrupted` or `error`, with `step`, `steps` and `seconds_left` while training), `samples` and an example `prompt`. |
+| `GET /api/training` | Whether this computer can train pictures (`ready`), the picture models it can train (`models`, with a time estimate per step), and every run, pictures and chat (`runs`). |
+| `GET /api/training/chat-models` | Whether this computer can train chat models (`ready`), and each installed chat model with the `original` it trains from, its size (`original_bytes`), whether it's `downloaded`, how it would train here (`plan`: `mode` `bf16` or `4bit`, and the `cards`), `seconds_per_example`, or `why_not`. |
+| `POST /api/training` | Start training a picture model. Multipart form: `model`, `preset` (`subject` or `style`), `trigger`, `what` (for subjects, such as `dog`), `name`, optional `steps`, and 3 to 50 `files`. |
+| `POST /api/training/chat` | Start training a chat model. Multipart form: `model`, `preset` (`voice` or `chats`), `name`, optional `steps`; for `voice`, `files` (text, Markdown or PDF) and/or `text`; for `chats`, `files` (.jsonl, .json or .csv) and/or `examples`, a JSON list of `{"prompt": ..., "reply": ...}`. |
+| `GET /api/training/{id}` | One run: its `type` (`picture` or `chat`) and `status` (`stage` is `downloading`, `preparing`, `training`, `saving`, `samples`, `done`, `stopped`, `interrupted` or `error`, with `step`, `steps` and `seconds_left` while training, and `done_bytes` and `total_bytes` while downloading). Picture runs have `samples` and an example `prompt`; chat runs have `replies` (each `prompt` with the reply `after` training and `before`) and `chat_model`, the id of the chat model it became. |
 | `PATCH /api/training/{id}` | Rename it: `{"name": "..."}`. |
 | `POST /api/training/{id}/stop` | Stop it after the current step. |
-| `POST /api/training/{id}/restart` | Train it again from the start, with the same pictures. |
-| `DELETE /api/training/{id}` | Delete it, with its pictures and trained style. |
-| `GET /api/training/{id}/samples/{n}.png` | A sample picture made with it. |
+| `POST /api/training/{id}/restart` | Train it again from the start, with the same examples. |
+| `DELETE /api/training/{id}` | Delete it, with its examples and what it learned. |
+| `GET /api/training/{id}/samples/{n}.png` | A sample picture made with a picture run. |
 
 ```bash
 curl http://localhost:7860/api/training \
@@ -88,8 +90,15 @@ curl http://localhost:7860/api/training \
   -F files=@rex1.jpg -F files=@rex2.jpg -F files=@rex3.jpg
 ```
 
-To use the result, pass `"lora": "<id>"` when making a picture, with [the pictures API](/docs/api/images/#trained-styles)
-or with `POST /api/generate/image`.
+To use a trained picture style, pass `"lora": "<id>"` when making a picture, with
+[the pictures API](/docs/api/images/#trained-styles) or with `POST /api/generate/image`. A trained chat model is a model
+of its own: pass its `chat_model` id as `model` to [chat completions](/docs/api/chat/).
+
+```bash
+curl http://localhost:7860/api/training/chat \
+  -F model=qwen3-8b-q4-k-m -F preset=chats -F name="Shop helper" \
+  -F files=@examples.jsonl
+```
 
 ## System and settings
 

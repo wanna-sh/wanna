@@ -10,7 +10,8 @@ description: Teach a picture model your own subject (a person, a pet, a product)
 - **A style:** a look shared by your pictures, such as your illustrations, a kind of painting or a photo style. Afterwards,
   draw anything that way.
 
-It trains on this computer, and your pictures never leave it. The result is a small add-on for the picture model (a
+It trains on this computer, and your pictures never leave it. (To teach a chat model your writing voice, see
+[Train a chat model](/docs/tutorials/train-chat/).) The result is a small add-on for the picture model (a
 *LoRA*), which you then choose on the [Pictures](/docs/tutorials/pictures/) page.
 
 ## What you need
@@ -61,7 +62,8 @@ long it will take on your graphics card; as a guide, on an RTX 3060:
 | Stable Diffusion 1.5 | about 7 minutes | about 3.5 GB |
 | SDXL | about 25 minutes | about 10 GB |
 
-Press **Start training**. Training uses one graphics card; any models running on it are stopped first. You can keep
+Press **Start training**. Training uses one graphics card; if it's short of free memory, wanna.sh stops its own
+models on that card first. You can keep
 using the rest of wanna.sh meanwhile, and leave the page: progress shows when you come back. **Stop** ends a run early.
 
 When it's done, you see three sample pictures made with it. Closing wanna.sh stops training, and the run shows *Stopped

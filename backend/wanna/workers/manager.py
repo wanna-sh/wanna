@@ -124,6 +124,9 @@ class Worker:
                 overrides=(self.plan or {}).get("overrides"), from_drive=self.from_drive,
                 embedding=self.task == "embed",
                 pooling=family(self.model["repo_id"])["pooling"] if self.task == "embed" else None,
+                # a chat model trained in wanna.sh: the same GGUF with its trained adapter (path kept relative to
+                # the data folder)
+                extra=["--lora", str(HOME / meta["lora"])] if meta.get("lora") else None,
             )
             env["LLAMA_API_KEY"] = self.token  # via the environment, so it isn't visible in the process list
         else:
