@@ -3,9 +3,17 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Archive, ArchiveRestore, FileText, Globe, History, Loader2, Mic, Paperclip, Plus, Search, Square, Trash2, X } from "lucide-react";
+import { Archive, ArchiveRestore, FileText, Globe, History, Loader2, Mic, Paperclip, Plus, Search, Square, Trash2, Wrench, X } from "lucide-react";
 import Link from "next/link";
-import { api, streamChat, type KnowledgeDoc, type KnowledgeLibrary, type KnowledgeResult, type KnowledgeStatus } from "@/lib/api";
+import {
+  api,
+  streamChat,
+  type KnowledgeDoc,
+  type KnowledgeLibrary,
+  type KnowledgeResult,
+  type KnowledgeStatus,
+  type ToolSchema,
+} from "@/lib/api";
 import { useDictation } from "@/lib/dictation";
 import { useModels, usePoll, useStored } from "@/lib/hooks";
 import { NoModelYet, useTaskModel } from "@/components/models";
@@ -35,6 +43,8 @@ interface Message {
   sources?: KnowledgeResult[];
   /** Web pages the model read while answering. */
   web?: WebSource[];
+  /** Your own tools the answer used. */
+  tools?: string[];
 }
 interface Conversation {
   id: string;
@@ -49,9 +59,11 @@ interface Conversation {
   attachLib?: string;
   /** Whether the model may search the web and read pages (on unless turned off). */
   web?: boolean;
+  /** Whether the model may use your own tools from the Tools page (on unless turned off). */
+  tools?: boolean;
 }
 
-// Rounds of searching and reading before the model must answer with what it has.
+// Rounds of tool use (searching, reading, your own tools) before the model must answer with what it has.
 const MAX_WEB_ROUNDS = 5;
 
 const SUGGESTIONS = [
@@ -109,6 +121,8 @@ export default function ChatPage() {
   const [searching, setSearching] = useState(false);
   const [webStep, setWebStep] = useState<string | null>(null);
   const [draftWeb, setDraftWeb] = useStored<boolean>("wanna.chat.web", true);
+  const [draftTools, setDraftTools] = useStored<boolean>("wanna.chat.tools", true);
+  const { data: customTools } = usePoll<ToolSchema[]>("/api/tools/schemas", 30000);
   // Knowledge for a chat that hasn't started yet; once it starts, the conversation keeps its own choice.
   const [draftKnowledge, setDraftKnowledge] = useStored<string[]>("wanna.chat.knowledge", []);
   const [draftAttachLib, setDraftAttachLib] = useState<string | null>(null);
@@ -138,6 +152,8 @@ export default function ChatPage() {
   const setKnowledge = (ids: string[]) => (convo ? update(convo.id, (c) => ({ ...c, knowledge: ids })) : setDraftKnowledge(ids));
   const webOn = convo ? convo.web ?? true : draftWeb;
   const setWeb = (on: boolean) => (convo ? update(convo.id, (c) => ({ ...c, web: on })) : setDraftWeb(on));
+  const toolsOn = convo ? convo.tools ?? true : draftTools;
+  const setTools = (on: boolean) => (convo ? update(convo.id, (c) => ({ ...c, tools: on })) : setDraftTools(on));
   const attachLib = convo?.attachLib ?? draftAttachLib;
   const pendingIndex = docs.filter((d) => d.indexed && indexing[d.indexed.document]?.status !== "ready");
 
@@ -169,7 +185,12 @@ export default function ChatPage() {
     if (!convo) {
       id = crypto.randomUUID();
       const title = text.slice(0, 60) || docs[0]?.name || "Picture chat";
-      const extra = { knowledge: draftKnowledge, web: draftWeb, ...(draftAttachLib ? { attachLib: draftAttachLib } : {}) };
+      const extra = {
+        knowledge: draftKnowledge,
+        web: draftWeb,
+        tools: draftTools,
+        ...(draftAttachLib ? { attachLib: draftAttachLib } : {}),
+      };
       setConvos((cs) => [{ id, title, messages: [], updated: Date.now(), ...extra }, ...cs]);
       setActiveId(id);
       setDraftAttachLib(null);
@@ -199,6 +220,9 @@ export default function ChatPage() {
     let sources: KnowledgeResult[] | undefined;
     const web: WebSource[] = [];
     const useWeb = webOn && canUseTools;
+    const mine = toolsOn && canUseTools ? customTools ?? [] : [];
+    const offered = [...(useWeb ? WEB_TOOLS : []), ...mine];
+    const usedTools: string[] = [];
     try {
       // Knowledge: find the passages that match this message (with the previous one, for short follow-ups).
       let instructions = system.trim();
@@ -229,13 +253,13 @@ export default function ChatPage() {
           ms[ms.length - 1] = { role: "assistant", content };
           return { ...c, messages: ms };
         });
-      // With the web on, the model may ask to search or read pages; run those, give it the results, and go again
-      // until it answers. The last round has no tools, so it answers with what it found.
+      // With the web or your own tools on, the model may ask to search, read pages or run a tool; run those, give it
+      // the results, and go again until it answers. The last round has no tools, so it answers with what it found.
       let round: Awaited<ReturnType<typeof streamChat>>;
       let usedWeb = false;
       for (let n = 0; ; n++) {
         out = "";
-        const tools = useWeb && n < MAX_WEB_ROUNDS ? { tools: WEB_TOOLS } : {};
+        const tools = offered.length && n < MAX_WEB_ROUNDS ? { tools: offered } : {};
         round = await streamChat(
           { model, messages: payload, ...tools },
           (piece) => {
@@ -261,7 +285,7 @@ export default function ChatPage() {
         });
         for (const call of round.toolCalls) {
           setWebStep(describeCall(call));
-          payload.push({ role: "tool", tool_call_id: call.id, content: await runCall(call, web) });
+          payload.push({ role: "tool", tool_call_id: call.id, content: await runCall(call, web, usedTools) });
         }
         setWebStep(null);
         t0 = now();
@@ -276,7 +300,14 @@ export default function ChatPage() {
           : undefined;
       update(id, (c) => {
         const ms = [...c.messages];
-        ms[ms.length - 1] = { role: "assistant", content: out, stats, ...(sources ? { sources } : {}), ...(web.length ? { web } : {}) };
+        ms[ms.length - 1] = {
+          role: "assistant",
+          content: out,
+          stats,
+          ...(sources ? { sources } : {}),
+          ...(web.length ? { web } : {}),
+          ...(usedTools.length ? { tools: usedTools } : {}),
+        };
         return { ...c, messages: ms };
       });
     } catch (e) {
@@ -486,6 +517,12 @@ export default function ChatPage() {
                       {m.stats && <div className="text-[12px] text-slate mt-1">{m.stats}</div>}
                       {!!m.sources?.length && textOf(m.content) && <Sources sources={m.sources} answer={textOf(m.content)} />}
                       {!!m.web?.length && textOf(m.content) && <WebPages pages={m.web} />}
+                      {!!m.tools?.length && textOf(m.content) && (
+                        <p className="mt-2 text-[13px] text-slate">
+                          <span className="font-medium">Used your tools: </span>
+                          {m.tools.join(", ")}
+                        </p>
+                      )}
                     </div>
                   )}
                 </li>
@@ -639,6 +676,9 @@ export default function ChatPage() {
               </ChipButton>
               <KnowledgeMenu libraries={libraries ?? []} value={knowledge} onChange={setKnowledge} ready={searchReady} />
               <WebToggle on={webOn} onChange={setWeb} supported={canUseTools || !current} />
+              {!!customTools?.length && (
+                <ToolsToggle on={toolsOn} onChange={setTools} supported={canUseTools || !current} tools={customTools} />
+              )}
               <ToggleChip on={showSettings} onChange={setShowSettings}>
                 Instructions{system.trim() && !showSettings ? " (on)" : ""}
               </ToggleChip>
@@ -949,6 +989,40 @@ function WebToggle({ on, onChange, supported }: { on: boolean; onChange: (on: bo
       className={`${chipClass} disabled:opacity-50 ${active ? "bg-well border-slate/50" : "text-slate"}`}
     >
       <Globe size={14} aria-hidden /> Web{active ? "" : supported ? " off" : ""}
+    </button>
+  );
+}
+
+/** Turns your own tools (from the Tools page) on or off for this chat. Shown only when some are on. */
+function ToolsToggle({
+  on,
+  onChange,
+  supported,
+  tools,
+}: {
+  on: boolean;
+  onChange: (on: boolean) => void;
+  supported: boolean;
+  tools: ToolSchema[];
+}) {
+  const active = on && supported;
+  const names = tools.map((t) => t.function.name).join(", ");
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      disabled={!supported}
+      onClick={() => onChange(!on)}
+      title={
+        supported
+          ? active
+            ? `The model can use your tools when they help: ${names}. Click to turn them off for this chat.`
+            : `Your tools are off for this chat. Click to let the model use them: ${names}.`
+          : "This model can't use tools. Most recent models can, such as Qwen 3 or Llama 3.1."
+      }
+      className={`${chipClass} disabled:opacity-50 ${active ? "bg-well border-slate/50" : "text-slate"}`}
+    >
+      <Wrench size={14} aria-hidden /> Tools{active ? "" : supported ? " off" : ""}
     </button>
   );
 }

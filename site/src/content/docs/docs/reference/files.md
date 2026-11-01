@@ -13,6 +13,8 @@ Everything wanna.sh downloads or makes lives in one data folder, `~/.wanna` by d
 | `models/` | Downloaded models. |
 | `outputs/` | Pictures, videos, recordings and music you've made. Also served at `http://localhost:7860/files/`. |
 | `uploads/` | Files you've attached or uploaded. |
+| `tools/` | [Your own tools](/docs/tutorials/tools/), one Python file each. |
+| `tool-packages/` | Packages that tools you trust asked for. Tools in the sandbox keep theirs in a Docker volume, `wanna-tools-packages`. |
 | `projects/` | [Code](/docs/tutorials/code/) projects, one folder each. |
 | `knowledge/` | The original files in your [Knowledge](/docs/tutorials/knowledge/) libraries, one folder per library. |
 | `code/` | Code conversations and project settings. |
@@ -21,6 +23,7 @@ Everything wanna.sh downloads or makes lives in one data folder, `~/.wanna` by d
 | `logs/` | A log per running model, useful when one won't start. |
 | `wanna.db` | The list of installed models, your gallery, Knowledge libraries and their passages, and API keys (stored as fingerprints, not the keys themselves). |
 | `settings.json` | Your settings. |
+| `tools.json` | Which of your tools are on, and which you trust to run on this computer. |
 | `hardware.json` | The measured speed of the drive models are saved on, for speed estimates. |
 | `downloads.json` | Downloads in progress, so they can resume. |
 | `workers.pid` | Model processes wanna.sh started, so leftovers are stopped after a crash. |

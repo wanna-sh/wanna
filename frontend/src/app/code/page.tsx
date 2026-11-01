@@ -27,6 +27,7 @@ import {
   Search,
   Settings,
   SquareTerminal,
+  Wrench,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -52,7 +53,7 @@ import { Button, Field, Notice, PageHeader, inputClass } from "@/components/ui";
 const APPROVAL_OPTIONS: { value: ApprovalMode; label: string; hint: string }[] = [
   { value: "ask_commands", label: "Ask before commands", hint: "Reads and edits happen right away; commands wait for you" },
   { value: "ask_all", label: "Ask before any change", hint: "Edits and commands both wait for you" },
-  { value: "auto", label: "Don't ask", hint: "The agent works on its own, inside the sandbox" },
+  { value: "auto", label: "Don't ask", hint: "The agent works on its own: in the sandbox, and with any tools you trust" },
 ];
 
 const EXAMPLES = [
@@ -549,12 +550,12 @@ function summary(e: CodeEvent): string {
     case "search_knowledge":
       return `Searched your documents for "${a.query}"`;
     default:
-      return e.name ?? "Tool";
+      return `Used your tool ${e.name ?? ""}`;
   }
 }
 
 function ToolCard({ e, pid, onOpenFile }: { e: CodeEvent; pid: string; onOpenFile: (path: string) => void }) {
-  const Icon = TOOL_ICONS[e.name ?? ""] ?? SquareTerminal;
+  const Icon = TOOL_ICONS[e.name ?? ""] ?? Wrench; // the person's own tools
   const a = (e.args ?? {}) as Record<string, unknown>;
   const waiting = e.status === "awaiting_approval";
   const [open, setOpen] = useState(false);
@@ -630,10 +631,16 @@ function Approval({ e, pid }: { e: CodeEvent; pid: string }) {
   if (e.name === "bash") preview = `$ ${a.command}`;
   else if (e.name === "write_file") preview = (a.content ?? "").split("\n").slice(0, 30).join("\n");
   else if (e.name === "edit_file") preview = `- ${(a.old_string ?? "").split("\n").join("\n- ")}\n+ ${(a.new_string ?? "").split("\n").join("\n+ ")}`;
+  const custom = !e.name || !(e.name in TOOL_ICONS);
+  if (custom) preview = JSON.stringify(e.args ?? {}, null, 2);
   return (
     <div className="border-t border-line px-3 py-3 flex flex-col gap-3">
       <p className="text-[14px]">
-        {e.name === "bash" ? "The agent wants to run this command:" : `The agent wants to change ${a.path}:`}
+        {e.name === "bash"
+          ? "The agent wants to run this command:"
+          : custom
+            ? `The agent wants to run your tool ${e.name}, which you trust to run on this computer, with:`
+            : `The agent wants to change ${a.path}:`}
       </p>
       {preview && (
         <pre className="rounded-lg bg-well p-2.5 text-[12.5px] font-mono whitespace-pre-wrap break-all max-h-60 overflow-auto">{preview}</pre>

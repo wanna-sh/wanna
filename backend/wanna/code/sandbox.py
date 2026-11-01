@@ -212,6 +212,64 @@ def stop(pid: str) -> None:
     subprocess.run(["docker", "rm", "-f", _name(pid)], capture_output=True, timeout=60)
 
 
+# --- custom tools ---------------------------------------------------------------------------------
+
+TOOLS_CONTAINER = "wanna-tools"
+TOOLS_PACKAGES = "wanna-tools-packages"  # Docker volume for the packages tools ask for, at /packages
+
+
+def ensure_tools(tools_dir: Path) -> str:
+    """Start (or reuse) the one container custom tools run in. Same image and firewall as Code's sandboxes; the tools
+    folder is mounted read-only, so a tool can't change itself or any other tool."""
+    name = TOOLS_CONTAINER
+    with _lock:
+        state = subprocess.run(["docker", "inspect", "-f", "{{.State.Running}}", name], capture_output=True, text=True, timeout=20)
+        if state.returncode == 0:
+            if state.stdout.strip() == "true":
+                if name not in _firewalled:
+                    firewall(name)
+                return name
+            if subprocess.run(["docker", "start", name], capture_output=True, timeout=60).returncode == 0:
+                firewall(name)
+                return name
+            subprocess.run(["docker", "rm", "-f", name], capture_output=True, timeout=60)
+        status = docker_status()
+        if status["docker"] and not status["image"]:
+            build_image(wait=True)
+            status = docker_status()
+        if not status["docker"] or not status["image"]:
+            raise SandboxError(status["message"].replace("let the agent run commands", "run custom tools"))
+        r = subprocess.run([
+            "docker", "run", "-d", "--init", "--name", name,
+            *(["--user", f"{os.getuid()}:{os.getgid()}"] if hasattr(os, "getuid") else []),
+            "-v", f"{host_path(tools_dir)}:/tools:ro",
+            "-v", f"{TOOLS_PACKAGES}:/packages",
+            "-w", "/tmp",
+            "--memory", "2g", "--cpus", "2", "--pids-limit", "256",
+            "--label", "wanna.tools=1",
+            IMAGE,
+        ], capture_output=True, text=True, timeout=120)
+        if r.returncode != 0:
+            subprocess.run(["docker", "rm", "-f", name], capture_output=True, timeout=60)
+            raise SandboxError(f"Couldn't start the tools sandbox: {r.stderr.strip()[-300:]}")
+        firewall(name)
+        return name
+
+
+def exec_tools(tools_dir: Path, args: list[str], stdin: str = "", timeout: int = 60, root: bool = False) -> tuple[int | None, str, str]:
+    """Run a command in the tools container. Returns (exit code, or None when it timed out; stdout; stderr)."""
+    name = ensure_tools(tools_dir)
+    cmd = ["docker", "exec", "-i", *(["-u", "0"] if root else []), name, *args]
+    try:
+        r = subprocess.run(cmd, input=stdin, capture_output=True, text=True, errors="replace", timeout=timeout)
+    except subprocess.TimeoutExpired as e:
+        # Stop what's still running inside, not just the docker client.
+        subprocess.run(["docker", "exec", "-u", "0", name, "pkill", "-f", args[-1][:60]], capture_output=True, timeout=10)
+        out = e.stdout.decode(errors="replace") if isinstance(e.stdout, bytes) else (e.stdout or "")
+        return None, out, ""
+    return r.returncode, r.stdout, r.stderr
+
+
 def _clip(text: str) -> str:
     if len(text) <= MAX_OUTPUT:
         return text

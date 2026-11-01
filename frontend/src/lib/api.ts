@@ -71,6 +71,55 @@ export interface ToolCall {
   arguments: string;
 }
 
+/** A model-facing tool definition (OpenAI's function format). */
+export interface ToolSchema {
+  type: "function";
+  function: { name: string; description: string; parameters: { type: "object"; properties: Record<string, JsonSchema>; required: string[] } };
+}
+
+export interface JsonSchema {
+  type?: string;
+  description?: string;
+  enum?: (string | number | boolean)[];
+  items?: JsonSchema;
+  default?: unknown;
+}
+
+/** One of the person's own tools: a Python file in ~/.wanna/tools. */
+export interface CustomTool {
+  name: string;
+  path: string;
+  /** Given to the AI (when there's no problem with it). */
+  enabled: boolean;
+  /** Runs directly on this computer rather than in the sandbox: trusted as the file is now. */
+  trusted: boolean;
+  /** It was trusted, but the file has changed since. */
+  trust_lost: boolean;
+  schema: ToolSchema | null;
+  description: string;
+  /** Packages from its "# /// script" block. */
+  dependencies: string[];
+  /** Why the AI can't be given it (bad code, missing docstring, ...). */
+  error: string | null;
+  source?: string;
+}
+
+export interface ToolList {
+  folder: string;
+  tools: CustomTool[];
+  template: string;
+}
+
+export interface ToolRun {
+  ok: boolean;
+  result?: string;
+  error?: string;
+  /** What the tool printed while it ran. */
+  printed: string;
+  seconds: number;
+  where: "sandbox" | "computer" | null;
+}
+
 export async function streamChat(
   body: Record<string, unknown>,
   onDelta: (text: string) => void,

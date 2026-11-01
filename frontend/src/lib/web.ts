@@ -1,5 +1,5 @@
 // Web search and page reading for chat: the tools the model can call, and running them through wanna.sh.
-import { api, type ToolCall } from "./api";
+import { api, type ToolCall, type ToolRun } from "./api";
 
 /** A web page the model looked at while answering. */
 export interface WebSource {
@@ -55,11 +55,21 @@ export function describeCall(call: ToolCall): string {
   const args = parseArgs(call);
   if (call.name === "web_search") return `Searching the web for "${args.query ?? ""}"…`;
   if (call.name === "web_fetch") return `Reading ${hostOf(String(args.url ?? ""))}…`;
-  return "Working…";
+  return `Using your tool ${call.name}…`;
 }
 
-/** Run one tool call. Problems go back to the model as text, so it can try something else. */
-export async function runCall(call: ToolCall, sources: WebSource[]): Promise<string> {
+/** Run one tool call. Problems go back to the model as text, so it can try something else. Your own tools' names
+ *  are added to `used`. */
+export async function runCall(call: ToolCall, sources: WebSource[], used: string[] = []): Promise<string> {
+  if (call.name !== "web_search" && call.name !== "web_fetch") {
+    try {
+      const r = await api.post<ToolRun>(`/api/tools/${encodeURIComponent(call.name)}/run`, { arguments: call.arguments });
+      if (!used.includes(call.name)) used.push(call.name);
+      return r.ok ? r.result ?? "" : `Error: ${r.error}`;
+    } catch (e) {
+      return `That didn't work: ${(e as Error).message}`;
+    }
+  }
   const args = parseArgs(call);
   try {
     if (call.name === "web_search") {

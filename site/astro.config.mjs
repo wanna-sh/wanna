@@ -62,6 +62,7 @@ export default defineConfig({
             { slug: "docs/tutorials/transcribe" },
             { slug: "docs/tutorials/music" },
             { slug: "docs/tutorials/code" },
+            { slug: "docs/tutorials/tools" },
           ],
         },
         {

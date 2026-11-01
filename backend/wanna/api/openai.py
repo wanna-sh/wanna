@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse, PlainTextResponse, Response, Streami
 from .. import db, jobs, presets
 from ..config import OUTPUTS_DIR, UPLOADS_DIR
 from ..workers.manager import LoadError, ModelNotFound, manager
+from . import tool_loop
 from .auth import require_key
 
 router = APIRouter(prefix="/v1", dependencies=[Depends(require_key)])
@@ -78,10 +79,15 @@ def get_model(model_id: str):
 @router.post("/chat/completions")
 async def chat_completions(request: Request):
     body = await request.json()
+    wanted = body.pop("wanna_tools", None)  # wanna.sh runs its custom tools itself (see tool_loop.py)
     model = _resolve(body.get("model"), "chat")
+    if wanted and model["engine"] != "llamacpp":
+        raise _err(400, "wanna_tools needs a GGUF chat model (the kind that runs on llama.cpp).")
     worker = await _ready(model)
     body["model"] = model["id"]
 
+    if wanted:
+        return await tool_loop.run(worker.url + "/v1/chat/completions", worker.headers, body, wanted)
     if model["engine"] == "llamacpp":
         return await _proxy(worker.url + "/v1/chat/completions", body, worker.headers)
     return await _transformers_chat(worker, model, body)

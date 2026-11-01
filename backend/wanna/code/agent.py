@@ -18,6 +18,7 @@ import httpx
 
 from .. import readiness
 from ..workers.manager import LoadError, ModelNotFound, manager
+from .. import usertools
 from . import projects, sandbox, tools
 
 log = logging.getLogger("wanna.code.agent")
@@ -330,7 +331,8 @@ class Session:
         mode = meta.get("approval", "ask_commands")
         if mode == "auto":
             return False
-        if name in tools.COMMAND_TOOLS:
+        # Custom tools trusted to run on this computer are as powerful as commands, so they're asked about the same way.
+        if name in tools.COMMAND_TOOLS or (name not in tools.FUNCS and usertools.is_trusted(name)):
             return not (name == "bash" and args.get("command") in meta.get("always_allow", []))
         return mode == "ask_all" and name in tools.EDIT_TOOLS
 
@@ -367,7 +369,8 @@ class Session:
 
     def _fit(self, context: int) -> tuple[list[dict], dict]:
         """Keep the conversation within the model's memory: shrink old tool output first, then drop old turns."""
-        budget = int((context - SCHEMA_TOKENS - 2000) * 0.8 * 3.5)  # characters, leaving room for the reply
+        custom = len(json.dumps(usertools.schemas())) // 3  # the person's own tools' definitions, in tokens roughly
+        budget = int((context - SCHEMA_TOKENS - custom - 2000) * 0.8 * 3.5)  # characters, leaving room for the reply
         msgs = [dict(m) for m in self.messages]
         size = lambda: sum(len(m.get("content") or "") + len(json.dumps(m.get("tool_calls", ""))) for m in msgs)
         before, trimmed, dropped = size(), 0, 0

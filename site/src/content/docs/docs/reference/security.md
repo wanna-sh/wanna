@@ -99,6 +99,24 @@ What the sandbox does *not* protect: **the project folder itself.** The agent ca
 use the internet as it likes. **Approval** controls this: *Ask before commands* (the default) shows you every command
 first, *Ask before any change* shows every edit too. Keep important work in git.
 
+## Your own tools
+
+[Your own tools](/docs/tutorials/tools/) are code the AI decides to run, possibly written by someone else, so they get
+the same protection:
+
+- wanna.sh reads a tool's description and inputs by parsing its file, never by running it, so listing and opening
+  tools is safe.
+- Tools run in one shared Docker sandbox with the same image and firewall as Code's: the internet yes; this computer,
+  the local network and cloud metadata addresses no. The tools folder is mounted read-only, so a tool can't change
+  itself or another tool. It's limited to 2 GB of memory, 2 processor cores and 256 processes, and each run to a minute.
+- **Trusted tools run directly on this computer**, as you, with access to your files and network. Trust is stored by
+  wanna.sh (in `~/.wanna/tools.json`, outside the tools folder), never in the tool file, and it's tied to the file's
+  exact contents: any change sends the tool back to the sandbox. In Code, the agent asks before using a trusted tool
+  unless approval is set to *Don't ask*.
+
+Tools in the sandbox share it, so one tool could leave files in its temporary folder that another reads. Don't give a
+sandboxed tool secrets (passwords, keys) it doesn't need.
+
 ### Code and Docker access
 
 To create sandboxes, wanna.sh uses Docker. Docker access is equivalent to administrator (root) access on your computer.

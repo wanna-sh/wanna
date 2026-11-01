@@ -469,8 +469,11 @@ KNOWLEDGE_SCHEMA = _fn(
 
 
 def schemas_for(project: dict) -> list[dict]:
-    """The tools the agent gets: search_knowledge only when the project has knowledge libraries."""
-    return SCHEMAS + ([KNOWLEDGE_SCHEMA] if project.get("knowledge") else [])
+    """The tools the agent gets: search_knowledge only when the project has knowledge libraries, plus the person's
+    custom tools that are on."""
+    from .. import usertools
+
+    return SCHEMAS + ([KNOWLEDGE_SCHEMA] if project.get("knowledge") else []) + usertools.schemas()
 
 
 def search_knowledge(pid, query):
@@ -515,6 +518,12 @@ def call(pid: str, name: str, args: dict, cancel: threading.Event | None = None)
     """Run a tool and return text for the model. Problems come back as text the model can act on."""
     fn = FUNCS.get(name)
     if fn is None:
+        from .. import usertools
+
+        if usertools.is_tool(name):
+            r = usertools.run(name, args)
+            printed = f"\n[printed]\n{r['printed']}" if r.get("printed") else ""
+            return (r["result"] if r["ok"] else f"Error: {r['error']}") + printed
         return f"Error: there's no tool called {name}."
     try:
         kwargs = dict(args)

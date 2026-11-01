@@ -2,6 +2,17 @@
 
 Each version's section becomes its GitHub release notes (see `.github/workflows/release.yml`).
 
+## Unreleased
+
+- **Your own tools.** Write a Python function on the new **Tools** page (or as a file in `~/.wanna/tools`) and the AI
+  can use it: in Chat with the new **Tools** switch, in Code alongside the agent's own tools, and from apps by adding
+  `"wanna_tools": true` to a chat request. The function's docstring tells the model what it does and its type hints
+  what to give it; packages come from the standard `# /// script` block. Test a tool with your own inputs before the
+  AI uses it.
+- Tools run in a Docker sandbox (the internet, but not your files, your local network or other tools). One you trust
+  can run directly on this computer instead; editing it takes the trust away, and in Code the agent asks before using
+  it.
+
 ## 0.4.0 (2026-10-31)
 
 - **Chat models bigger than memory.** Turn on **Settings → Run models bigger than memory** and chat models bigger than
