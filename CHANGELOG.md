@@ -2,7 +2,7 @@
 
 Each version's section becomes its GitHub release notes (see `.github/workflows/release.yml`).
 
-## Unreleased
+## 0.6.0 (2026-11-01)
 
 - **Search pictures.** With a search model that can see pictures, such as the new suggestion **Qwen3 VL Embedding 2B**,
   Knowledge libraries take photos and screenshots, and PDFs of scanned pages (each page is read as a picture).
@@ -10,6 +10,9 @@ Each version's section becomes its GitHub release notes (see `.github/workflows/
   shows the pictures it found, and gives them to a chat model that can see.
 - **Pictures in the embeddings API.** `/v1/embeddings` takes pictures as `image_url` parts (data URLs) next to text,
   for models that can see them, and `/api/knowledge/search` takes an `image` to search with.
+
+Tested on Windows with Qwen3 VL Embedding 2B and Gemma 4 E4B, with a small library of photos, a scanned PDF and a
+note. Not yet tested on Macs or Linux, or with large picture libraries.
 
 ## 0.5.0 (2026-11-01)
 
