@@ -67,6 +67,13 @@ export const api = {
   /** A multipart form you built yourself (fields and files), such as a training run. */
   postForm: <T>(path: string, form: FormData) =>
     fetch(API_BASE + path, { method: "POST", headers: HEADERS, body: form }).then(handle<T>),
+  /** A form whose answer is a file (a table with answers added): the file and its name. */
+  postFormFile: async (path: string, form: FormData) => {
+    const r = await fetch(API_BASE + path, { method: "POST", headers: HEADERS, body: form });
+    if (!r.ok) await handle(r);
+    const name = /filename="([^"]+)"/.exec(r.headers.get("content-disposition") ?? "")?.[1] ?? "answers.csv";
+    return { blob: await r.blob(), name };
+  },
   /** Several files in one request, as the "files" field (Knowledge). */
   uploadFiles: <T>(path: string, files: File[]) => {
     const fd = new FormData();
@@ -244,7 +251,11 @@ export interface InstalledModel {
   task_label: string;
   engine: string;
   size_bytes: number;
-  meta: { title?: string; quant?: string; mmproj?: string | null; vram_bytes?: number; pipeline_tag?: string; needs_image?: boolean };
+  meta: {
+    title?: string; quant?: string; mmproj?: string | null; vram_bytes?: number; pipeline_tag?: string; needs_image?: boolean;
+    /** A chat model trained here: its training run. */
+    trained?: string;
+  };
   loaded: Worker | null;
   last_error: string | null;
   defaults: Record<string, number>;
@@ -663,4 +674,104 @@ export interface TrainOverview {
   ready: { ok: boolean; missing: "ml" | "peft" | "gpu" | null; reason: string | null };
   models: TrainModel[];
   runs: TrainRun[];
+}
+
+// --- your own AI for a task --------------------------------------------------------------------------------------
+
+export interface TaskColumn {
+  name: string;
+  kind: "number" | "category" | "text";
+  distinct: number;
+  filled: number;
+  sample: string[];
+  values?: string[];
+}
+
+export interface TaskLabelResult {
+  label: string;
+  /** Examples that really are this. */
+  examples: number;
+  /** Of those, how many it said were. */
+  found: number;
+  /** How often it gave this answer. */
+  said: number;
+}
+
+export interface TaskReport {
+  kind: "label" | "number" | "text";
+  how: string;
+  tested: number;
+  seconds?: number;
+  unchecked?: number;
+  // Labels:
+  accuracy?: number;
+  baseline?: { answer: string | number; accuracy?: number; mean_error?: number };
+  labels?: TaskLabelResult[];
+  confusion?: { labels: string[]; counts: number[][] };
+  tradeoffs?: {
+    label: string;
+    other: string;
+    total: number;
+    threshold: number;
+    rows: { threshold: number; flagged: number; caught: number; false_alarms: number }[];
+  };
+  uses?: { column: string; share: number }[];
+  mistakes?: { input: string; answer: string | number; said: string | number; confidence?: number | null }[];
+  // Numbers:
+  mean_error?: number;
+  median_error?: number;
+  within_10_percent?: number;
+  // Written answers:
+  exact?: number;
+  fields?: { right: number; total: number; valid_json: number };
+  pairs?: { input: string; answer: string; said: string; same: boolean }[];
+}
+
+export type TaskStage = "new" | "training" | "drafting" | "drafted" | "done" | "error" | "interrupted";
+
+export interface UserTask {
+  id: string;
+  name: string;
+  description: string;
+  created: number;
+  input_kind: "table" | "text" | "picture";
+  answer_kind: "label" | "number" | "text";
+  columns: TaskColumn[];
+  input_columns: string[];
+  answer_column: string | null;
+  chats?: boolean;
+  examples: number;
+  answered: number;
+  drafted: number;
+  labels: string[];
+  label_counts: Record<string, number>;
+  threshold?: number;
+  in_chat?: boolean;
+  chat_model?: string | null;
+  tool: string;
+  ready: boolean;
+  report: TaskReport | null;
+  status: {
+    stage: TaskStage;
+    message?: string;
+    step?: number;
+    steps?: number;
+    seconds_left?: number;
+    seconds?: number;
+    done_bytes?: number;
+    total_bytes?: number;
+  };
+}
+
+export interface TaskExample {
+  n: number;
+  input: Record<string, unknown> | string;
+  answer: string | number | null;
+  drafted?: boolean;
+}
+
+export interface TaskAnswer {
+  answer: string | number;
+  confidence?: number;
+  scores?: Record<string, number>;
 }

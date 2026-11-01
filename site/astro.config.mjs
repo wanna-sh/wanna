@@ -59,6 +59,7 @@ export default defineConfig({
             { slug: "docs/tutorials/pictures" },
             { slug: "docs/tutorials/train" },
             { slug: "docs/tutorials/train-chat" },
+            { slug: "docs/tutorials/tasks" },
             { slug: "docs/tutorials/videos" },
             { slug: "docs/tutorials/read-aloud" },
             { slug: "docs/tutorials/transcribe" },

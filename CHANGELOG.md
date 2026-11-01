@@ -19,12 +19,21 @@ Each version's section becomes its GitHub release notes (see `.github/workflows/
   sample replies before and after on the Train page. `/api/training/chat` starts it from apps.
 - Training needs more libraries, PEFT and bitsandbytes. The Train page offers to install them if your AI libraries
   came before this version.
+- **Your own AI for a task.** The new **Tasks** page teaches the AI a job of your own from examples: flag, sort or
+  score things from a table (gradient-boosted trees, in seconds, no graphics card needed), sort text or pictures
+  (with your search model), or write answers your way and pull details out as JSON (a trained chat model). wanna.sh
+  picks the method, tests it on examples it didn't learn from, and says how well it does in plain words, next to what
+  always giving the most common answer would get; for yes/no tasks, a table of how many it catches against false
+  alarms sets how sure it must be. A chat model can draft missing answers for you to check. Use it on the page, on a
+  whole file, from `/api/tasks`, or as a tool the AI uses in Chat and Code.
 - The AI libraries install now skips libraries meant for other systems.
 
 Tested on Windows with an RTX 3060 12 GB: Stable Diffusion 1.5 (400 steps in under 4 minutes, 3.4 GB of graphics
 memory) and SDXL (400 steps in about 13 minutes, 9.8 GB at most); Llama 3.2 1B (writing voice, under 2 minutes with
-its download, 2.8 GB) and Qwen3 8B in 4 bits (30 example chats, about 4 minutes, 7.0 GB). Not yet tested on Linux. Training isn't available on
-Macs yet.
+its download, 2.8 GB) and Qwen3 8B in 4 bits (30 example chats, about 4 minutes, 7.0 GB). Tasks: a standard breast
+tumour table (96.7% right, against 62.7% for always giving the most common answer), 600 newsgroup posts in 4 topics
+(94.3%, with Qwen3 VL Embedding 2B), cat, dog and car pictures, a made-up card-fraud table, and written answers with
+Llama 3.2 1B; drafting with Qwen3 8B and Gemma 4 E4B. Not yet tested on Linux. Training isn't available on Macs yet.
 
 ## 0.6.0 (2026-11-01)
 

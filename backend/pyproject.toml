@@ -15,6 +15,7 @@ dependencies = [
     "psutil>=6.0",
     "pypdf>=5.0",
     "numpy",  # document search (knowledge libraries)
+    "scikit-learn>=1.5",  # your own tasks: trees for tables, and what learns from search-model vectors
 ]
 
 [project.optional-dependencies]

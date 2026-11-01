@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import ipaddress
 from importlib.metadata import version as _version
 import logging
@@ -17,9 +18,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import training
+from . import tasks, training
 from .downloads import manager as downloads
 from .api import code, knowledge, native, openai, tools, train, web
+from .api import tasks as tasks_api
 from .config import DOCKER_NETWORK, OUTPUTS_DIR
 from .workers.manager import manager
 
@@ -35,6 +37,7 @@ async def lifespan(app: FastAPI):
 
     knowledge_index.resume()
     training.stop_leftovers()
+    tasks.LOOP = asyncio.get_running_loop()  # trained tasks run as tools from worker threads
     yield
     training.shutdown()
     manager.unload_all()
@@ -175,6 +178,7 @@ app.include_router(code.router)
 app.include_router(web.router)
 app.include_router(tools.router)
 app.include_router(train.router)
+app.include_router(tasks_api.router)
 app.mount("/files", StaticFiles(directory=OUTPUTS_DIR), name="files")
 
 

@@ -333,17 +333,25 @@ def configure(name: str, enabled: bool | None = None, trusted: bool | None = Non
 
 
 def schemas(names: list[str] | None = None) -> list[dict]:
-    """The function schemas of the tools the AI may use: enabled, free of problems, and in `names` if given."""
-    return [t["schema"] for t in list_tools()
-            if t["enabled"] and not t["error"] and t["schema"] and (names is None or t["name"] in names)]
+    """The function schemas of the tools the AI may use: enabled, free of problems, and in `names` if given. Trained
+    tasks switched on for Chat come too (see tasks.py)."""
+    from . import tasks
+
+    mine = [t["schema"] for t in list_tools() if t["enabled"] and not t["error"] and t["schema"]]
+    return [s for s in mine + tasks.tool_schemas() if names is None or s["function"]["name"] in names]
 
 
 def is_tool(name: str) -> bool:
-    return any(t["name"] == name for t in list_tools())
+    from . import tasks
+
+    return any(t["name"] == name for t in list_tools()) or tasks.is_tool(name)
 
 
 def is_trusted(name: str) -> bool:
-    return any(t["name"] == name and t["trusted"] for t in list_tools())
+    from . import tasks
+
+    # A trained task runs wanna.sh's own code on its own model, never the person's code: nothing to sandbox.
+    return any(t["name"] == name and t["trusted"] for t in list_tools()) or tasks.is_tool(name)
 
 
 # --- running a tool --------------------------------------------------------------------------------------------------
@@ -352,6 +360,17 @@ def run(name: str, arguments: dict | str | None, *, test: bool = False) -> dict:
     """Run a tool. Returns {"ok", "result" or "error", "printed", "seconds", "where"}. With test, it also runs when
     turned off (for the Test button)."""
     started = time.time()
+    from . import tasks
+
+    if tasks.is_tool(name):
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments or "{}")
+            except json.JSONDecodeError as e:
+                return {"ok": False, "error": f"The arguments aren't valid JSON: {e}", "printed": "", "seconds": 0.0,
+                        "where": None}
+        r = tasks.run_tool(name, arguments if isinstance(arguments, dict) else {})
+        return {**r, "printed": "", "seconds": round(time.time() - started, 2), "where": "computer"}
     try:
         tool = get(name)
     except ToolError as e:

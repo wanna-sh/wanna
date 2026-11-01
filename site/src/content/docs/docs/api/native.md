@@ -100,6 +100,38 @@ curl http://localhost:7860/api/training/chat \
   -F files=@examples.jsonl
 ```
 
+## Tasks
+
+[Your own AI for a task](/docs/tutorials/tasks/) from apps:
+
+| Endpoint | What it does |
+| --- | --- |
+| `GET /api/tasks` | Every task, and whether a search model is installed (`search_model`). |
+| `POST /api/tasks` | A new task. Multipart form: `name`, `description`, and `files`: a table (CSV, TSV, JSON or JSONL), or pictures, each sent with its folder in its file name (`damaged/1.jpg`) so the folder is its answer. |
+| `GET /api/tasks/{id}` | One task: its shape (`input_kind` `table`, `text` or `picture`; `answer_kind` `label`, `number` or `text`), `columns`, `input_columns`, `answer_column`, `labels` with `label_counts`, `examples`, `answered`, `drafted`, `status`, `ready`, its tool name (`tool`) and `report`. |
+| `PATCH /api/tasks/{id}` | Change `name`, `description`, `answer_column`, `input_columns`, `labels` (the answers it can give), `threshold` (yes/no tasks), `in_chat` (whether it's a tool in Chat), or `no_answers` (`label` or `text`: the examples have no answers yet). |
+| `DELETE /api/tasks/{id}` | Delete it, with its examples and what it learned. |
+| `GET /api/tasks/{id}/examples?show=all&offset=0&limit=50` | A page of examples (`n`, `input`, `answer`, `drafted`). `show` is `all`, `unanswered` or `drafted`. |
+| `PUT /api/tasks/{id}/answers` | Give or correct answers by example number: `{"answers": {"0": "yes", "5": null}}`. A drafted answer saved this way counts as checked. |
+| `POST /api/tasks/{id}/draft` | Have a chat model draft the missing answers: `{"chat_model": "...", "careful": true, "limit": 200}`. |
+| `POST /api/tasks/{id}/train` | Train and test it. For tasks that write: `{"chat_model": "..."}`. |
+| `POST /api/tasks/{id}/run` | Answer one input (`{"input": ...}`) or several (`{"inputs": [...]}`): for a table, `{column: value}`; for text, a string. Labels come with `confidence` and every label's `scores`. |
+| `POST /api/tasks/{id}/run-picture` | Answer a picture: multipart `file`. |
+| `POST /api/tasks/{id}/run-file` | Answer every row of a table: multipart `file`. Returns a CSV with `answer` (and `confidence`) added. |
+
+```bash
+curl http://localhost:7860/api/tasks/f4438178e2fc/run \
+  -H "Content-Type: application/json" \
+  -d '{"input": {"amount": 1950, "merchant": "gift_cards", "channel": "online", "ip_country": "NG"}}'
+```
+
+```json
+{"answer": "yes", "confidence": 0.69, "scores": {"no": 0.31, "yes": 0.69}}
+```
+
+A trained task that's on for Chat is also a tool for [chat completions](/docs/api/chat/) with `wanna_tools`, named as
+`tool` says.
+
 ## System and settings
 
 | Endpoint | What it does |
