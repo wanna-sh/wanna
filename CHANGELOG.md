@@ -2,7 +2,7 @@
 
 Each version's section becomes its GitHub release notes (see `.github/workflows/release.yml`).
 
-## Unreleased
+## 0.8.0 (2026-11-01)
 
 - **Agents: an AI that runs around the clock.** The new **Agents** page runs AIs that keep working on their own toward
   goals you give them, on your own chat model. Each has a Linux sandbox of its own (the same as Code's), where it
