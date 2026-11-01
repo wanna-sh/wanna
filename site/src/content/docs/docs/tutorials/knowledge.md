@@ -31,11 +31,16 @@ or press **Choose files**.
 - **How long it takes:** each document is read, split into passages of a few hundred words, and indexed. A few dozen
   pages take seconds. You'll see progress next to each document.
 - **Very long documents:** the first five million characters (about a million words) are indexed.
-- **Scanned PDFs** have no text inside, so there's nothing to search. Use a PDF with selectable text.
+- **Pictures and scanned PDFs** need a search model that can see pictures, such as **Qwen3 VL Embedding 2B** (in the
+  list of search models, or Get models → *Document search*). With it, add photos and screenshots (PNG, JPEG, GIF, BMP
+  or WebP), and PDFs whose pages are scans: each page without text is read as a picture. A search model that reads text
+  only can't use them: scanned PDFs say there's nothing to read.
 - **If a document fails** (for example, you added it before the search model finished downloading), its error shows
   next to it with a **Try again** link.
 
-Use **Try a search** to check that a question finds what you expect.
+Use **Try a search** to check that a question finds what you expect. With a search model that can see pictures, press
+**Picture** to search with a picture instead, or as well: it finds pictures and passages like it. Pictures that match
+show in the results.
 
 ![A library with two documents and a test search](../../../../assets/screens/knowledge-library.webp)
 
@@ -48,7 +53,10 @@ choice. Then ask as usual:
   on Windows?"*, your previous question too).
 - The best six passages go to the model, with instructions to cite them and to say when your documents don't cover
   the question.
-- Under the answer, **Sources** lists the passages by number. Click one to read it. Cited passages come first.
+- Under the answer, **Sources** lists the passages by number. Click one to read it (or see it, for a picture). Cited
+  passages come first.
+- Pictures that match go to the model too when it can see pictures (up to four), so it can answer from what's in them.
+  A model that can't see them only knows their names.
 
 If nothing relevant is found, the assistant says your documents don't cover it, and only then answers from general
 knowledge.

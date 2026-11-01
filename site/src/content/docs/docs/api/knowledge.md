@@ -29,6 +29,31 @@ written as `Instruct: <task>\nQuery:<question>`, EmbeddingGemma uses `task: sear
 `title: none | text: `, and Nomic Embed uses `search_query: ` and `search_document: `. See each model's card. The
 Knowledge endpoints below add these for you.
 
+### Pictures
+
+A search model that can see pictures, such as
+[Qwen3 VL Embedding](https://huggingface.co/mradermacher/Qwen3-VL-Embedding-2B-GGUF), embeds pictures as well as text,
+into the same space: a photo of a dog comes out near the words "a dog". Send a picture as an `image_url` part with a
+data URL (or an object with `image`, plain base64), alone or in a list with text about it:
+
+```python
+import base64
+
+dog = "data:image/jpeg;base64," + base64.b64encode(open("dog.jpg", "rb").read()).decode()
+r = client.embeddings.create(model="auto", input=[
+    "a dog playing in the snow",                                    # text
+    {"type": "image_url", "image_url": {"url": dog}},                # a picture
+    [{"type": "text", "text": "our dog"}, {"type": "image_url", "image_url": {"url": dog}}],  # both together
+])
+```
+
+- With such a model, every input, text included, is put in the model's own format, so text and pictures can be
+  compared. Add `"input_type": "query"` when embedding what someone searches for (the default is `"document"`).
+- Pictures can be PNG, JPEG, GIF or BMP, up to 20 MB; WebP and other formats work once the
+  [AI libraries](/docs/tutorials/pictures/) are installed. Send the picture itself: web addresses aren't fetched.
+- With a search model that reads text only, a picture gives a `400` error.
+- `encoding_format: "base64"` is supported.
+
 ## Knowledge libraries
 
 The endpoints the [Knowledge](/docs/tutorials/knowledge/) page and Chat use. Like the rest of the
@@ -86,12 +111,15 @@ curl -s localhost:7860/api/knowledge/search -H 'Content-Type: application/json' 
 
 | Field | Notes |
 | --- | --- |
-| `query` | Required. A question or keywords. |
+| `query` | A question or keywords. |
+| `image` | A picture to search with, as a data URL or base64: finds pictures and passages like it. Needs a library read with a search model that can see pictures; can be combined with `query`. Send `query`, `image` or both. |
 | `libraries` | Required. One or more library ids. |
 | `k` | How many passages, 1 to 30. Default 6. |
 
 Each result has the passage `text`, its `document`, `page` (for PDFs), `heading` (the section it's in), `library`, a
-`score`, and `matched`: `["meaning"]`, `["words"]` or both. Results are best first.
+`score`, and `matched`: `["meaning"]`, `["words"]` or both. Results are best first. A passage that is a picture (a
+picture you added, or a page of a scanned PDF) also has `picture`: the path to get it from, such as
+`/api/knowledge/passages/42/picture`.
 
 The response also has `warnings`: a list of messages, for example when a library's search model was removed and it
 could only be searched by words.

@@ -11,6 +11,8 @@ from ..config import HOME
 from ..downloads import manager as downloads
 from ..knowledge import index, store
 from ..knowledge.embed import NoSearchModel, default_model
+from ..knowledge.families import family, sees_pictures
+from ..knowledge.pictures import PictureError, from_data_url
 from ..knowledge.search import context_prompt, search, words_only
 from ..workers.manager import LoadError
 from .auth import require_key
@@ -36,9 +38,11 @@ def status():
     have = {m["repo_id"] for m in installed}
     active = [d for d in downloads.list() if d.get("task") == "embed" and d["status"] in ("queued", "downloading")]
     return {
-        "search_models": [{"id": m["id"], "repo_id": m["repo_id"], "size_bytes": m["size_bytes"]} for m in installed],
+        "search_models": [{"id": m["id"], "repo_id": m["repo_id"], "size_bytes": m["size_bytes"],
+                           "pictures": sees_pictures(m)} for m in installed],
         "default": (default_model() or {}).get("id"),
-        "suggested": [{**c, "installed": c["repo_id"] in have} for c in hub.CURATED if c["task"] == "embed"],
+        "suggested": [{**c, "installed": c["repo_id"] in have, "pictures": bool(family(c["repo_id"]).get("pictures"))}
+                      for c in hub.CURATED if c["task"] == "embed"],
         "downloading": active,
     }
 
@@ -163,7 +167,10 @@ def document_file(did: str):
 # --- search ----------------------------------------------------------------------------------------------
 
 class Query(BaseModel):
-    query: str = Field(min_length=1, max_length=8000)
+    query: str = Field(default="", max_length=8000)
+    # Search with a picture (a data URL or base64), alone or with words, in libraries read with a search model that
+    # can see pictures.
+    image: str | None = Field(default=None, max_length=30_000_000)
     libraries: list[str] = Field(min_length=1)
     k: int = Field(default=6, ge=1, le=30)
 
@@ -171,18 +178,43 @@ class Query(BaseModel):
 async def _search(req: Query) -> list[dict]:
     for lid in req.libraries:
         _library(lid)
+    if not req.query.strip() and not req.image:
+        raise HTTPException(400, "Search with words, a picture, or both.")
     try:
-        return await search(req.query, req.libraries, req.k)
+        image = from_data_url(req.image) if req.image else None
+        results = await search(req.query, req.libraries, req.k, image)
+    except PictureError as e:
+        raise HTTPException(400, str(e))
     except (NoSearchModel, LoadError) as e:
         raise HTTPException(503, str(e))
+    for r in results:  # where the page can show a picture passage's picture
+        r["picture"] = f"/api/knowledge/passages/{r['id']}/picture" if r.get("picture") else None
+    return results
 
 
 def _warnings(req: Query) -> list[str]:
-    return [f'"{lib["name"]}" was read with a search model that has been removed, so it was only searched by exact '
+    blind = []
+    for lib in (store.get_library(i) for i in req.libraries) if req.image else []:
+        model = db.get_model(lib["embed_model"]) if lib and lib["embed_model"] else None
+        if lib and not lib["hidden"] and not (model and sees_pictures(model)):
+            blind.append(f'"{lib["name"]}" was read with a search model that reads text only, so a picture finds '
+                         "nothing in it. Read it again with one that can see pictures, such as Qwen3 VL Embedding.")
+    return blind + [f'"{lib["name"]}" was read with a search model that has been removed, so it was only searched by exact '
             "words. Read it again on the Knowledge page to search it by meaning too." for lib in words_only(req.libraries)
             if not lib["hidden"]] + [
            "A long attachment in this chat was read with a search model that has been removed, so it was only searched "
            "by exact words." for lib in words_only(req.libraries) if lib["hidden"]][:1]
+
+
+@router.get("/passages/{cid}/picture")
+def passage_picture(cid: int):
+    """The picture a picture passage was made from (a picture document, or a page of a scanned PDF)."""
+    with db.cursor() as c:
+        row = c.execute("SELECT picture FROM kb_chunks WHERE id = ?", (cid,)).fetchone()
+    path = (HOME / row[0]).resolve() if row and row[0] else None
+    if path is None or not path.is_relative_to(HOME.resolve()) or not path.exists():
+        raise HTTPException(404, "No picture for this passage")
+    return FileResponse(path)
 
 
 @router.post("/search")

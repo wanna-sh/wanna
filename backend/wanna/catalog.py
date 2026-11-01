@@ -31,7 +31,9 @@ TASK_QUERIES = {
     "speech": [{"filter": "transformers", "pipeline_tag": "text-to-speech"}],
     "sound": [{"filter": "transformers", "pipeline_tag": "text-to-audio"}],
     "transcribe": [{"filter": "transformers", "pipeline_tag": "automatic-speech-recognition"}],
-    "embed": [{"filter": ["gguf", "feature-extraction"]}, {"filter": ["gguf", "sentence-similarity"]}],
+    "embed": [{"filter": ["gguf", "feature-extraction"]}, {"filter": ["gguf", "sentence-similarity"]},
+              # Picture-and-text search models, whose uploads rarely carry the tags above (see hub.is_embed_gguf).
+              {"filter": "gguf", "search": "VL-Embedding"}],
 }
 EXPAND = ["gguf", "safetensors", "config", "siblings", "downloads", "likes", "trendingScore", "createdAt",
           "pipeline_tag", "library_name", "tags", "gated"]
@@ -176,7 +178,7 @@ def _candidates(task: str, query: str, sort: str, count: int, max_params: float 
     a = hub.api()
     out, seen = [], set()
     for q in TASK_QUERIES[task]:
-        kw = dict(q, search=query or None, sort=SORTS.get(sort, "downloads"), limit=count, expand=EXPAND)
+        kw = dict(q, search=query or q.get("search"), sort=SORTS.get(sort, "downloads"), limit=count, expand=EXPAND)
         if task == "chat" and max_params:
             kw["num_parameters"] = f"min:0,max:{max_params:.0f}B"
         for m in a.list_models(**kw):

@@ -3,7 +3,7 @@
 import { Suspense, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, BookOpen, Download, FileText, Loader2, Search, Trash2, Upload } from "lucide-react";
+import { ArrowLeft, BookOpen, Download, FileText, ImageIcon, Loader2, Search, Trash2, Upload } from "lucide-react";
 import {
   API_BASE,
   api,
@@ -15,11 +15,11 @@ import {
 import { usePoll } from "@/lib/hooks";
 import { bytes, prettyName } from "@/lib/format";
 import { Button, Field, Notice, PageHeader, Panel, Progress, inputClass } from "@/components/ui";
-import { sourceLabel } from "@/components/knowledge";
+import { PassagePicture, sourceLabel } from "@/components/knowledge";
 
 // The same kinds of files Chat can read.
 const ACCEPT =
-  ".pdf,.txt,.md,.markdown,.csv,.tsv,.json,.jsonl,.xml,.html,.htm,.yaml,.yml,.toml,.ini,.log,.py,.js,.jsx,.ts,.tsx,.java,.kt,.c,.cc,.cpp,.h,.hpp,.cs,.go,.rs,.rb,.php,.swift,.sh,.ps1,.sql,.css,.scss,.tex,.rst";
+  ".pdf,.txt,.md,.markdown,.csv,.tsv,.json,.jsonl,.xml,.html,.htm,.yaml,.yml,.toml,.ini,.log,.py,.js,.jsx,.ts,.tsx,.java,.kt,.c,.cc,.cpp,.h,.hpp,.cs,.go,.rs,.rb,.php,.swift,.sh,.ps1,.sql,.css,.scss,.tex,.rst,.png,.jpg,.jpeg,.gif,.bmp,.webp";
 
 export default function KnowledgePage() {
   return (
@@ -259,6 +259,8 @@ function LibraryView({ lid, searchModels }: { lid: string; searchModels: Knowled
   if (!lib) return null;
   const docs = lib.documents_list;
   const modelGone = !!lib.embed_model && lib.documents > 0 && !searchModels.some((m) => m.id === lib.embed_model);
+  // Whether this library's search model can see pictures (a new library uses the default model).
+  const sees = !!searchModels.find((m) => m.id === lib.embed_model)?.pictures;
   return (
     <div className="grid gap-6 max-w-[900px]">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -322,7 +324,12 @@ function LibraryView({ lid, searchModels }: { lid: string; searchModels: Knowled
             {uploading ? <Loader2 size={15} className="animate-spin" aria-hidden /> : null} Choose files
           </Button>
         </div>
-        <p className="text-[13px] text-slate mt-3">PDFs, text, Markdown, CSV, HTML and code files, up to 100 MB each.</p>
+        <p className="text-[13px] text-slate mt-3">
+          PDFs, text, Markdown, CSV, HTML and code files, up to 100 MB each.
+          {sees
+            ? " Pictures too, and PDFs of scanned pages: this library's search model can see them."
+            : " For pictures and scanned PDFs, read the library with a search model that can see them, such as Qwen3 VL Embedding."}
+        </p>
       </div>
       {problem && <Notice tone="error">{problem}</Notice>}
 
@@ -330,7 +337,11 @@ function LibraryView({ lid, searchModels }: { lid: string; searchModels: Knowled
         <ul className="rounded-2xl border border-line bg-paper divide-y divide-line">
           {docs.map((d) => (
             <li key={d.id} className="flex items-center gap-3 px-4 py-3">
-              <FileText size={18} className="text-slate shrink-0" aria-hidden />
+              {/\.(png|jpe?g|gif|bmp|webp)$/i.test(d.name) ? (
+                <ImageIcon size={18} className="text-slate shrink-0" aria-hidden />
+              ) : (
+                <FileText size={18} className="text-slate shrink-0" aria-hidden />
+              )}
               <div className="min-w-0 flex-1">
                 <p className="truncate">{d.name}</p>
                 <DocStatus
@@ -358,12 +369,13 @@ function LibraryView({ lid, searchModels }: { lid: string; searchModels: Knowled
         </ul>
       )}
 
-      {lib.passages > 0 && <TrySearch lid={lid} />}
+      {lib.passages > 0 && <TrySearch lid={lid} pictures={sees} />}
     </div>
   );
 }
 
-const modelLabel = (m: { repo_id: string }) => prettyName(m.repo_id);
+const modelLabel = (m: { repo_id: string; pictures?: boolean }) =>
+  prettyName(m.repo_id) + (m.pictures ? " (searches pictures too)" : "");
 
 /** Which search model a library was read with, and a way to read it again (with that model or another). */
 function SearchModel({
@@ -477,19 +489,22 @@ function DocStatus({ d, onRetry }: { d: KnowledgeDoc; onRetry: () => void }) {
 }
 
 /** Check a library finds what you expect before using it in Chat. */
-function TrySearch({ lid }: { lid: string }) {
+function TrySearch({ lid, pictures }: { lid: string; pictures: boolean }) {
   const [q, setQ] = useState("");
+  const [image, setImage] = useState<string | null>(null); // a picture to search with, as a data URL
+  const pick = useRef<HTMLInputElement>(null);
   const [results, setResults] = useState<KnowledgeResult[] | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const run = async () => {
-    if (!q.trim()) return;
+    if (!q.trim() && !image) return;
     setBusy(true);
     setError(null);
     try {
       const r = await api.post<{ results: KnowledgeResult[]; warnings?: string[] }>("/api/knowledge/search", {
         query: q,
+        ...(image ? { image } : {}),
         libraries: [lid],
         k: 5,
       });
@@ -504,7 +519,10 @@ function TrySearch({ lid }: { lid: string }) {
   return (
     <Panel>
       <h3 className="font-medium mb-1">Try a search</h3>
-      <p className="text-[14px] text-slate mb-3">See which passages a question finds. Chat gives the best of these to the model.</p>
+      <p className="text-[14px] text-slate mb-3">
+        See which passages a question finds. Chat gives the best of these to the model.
+        {pictures ? " You can also search with a picture, to find ones like it." : ""}
+      </p>
       <form
         className="flex gap-2"
         onSubmit={(e) => {
@@ -512,17 +530,53 @@ function TrySearch({ lid }: { lid: string }) {
           run();
         }}
       >
-        <input className={inputClass} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask a question" />
-        <Button type="submit" disabled={!q.trim() || busy}>
+        <input
+          className={inputClass}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder={image ? "Add words about the picture (optional)" : "Ask a question"}
+        />
+        {pictures && (
+          <>
+            <input
+              ref={pick}
+              type="file"
+              hidden
+              accept="image/png,image/jpeg,image/gif,image/bmp,image/webp"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                e.target.value = "";
+                if (!f) return;
+                const reader = new FileReader();
+                reader.onload = () => setImage(String(reader.result));
+                reader.readAsDataURL(f);
+              }}
+            />
+            <Button type="button" tone="quiet" onClick={() => pick.current?.click()} title="Search with a picture">
+              <ImageIcon size={15} aria-hidden /> Picture
+            </Button>
+          </>
+        )}
+        <Button type="submit" disabled={(!q.trim() && !image) || busy}>
           {busy ? <Loader2 size={15} className="animate-spin" aria-hidden /> : <Search size={15} aria-hidden />} Search
         </Button>
       </form>
+      {image && (
+        <div className="mt-3 flex items-center gap-3 text-[14px] text-slate">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={image} alt="The picture to search with" className="size-16 rounded-lg object-cover border border-line" />
+          <span>Searching with this picture.</span>
+          <button type="button" className="underline underline-offset-2 hover:text-ink" onClick={() => setImage(null)}>
+            Remove
+          </button>
+        </div>
+      )}
       {error && (
         <div className="mt-3">
           <Notice tone="error">{error}</Notice>
         </div>
       )}
-      {warnings.length > 0 && <p className="mt-3 text-[13px] text-slate">Searched by exact words only (see above).</p>}
+      {warnings.length > 0 && <p className="mt-3 text-[13px] text-slate">{warnings.join(" ")}</p>}
       {results && (
         <ol className="mt-4 grid gap-3">
           {results.length === 0 && <li className="text-[14px] text-slate">Nothing found.</li>}
@@ -532,7 +586,11 @@ function TrySearch({ lid }: { lid: string }) {
                 <span className="text-ink font-medium">{i + 1}.</span> {sourceLabel(r)}
                 <span className="ml-2">Matched by {r.matched.join(" and ")}</span>
               </p>
-              <p className="text-[14px] mt-1.5 whitespace-pre-wrap line-clamp-6">{r.text}</p>
+              {r.picture ? (
+                <PassagePicture path={r.picture} className="mt-2 max-h-48 max-w-full" />
+              ) : (
+                <p className="text-[14px] mt-1.5 whitespace-pre-wrap line-clamp-6">{r.text}</p>
+              )}
             </li>
           ))}
         </ol>

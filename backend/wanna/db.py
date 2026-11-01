@@ -66,7 +66,8 @@ CREATE TABLE IF NOT EXISTS kb_chunks (
     page INTEGER,
     heading TEXT NOT NULL DEFAULT '',
     text TEXT NOT NULL,
-    embedding BLOB                  -- float32, normalised
+    embedding BLOB,                 -- float32, normalised
+    picture TEXT                    -- for a passage that is a picture: its file, relative to the data folder
 );
 CREATE INDEX IF NOT EXISTS kb_chunks_library ON kb_chunks(library_id);
 CREATE INDEX IF NOT EXISTS kb_chunks_document ON kb_chunks(document_id);
@@ -98,6 +99,12 @@ def _connect() -> sqlite3.Connection:
 
 _conn = _connect()
 _conn.executescript(SCHEMA)
+# Columns added after the first release, for databases made before them.
+for _table, _column, _type in [
+    ("kb_chunks", "picture", "TEXT"),  # a passage that is a picture: the file, relative to the data folder
+]:
+    if _column not in {r[1] for r in _conn.execute(f"PRAGMA table_info({_table})")}:
+        _conn.execute(f"ALTER TABLE {_table} ADD COLUMN {_column} {_type}")
 _conn.commit()
 
 

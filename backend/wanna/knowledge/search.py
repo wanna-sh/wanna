@@ -12,7 +12,8 @@ import numpy as np
 
 from .. import db
 from . import store
-from .embed import embed
+from .embed import embed, picture
+from .families import sees_pictures
 
 CANDIDATES = 50  # from each method, before merging
 RRF_K = 60  # the usual constant for reciprocal rank fusion
@@ -47,9 +48,11 @@ def words_only(library_ids: list[str]) -> list[dict]:
     return [lib for lib in libs if lib["embed_model"] and lib["passages"] and db.get_model(lib["embed_model"]) is None]
 
 
-async def search(query: str, library_ids: list[str], k: int = 6) -> list[dict]:
+async def search(query: str, library_ids: list[str], k: int = 6, image: bytes | None = None) -> list[dict]:
+    """The passages that best match a query: words, a picture (for libraries read with a search model that can see
+    pictures), or both."""
     libs = [lib for lib in (store.get_library(i) for i in dict.fromkeys(library_ids)) if lib]
-    if not query.strip() or not libs:
+    if not (query.strip() or image) or not libs:
         return []
     ranked: dict[int, float] = {}
     how: dict[int, set] = {}
@@ -58,7 +61,10 @@ async def search(query: str, library_ids: list[str], k: int = 6) -> list[dict]:
     # those libraries are still searched by words below.
     models = {lib["embed_model"] for lib in libs if lib["embed_model"]}
     for model_id in (m for m in models if db.get_model(m) is not None):
-        q = (await embed(model_id, [query], "query"))[0]
+        if image is not None and not sees_pictures(db.get_model(model_id)):
+            continue  # it can't compare a picture with what it read
+        item = {**picture(image), "text": query} if image is not None else query
+        q = (await embed(model_id, [item], "query"))[0]
         scored = []
         for lib in (lib for lib in libs if lib["embed_model"] == model_id):
             ids, mat = _vectors(lib)
@@ -88,7 +94,7 @@ async def search(query: str, library_ids: list[str], k: int = 6) -> list[dict]:
         return []
     with db.cursor() as c:
         rows = {r["id"]: dict(r) for r in c.execute(
-            f"SELECT k.id, k.document_id, k.library_id, k.idx, k.page, k.heading, k.text, d.name AS document"
+            f"SELECT k.id, k.document_id, k.library_id, k.idx, k.page, k.heading, k.text, k.picture, d.name AS document"
             f" FROM kb_chunks k JOIN kb_documents d ON d.id = k.document_id WHERE k.id IN ({','.join('?' * len(order))})",
             order).fetchall()}
     # Identical passages (repeated boilerplate, the same file added twice) are shown once.
@@ -139,7 +145,22 @@ def context_prompt(results: list[dict]) -> str:
     lines = ["Answer using the passages below from the user's documents. After each statement that comes from a passage, "
              "cite it with its number in square brackets, like [1] or [2][3]. If the passages don't contain the answer, "
              "say that the documents don't cover it, and only then answer from general knowledge, saying so.", ""]
+    if any(r.get("picture") for r in results):
+        lines[0] += (" Some passages are pictures: if you can see pictures, those are attached to the user's message, "
+                     "in the order given below. Use what you see in them, and cite them by number like the others.")
+    attached = 0
     for n, r in enumerate(results, 1):
         where = r["document"] + (f", page {r['page']}" if r.get("page") else "") + (f", {r['heading']}" if r["heading"] else "")
-        lines += [f"[{n}] {where}", r["text"].strip(), ""]
+        if r.get("picture"):
+            attached += 1
+            note = (f"(A picture: the {ORDINALS[attached - 1]} picture attached to the user's message.)"
+                    if attached <= MAX_PICTURES else "(A picture, not attached: only its name is known.)")
+            lines += [f"[{n}] {where}", note, ""]
+        else:
+            lines += [f"[{n}] {where}", r["text"].strip(), ""]
     return "\n".join(lines).strip()
+
+
+# Pictures from the results that Chat attaches for a model that can see (the same limit as the chat page's).
+MAX_PICTURES = 4
+ORDINALS = ["first", "second", "third", "fourth"]

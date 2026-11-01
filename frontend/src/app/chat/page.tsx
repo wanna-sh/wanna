@@ -7,6 +7,7 @@ import { Archive, ArchiveRestore, FileText, Globe, History, Loader2, Mic, Paperc
 import Link from "next/link";
 import {
   api,
+  dataUrl,
   streamChat,
   type KnowledgeDoc,
   type KnowledgeLibrary,
@@ -65,6 +66,8 @@ interface Conversation {
 
 // Rounds of tool use (searching, reading, your own tools) before the model must answer with what it has.
 const MAX_WEB_ROUNDS = 5;
+// Pictures from Knowledge given to a model that can see, at most.
+const MAX_KNOWLEDGE_PICTURES = 4;
 
 const SUGGESTIONS = [
   "Explain how a rainbow forms, like I'm ten",
@@ -218,6 +221,7 @@ export default function ChatPage() {
     let t0 = now();
     let out = "";
     let sources: KnowledgeResult[] | undefined;
+    let shown: string[] = []; // pictures from Knowledge, as data URLs
     const web: WebSource[] = [];
     const useWeb = webOn && canUseTools;
     const mine = toolsOn && canUseTools ? customTools ?? [] : [];
@@ -236,6 +240,13 @@ export default function ChatPage() {
           k: 6,
         });
         sources = ctx.results;
+        // Pictures that matched go to a model that can see them, so it can look at them, not just their names.
+        if (canSee) {
+          const found = ctx.results.filter((r) => r.picture).slice(0, MAX_KNOWLEDGE_PICTURES);
+          shown = (await Promise.all(found.map((r) => dataUrl(r.picture!).catch(() => null)))).filter(
+            (u): u is string => !!u,
+          );
+        }
         if (ctx.warnings?.length) setNotice(ctx.warnings.join(" "));
         // One system message: some chat models accept only one, at the start.
         instructions = [instructions, ctx.prompt].filter(Boolean).join("\n\n");
@@ -247,6 +258,11 @@ export default function ChatPage() {
         ...(instructions ? [{ role: "system", content: instructions }] : []),
         ...history.map((m) => ({ role: m.role, content: apiContent(m) })),
       ];
+      if (shown.length) {
+        const last = payload[payload.length - 1];
+        const parts = typeof last.content === "string" ? [{ type: "text", text: last.content }] : (last.content as Part[]);
+        last.content = [...parts, ...shown.map((url) => ({ type: "image_url", image_url: { url } }))];
+      }
       const show = (content: string) =>
         update(id, (c) => {
           const ms = [...c.messages];

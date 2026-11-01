@@ -25,6 +25,19 @@ async function handle<T>(r: Response): Promise<T> {
   return (type.includes("json") ? r.json() : r.text()) as Promise<T>;
 }
 
+/** A file from the API as a data URL: for pictures, which an <img> can't fetch with the UI's header. */
+export async function dataUrl(path: string): Promise<string> {
+  const r = await fetch(API_BASE + path, { headers: HEADERS });
+  if (!r.ok) throw new ApiError(`${r.status} ${r.statusText}`, r.status);
+  const blob = await r.blob();
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
 export const api = {
   get: <T>(path: string) => fetch(API_BASE + path, { headers: HEADERS }).then(handle<T>),
   post: <T>(path: string, body?: unknown) =>
@@ -547,11 +560,14 @@ export interface KnowledgeResult {
   text: string;
   score: number;
   matched: ("meaning" | "words")[];
+  /** A passage that is a picture (a picture file, or a page of a scanned PDF): where to get the picture. */
+  picture?: string | null;
 }
 
 export interface KnowledgeStatus {
-  search_models: { id: string; repo_id: string; size_bytes: number }[];
+  /** pictures: it can search pictures as well as text. */
+  search_models: { id: string; repo_id: string; size_bytes: number; pictures: boolean }[];
   default: string | null;
-  suggested: { repo_id: string; title: string; why: string; installed: boolean }[];
+  suggested: { repo_id: string; title: string; why: string; installed: boolean; pictures: boolean }[];
   downloading: Download[];
 }

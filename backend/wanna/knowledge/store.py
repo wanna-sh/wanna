@@ -121,7 +121,14 @@ def delete_document(did: str) -> None:
         c.execute("DELETE FROM kb_chunks WHERE document_id = ?", (did,))
         c.execute("DELETE FROM kb_documents WHERE id = ?", (did,))
     (HOME / doc["file"]).unlink(missing_ok=True)
+    for page in page_pictures_dir(doc).glob(f"{did}-page-*"):  # pictures taken from a PDF's pages
+        page.unlink(missing_ok=True)
     touch(doc["library_id"])
+
+
+def page_pictures_dir(doc: dict):
+    """Where the pictures taken from a PDF's pages are kept: next to the document."""
+    return (HOME / doc["file"]).parent
 
 
 # --- passages --------------------------------------------------------------------------------------------
@@ -136,6 +143,8 @@ def replace_chunks(did: str, lid: str, chunks: list[dict], vectors) -> None:
     with db.cursor() as c:
         c.execute("DELETE FROM kb_chunks WHERE document_id = ?", (did,))
         c.executemany(
-            "INSERT INTO kb_chunks (document_id, library_id, idx, page, heading, text, embedding) VALUES (?,?,?,?,?,?,?)",
-            [(did, lid, i, ch["page"], ch["heading"], ch["text"], vectors[i].tobytes()) for i, ch in enumerate(chunks)])
+            "INSERT INTO kb_chunks (document_id, library_id, idx, page, heading, text, embedding, picture)"
+            " VALUES (?,?,?,?,?,?,?,?)",
+            [(did, lid, i, ch["page"], ch["heading"], ch["text"], vectors[i].tobytes(), ch.get("picture"))
+             for i, ch in enumerate(chunks)])
     touch(lid)

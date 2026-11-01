@@ -383,9 +383,88 @@ def get_video_content(video_id: str):
 
 @router.post("/embeddings")
 async def embeddings(request: Request):
-    """Vectors for text from an installed search (embedding) model. Text is embedded exactly as sent."""
+    """Vectors from an installed search (embedding) model. With a text-only model, text is embedded exactly as sent.
+    A model that can see pictures also takes pictures, and puts every input in its own format (see _picture_items)."""
     body = await request.json()
     model = _resolve(body.get("model"), "embed")
+    from ..knowledge.families import sees_pictures
+
+    if sees_pictures(model):
+        return await _picture_embeddings(model, body)
+    if _picture_items(body.get("input"), check_only=True):
+        raise _err(400, f"{model['id']} reads text only. For pictures, use a search model that can see them, such as "
+                        "Qwen3 VL Embedding.")
     worker = await _ready(model)
     body["model"] = model["id"]
     return await _proxy(worker.url + "/v1/embeddings", body, worker.headers)
+
+
+def _picture_items(inputs, check_only: bool = False):
+    """Embedding inputs as items for knowledge.embed: text, or {"image", "text"}. An input is a string, an
+    {"type": "image_url", "image_url": {"url": "data:..."}} or {"type": "text", "text": ...} part, an {"image": base64}
+    object, or a list of parts (a picture with words about it). With check_only, just whether there are pictures."""
+    from ..knowledge.pictures import PictureError, from_data_url
+
+    inputs = inputs if isinstance(inputs, list) else [inputs]
+    out, any_picture = [], False
+    for n, item in enumerate(inputs):
+        parts = item if isinstance(item, list) else [item]
+        text, image = [], None
+        for part in parts:
+            if isinstance(part, str):
+                text.append(part)
+                continue
+            if not isinstance(part, dict):
+                raise _err(400, f"input {n}: each input is text, a picture or a list of them.")
+            url = (part.get("image_url") or {}).get("url") if isinstance(part.get("image_url"), dict) else part.get("image_url")
+            raw = part.get("image") or url
+            if part.get("type") == "text" or "text" in part and not raw:
+                text.append(str(part.get("text") or ""))
+            elif raw:
+                any_picture = True
+                if check_only:
+                    continue
+                if part.get("text"):  # {"image": ..., "text": "words about it"}
+                    text.append(str(part["text"]))
+                if image is not None:
+                    raise _err(400, f"input {n}: one picture per input.")
+                if str(raw).startswith(("http://", "https://")):
+                    raise _err(400, f"input {n}: send the picture itself, as a data URL or base64, not a web address.")
+                try:
+                    from ..knowledge.embed import picture
+
+                    image = picture(from_data_url(str(raw)))["image"]
+                except PictureError as e:
+                    raise _err(400, f"input {n}: {e}")
+            else:
+                raise _err(400, f"input {n}: a part needs text, image_url or image.")
+        if not check_only:
+            joined = "\n".join(text)
+            out.append({"image": image, "text": joined} if image else joined)
+    return any_picture if check_only else out
+
+
+async def _picture_embeddings(model: dict, body: dict):
+    from ..knowledge.embed import NoPictures, embed
+
+    items = _picture_items(body.get("input"))
+    if not items:
+        raise _err(400, "input is empty.")
+    kind = "query" if body.get("input_type") == "query" else "document"
+    try:
+        vectors = await embed(model["id"], items, kind)
+    except NoPictures as e:
+        raise _err(400, str(e))
+    except LoadError as e:
+        raise _err(503, str(e), "model_load_failed")
+    except RuntimeError as e:
+        raise _err(502, str(e), "server_error")
+
+    def encode(v):
+        if body.get("encoding_format") == "base64":
+            return base64.b64encode(v.astype("<f4").tobytes()).decode()
+        return v.tolist()
+
+    return {"object": "list", "model": model["id"],
+            "data": [{"object": "embedding", "index": i, "embedding": encode(v)} for i, v in enumerate(vectors)],
+            "usage": {"prompt_tokens": 0, "total_tokens": 0}}

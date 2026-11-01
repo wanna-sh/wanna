@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { BookOpen, Check, ChevronDown, ChevronRight } from "lucide-react";
-import type { KnowledgeLibrary, KnowledgeResult } from "@/lib/api";
+import { BookOpen, Check, ChevronDown, ChevronRight, ImageIcon } from "lucide-react";
+import { dataUrl, type KnowledgeLibrary, type KnowledgeResult } from "@/lib/api";
 import { chipClass, useDismiss } from "@/components/studio";
 
 /** "Knowledge  Work docs ▾": choose which libraries a chat (or project) searches. */
@@ -86,6 +86,23 @@ export function KnowledgeMenu({
   );
 }
 
+/** The picture a picture passage was made from. Fetched with the app's own header, so it works with API keys on. */
+export function PassagePicture({ path, className = "" }: { path: string; className?: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    dataUrl(path)
+      .then((u) => alive && setSrc(u))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [path]);
+  if (!src) return <span className={`inline-block bg-well rounded-lg ${className}`} aria-hidden />;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={src} alt="" className={`rounded-lg object-cover bg-well ${className}`} />;
+}
+
 /** Where a passage comes from: "report.pdf, page 4, Results". */
 export function sourceLabel(r: KnowledgeResult): string {
   return [r.document, r.page ? `page ${r.page}` : null, r.heading || null].filter(Boolean).join(", ");
@@ -112,14 +129,20 @@ export function Sources({ sources, answer }: { sources: KnowledgeResult[]; answe
               className={`w-full flex items-start gap-2 px-3.5 py-1.5 text-left text-[13.5px] hover:bg-well/60 ${cited.has(n) ? "" : "text-slate"}`}
             >
               <span className="tabular-nums shrink-0 font-medium">[{n}]</span>
+              {s.picture && <ImageIcon size={14} className="mt-0.5 shrink-0" aria-label="Picture" />}
               <span className="min-w-0 flex-1 truncate">{sourceLabel(s)}</span>
               <ChevronRight size={14} className={`mt-0.5 shrink-0 transition-transform ${open === n ? "rotate-90" : ""}`} aria-hidden />
             </button>
-            {open === n && (
-              <blockquote className="mx-3.5 mb-2 mt-0.5 border-l-2 border-line pl-3 text-[13.5px] text-slate whitespace-pre-wrap max-h-64 overflow-y-auto">
-                {s.text}
-              </blockquote>
-            )}
+            {open === n &&
+              (s.picture ? (
+                <div className="mx-3.5 mb-2 mt-0.5">
+                  <PassagePicture path={s.picture} className="max-h-64 max-w-full" />
+                </div>
+              ) : (
+                <blockquote className="mx-3.5 mb-2 mt-0.5 border-l-2 border-line pl-3 text-[13.5px] text-slate whitespace-pre-wrap max-h-64 overflow-y-auto">
+                  {s.text}
+                </blockquote>
+              ))}
           </li>
         ))}
       </ol>

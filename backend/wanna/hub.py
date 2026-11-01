@@ -61,6 +61,8 @@ CURATED = [
      "why": "Expressive voice that can laugh, sigh and sing a little."},
     {"repo_id": "Qwen/Qwen3-Embedding-0.6B-GGUF", "task": "embed", "title": "Qwen3 Embedding 0.6B",
      "why": "Small, accurate and multilingual. The default for searching your documents."},
+    {"repo_id": "mradermacher/Qwen3-VL-Embedding-2B-GGUF", "task": "embed", "title": "Qwen3 VL Embedding 2B",
+     "why": "Searches pictures as well as text: find photos and scanned pages by describing them, or with a picture."},
     {"repo_id": "ggml-org/embeddinggemma-300M-GGUF", "task": "embed", "title": "EmbeddingGemma 300M",
      "why": "Google's tiny search model. Very light, good in over 100 languages."},
     {"repo_id": "nomic-ai/nomic-embed-text-v1.5-GGUF", "task": "embed", "title": "Nomic Embed v1.5",
@@ -128,8 +130,15 @@ def is_chat_gguf(repo_id: str, pipeline: str | None, tags) -> bool:
 EMBED_TAGS = {"feature-extraction", "sentence-similarity"}
 
 
+PICTURE_EMBED_NAME = re.compile(r"vl-embedding", re.IGNORECASE)
+
+
 def is_embed_gguf(repo_id: str, pipeline: str | None, tags) -> bool:
-    """A GGUF text-embedding model (for document search). Rerankers share the tags but score pairs instead."""
+    """A GGUF embedding model (for document search). Rerankers share the tags but score pairs instead. Uploads of
+    picture-and-text embedding models (Qwen3-VL-Embedding) are often tagged like vision chat models, or not at all, so
+    those are known by name."""
+    if PICTURE_EMBED_NAME.search(repo_id):
+        return True
     if pipeline not in (None, "feature-extraction", "sentence-similarity"):
         return False
     return bool(EMBED_TAGS & set(tags or [])) and not re.search(r"rerank", repo_id, re.IGNORECASE)
