@@ -35,6 +35,7 @@ ml = [
     "scipy",
     "librosa",
     "ftfy",
+    "peft>=0.17",  # training your own picture styles (LoRA)
 ]
 
 [project.scripts]

@@ -64,6 +64,9 @@ export const api = {
     fd.append("file", file, filename);
     return fetch(API_BASE + path, { method: "POST", headers: HEADERS, body: fd }).then(handle<T>);
   },
+  /** A multipart form you built yourself (fields and files), such as a training run. */
+  postForm: <T>(path: string, form: FormData) =>
+    fetch(API_BASE + path, { method: "POST", headers: HEADERS, body: form }).then(handle<T>),
   /** Several files in one request, as the "files" field (Knowledge). */
   uploadFiles: <T>(path: string, files: File[]) => {
     const fd = new FormData();
@@ -251,6 +254,8 @@ export interface InstalledModel {
   speed?: number | null;
   /** Picture models only: samplers this model can switch between (empty when it can't). */
   samplers?: { samplers: { id: string; label: string }[]; default: string | null };
+  /** Picture models only: your trained styles (LoRAs) that work with it. */
+  styles?: TrainedStyle[];
   created_at: number;
 }
 
@@ -570,4 +575,56 @@ export interface KnowledgeStatus {
   default: string | null;
   suggested: { repo_id: string; title: string; why: string; installed: boolean; pictures: boolean }[];
   downloading: Download[];
+}
+
+// --- training your own picture styles (LoRA) -------------------------------------------------------------------
+
+export interface TrainedStyle {
+  id: string;
+  name: string;
+  trigger: string;
+  /** A prompt that uses it, to start from. */
+  prompt: string;
+}
+
+export interface TrainModel {
+  id: string;
+  repo_id: string;
+  title: string;
+  kind: "sd" | "sdxl";
+  /** Bytes of graphics memory training it needs. */
+  needs: number;
+  resolution: number;
+  /** The card it would train on, or null when no card here is big enough. */
+  card: string | null;
+  seconds_per_step: number | null;
+}
+
+export type TrainStage =
+  | "queued" | "preparing" | "training" | "saving" | "samples" | "done" | "error" | "stopped" | "interrupted";
+
+export interface TrainRun {
+  id: string;
+  name: string;
+  preset: "subject" | "style";
+  trigger: string;
+  what: string;
+  model: string;
+  model_title: string | null;
+  kind: "sd" | "sdxl";
+  steps: number;
+  pictures: number;
+  created: number;
+  status: { stage: TrainStage; message?: string; step?: number; steps?: number; loss?: number; seconds_left?: number; seconds?: number };
+  /** Finished, with a trained style ready to use. */
+  ready: boolean;
+  samples: string[];
+  prompt: string;
+}
+
+export interface TrainOverview {
+  /** Whether this computer can train; missing says what to install ("ml", "peft") or that a card is needed ("gpu"). */
+  ready: { ok: boolean; missing: "ml" | "peft" | "gpu" | null; reason: string | null };
+  models: TrainModel[];
+  runs: TrainRun[];
 }

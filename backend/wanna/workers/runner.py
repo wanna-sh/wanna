@@ -156,6 +156,7 @@ class DiffusionHandler(Handler):
         self.builtin_scheduler = self.pipe.scheduler if hasattr(self.pipe, "scheduler") else None
         self.schedulers: dict[str, object] = {}
         self.sampler = "builtin"
+        self.lora: str | None = None  # the trained style (LoRA folder) loaded now, if any
 
     def _use_sampler(self, sampler: str | None) -> None:
         """Swap the pipeline's scheduler. Rejects samplers the model's scheduler family can't use."""
@@ -183,6 +184,17 @@ class DiffusionHandler(Handler):
         if self.img2img is not None:
             self.img2img.scheduler = sched
         self.sampler = sampler
+
+    def _use_lora(self, path: str | None, strength: float) -> None:
+        """Load, swap or drop a trained style (a LoRA from Train). It stays loaded between pictures."""
+        if path != self.lora:
+            if self.lora:
+                self.pipe.unload_lora_weights()
+            if path:
+                self.pipe.load_lora_weights(path, weight_name="pytorch_lora_weights.safetensors", adapter_name="trained")
+            self.lora = path
+        if path:
+            self.pipe.set_adapters(["trained"], adapter_weights=[strength])
 
     def run(self, p: dict) -> dict:
         torch = self.torch
@@ -224,6 +236,7 @@ class DiffusionHandler(Handler):
 
         if p.get("sampler"):
             self._use_sampler(p["sampler"])
+        self._use_lora(p.get("lora_path"), float(p.get("lora_strength") or 1.0))
         pipe = self.pipe
         if init_image is not None:
             import diffusers

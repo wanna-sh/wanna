@@ -11,6 +11,7 @@ import {
   Code,
   Download,
   FileText,
+  GraduationCap,
   Image as ImageIcon,
   Images,
   Menu,
@@ -41,6 +42,7 @@ const TASK_ICONS: Record<Task, LucideIcon> = {
 const LIBRARY = [
   { href: "/knowledge/", label: "Knowledge", icon: BookOpen },
   { href: "/tools/", label: "Tools", icon: Wrench },
+  { href: "/train/", label: "Train", icon: GraduationCap },
   { href: "/discover/", label: "Get models", icon: Download },
   { href: "/models/", label: "My models", icon: Boxes },
   { href: "/gallery/", label: "Gallery", icon: Images },

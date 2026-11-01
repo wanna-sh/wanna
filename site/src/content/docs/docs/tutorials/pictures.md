@@ -30,6 +30,7 @@ The model starts by itself the first time, then the picture appears above the pr
 | **Quality** | **Quick**, **Balanced** or **Best**. Better quality takes more steps, so it's slower. |
 | **Pictures** | How many to make at once. |
 | **Start from a picture** | Restyle one of your own pictures. **Prompt strength** sets how far it can move from the original: low keeps it close, high changes more. |
+| **Style** | A style or subject you [trained](/docs/tutorials/train/) on this model. Shows when the chosen model has one. Put its trigger word in your description. |
 
 Under **More settings**:
 
@@ -39,6 +40,7 @@ Under **More settings**:
 | **Steps** | How many refinement steps to run. Leave empty to follow **Quality**. |
 | **Sampler** | How the picture is drawn step by step. **Automatic** works well for most pictures. |
 | **Seed** | The same seed and description give the same picture. Leave it on **Random** for variety. |
+| **How strongly to use** | With a trained **Style** chosen: how strongly it shows, from 10% to 150%. Lower it if every picture copies it too closely. |
 
 ## After it's made
 

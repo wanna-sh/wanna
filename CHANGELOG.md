@@ -2,6 +2,22 @@
 
 Each version's section becomes its GitHub release notes (see `.github/workflows/release.yml`).
 
+## Unreleased
+
+- **Train your own picture style.** The new **Train** page teaches a Stable Diffusion 1.5 or SDXL picture model a
+  subject (a person, a pet, a thing) or a style from 3 to 50 of your pictures, on your own graphics card. Choose
+  what to teach, drop in pictures, name it, and press **Start training**: it suggests a trigger word and the number of
+  steps, estimates how long it will take, and shows sample pictures when it's done. **Use it in Pictures** opens
+  Pictures with it chosen; afterwards pick it under **Style**, with a strength setting under **More settings**.
+- **Trained styles in the API.** `/v1/images/generations` and `/api/generate/image` take `lora` (a trained style's
+  id) and `lora_strength`, and `/api/training` starts, follows and manages training from apps.
+- Training needs one more library, PEFT. The Train page offers to install it if your AI libraries came before this
+  version.
+
+Tested on Windows with an RTX 3060 12 GB: Stable Diffusion 1.5 (400 steps in under 4 minutes, 3.4 GB of graphics
+memory) and SDXL (400 steps in about 13 minutes, 9.8 GB at most). Not yet tested on Linux. Training isn't available on
+Macs yet.
+
 ## 0.6.0 (2026-11-01)
 
 - **Search pictures.** With a search model that can see pictures, such as the new suggestion **Qwen3 VL Embedding 2B**,

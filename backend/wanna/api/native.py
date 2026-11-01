@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
-from .. import addons, catalog, db, gpu, hub, jobs, presets, readiness, samplers, streaming
+from .. import addons, catalog, db, gpu, hub, jobs, presets, readiness, samplers, streaming, training
 from ..config import MODELS_DIR, OUTPUTS_DIR, UPLOADS_DIR, load_settings, save_settings
 from ..downloads import manager as downloads
 from ..engines import llamacpp
@@ -184,6 +184,7 @@ def list_models():
             m["speed"] = readiness.measured_speed(m["id"])
         if m["task"] == "image":
             m["samplers"] = samplers.options_for(m["repo_id"], m["path"])
+            m["styles"] = training.for_model(m)  # trained styles (LoRAs) it can use
         out.append(m)
     return out
 
@@ -317,6 +318,10 @@ async def generate(task: str, params: dict):
         raise HTTPException(400, "Attach an audio file first")
     if task in ("image", "video"):
         params = presets.apply(model, params)
+    try:
+        params = training.apply(model, params) if task == "image" else {**params, "lora_path": None}
+    except training.TrainError as e:
+        raise HTTPException(400, str(e))
     prompt = params.get("prompt") or params.get("text") or ""
     return jobs.submit(task, model, params, prompt).to_dict()
 

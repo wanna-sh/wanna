@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ImagePlus } from "lucide-react";
 import { api, fileUrl, type Generation } from "@/lib/api";
 import { useJob, useModels, usePoll } from "@/lib/hooks";
@@ -53,7 +53,22 @@ export default function ImagePage() {
   const [guidance, setGuidance] = useState("");
   const [sampler, setSampler] = useState("");
   const [panel, setPanel] = useState(false);
+  const [style, setStyle] = useState(""); // a trained style (LoRA) from the Train page
+  const [styleStrength, setStyleStrength] = useState(1);
   const { job, error, busy, start: run } = useJob();
+  // Arriving from Train ("Use it in Pictures", ?style=<id>): pick that style, the model it was trained on, and a prompt.
+  const styleModel = models.find((m) => m.styles?.some((s) => s.id === new URLSearchParams(globalThis.location?.search).get("style")));
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("style");
+    const found = styleModel?.styles?.find((s) => s.id === id);
+    if (!styleModel || !found) return;
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setModel(styleModel.id);
+    setStyle(found.id);
+    setPrompt((p) => p || found.prompt);
+    /* eslint-enable react-hooks/set-state-in-effect */
+    window.history.replaceState(null, "", window.location.pathname);
+  }, [styleModel, setModel]);
   const gallery = usePoll<Generation[]>("/api/gallery?kind=image&limit=40");
 
   if (loaded && !models.length) {
@@ -66,6 +81,8 @@ export default function ImagePage() {
   }
 
   const base = current?.defaults.width ?? 512;
+  const styles = current?.styles ?? [];
+  const chosenStyle = styles.find((s) => s.id === style);
   const samplerChoices = current?.samplers?.samplers ?? [];
   const autoSampler = samplerChoices.find((s) => s.id === current?.samplers?.default);
   const names = new Map(models.map((m) => [m.id, modelName(m)]));
@@ -89,6 +106,8 @@ export default function ImagePage() {
         steps: steps ? Number(steps) : undefined,
         guidance: guidance ? Number(guidance) : undefined,
         sampler: sampler && samplerChoices.some((s) => s.id === sampler) ? sampler : undefined,
+        lora: chosenStyle?.id,
+        lora_strength: chosenStyle ? styleStrength : undefined,
       },
       () => gallery.refresh(),
     );
@@ -176,6 +195,17 @@ export default function ImagePage() {
                       { value: "best", label: "Best", hint: "More steps, takes longer" },
                     ]}
                   />
+                  {styles.length > 0 && (
+                    <OptionChip
+                      label="Style"
+                      value={chosenStyle?.id ?? ""}
+                      onChange={setStyle}
+                      options={[
+                        { value: "", label: "None", hint: "The model as it is" },
+                        ...styles.map((s) => ({ value: s.id, label: s.name, hint: `Trained: say "${s.trigger}" in your description` })),
+                      ]}
+                    />
+                  )}
                   <OptionChip
                     label="Pictures"
                     value={count}
@@ -207,6 +237,22 @@ export default function ImagePage() {
               step={0.05}
               value={strength}
               onChange={(e) => setStrength(Number(e.target.value))}
+              className="w-full accent-[var(--ink)]"
+            />
+          </Field>
+        )}
+        {chosenStyle && (
+          <Field
+            label={`How strongly to use ${chosenStyle.name}: ${Math.round(styleStrength * 100)}%`}
+            hint={`Lower it if every picture copies it too closely. Say "${chosenStyle.trigger}" in your description to call it up.`}
+          >
+            <input
+              type="range"
+              min={0.1}
+              max={1.5}
+              step={0.05}
+              value={styleStrength}
+              onChange={(e) => setStyleStrength(Number(e.target.value))}
               className="w-full accent-[var(--ink)]"
             />
           </Field>

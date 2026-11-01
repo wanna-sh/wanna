@@ -66,6 +66,31 @@ Files go in by id, never by path: upload them first with `POST /api/uploads` (mu
 | `GET /api/downloads` | Download progress. |
 | `DELETE /api/downloads/{id}` | Cancel one. |
 
+## Training
+
+[Training your own picture style](/docs/tutorials/train/) from apps:
+
+| Endpoint | What it does |
+| --- | --- |
+| `GET /api/training` | Whether this computer can train (`ready`), the picture models it can train (`models`, with a time estimate per step), and every run (`runs`). |
+| `POST /api/training` | Start training. Multipart form: `model`, `preset` (`subject` or `style`), `trigger`, `what` (for subjects, such as `dog`), `name`, optional `steps`, and 3 to 50 `files`. |
+| `GET /api/training/{id}` | One run: its `status` (`stage` is `preparing`, `training`, `saving`, `samples`, `done`, `stopped`, `interrupted` or `error`, with `step`, `steps` and `seconds_left` while training), `samples` and an example `prompt`. |
+| `PATCH /api/training/{id}` | Rename it: `{"name": "..."}`. |
+| `POST /api/training/{id}/stop` | Stop it after the current step. |
+| `POST /api/training/{id}/restart` | Train it again from the start, with the same pictures. |
+| `DELETE /api/training/{id}` | Delete it, with its pictures and trained style. |
+| `GET /api/training/{id}/samples/{n}.png` | A sample picture made with it. |
+
+```bash
+curl http://localhost:7860/api/training \
+  -F model=stable-diffusion-v1-5 -F preset=subject \
+  -F trigger=rexzx -F what=dog -F name=Rex \
+  -F files=@rex1.jpg -F files=@rex2.jpg -F files=@rex3.jpg
+```
+
+To use the result, pass `"lora": "<id>"` when making a picture, with [the pictures API](/docs/api/images/#trained-styles)
+or with `POST /api/generate/image`.
+
 ## System and settings
 
 | Endpoint | What it does |

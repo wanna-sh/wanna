@@ -46,6 +46,29 @@ result = client.images.generate(
 )
 ```
 
+### Trained styles
+
+Use a style you [trained](/docs/tutorials/train/) with these two extra fields:
+
+| Field | Notes |
+| --- | --- |
+| `lora` | The trained style's id. |
+| `lora_strength` | How strongly to use it, from 0 to 1.5. Default 1. |
+
+A trained style only works with the picture model it was trained on, so pass that model as `model` too. Each picture
+model in `GET /api/models` lists the finished styles it can use under `styles`, with their `id`, `name`, `trigger`
+word and an example `prompt`. `GET /api/training` lists every run. Put the trigger word in your prompt:
+
+```python
+result = client.images.generate(
+    model="stable-diffusion-v1-5",
+    prompt="a photo of rexzx dog wearing a party hat",
+    extra_body={"lora": "c43f7898e4b8", "lora_strength": 0.8},
+)
+```
+
+An unknown id, an unfinished run, or a style trained on a different model returns a 400 error.
+
 ## Restyle a picture
 
 ```http

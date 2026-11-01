@@ -38,6 +38,9 @@ a second, and a 3B model at about 60.
 You don't have to work any of this out yourself: [Get models](/docs/guides/models/) rates each model for your
 computer.
 
+[Training your own picture style](/docs/tutorials/train/) needs an NVIDIA graphics card: 6 GB for Stable Diffusion
+1.5, 12 GB for SDXL.
+
 Keep your NVIDIA driver up to date. After installing, the [system check](/docs/reference/troubleshooting/#the-system-check)
 in **Settings** tells you whether the AI libraries can use your graphics card.
 

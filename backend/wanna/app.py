@@ -17,8 +17,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from . import training
 from .downloads import manager as downloads
-from .api import code, knowledge, native, openai, tools, web
+from .api import code, knowledge, native, openai, tools, train, web
 from .config import DOCKER_NETWORK, OUTPUTS_DIR
 from .workers.manager import manager
 
@@ -33,7 +34,9 @@ async def lifespan(app: FastAPI):
     from .knowledge import index as knowledge_index
 
     knowledge_index.resume()
+    training.stop_leftovers()
     yield
+    training.shutdown()
     manager.unload_all()
 
 
@@ -171,6 +174,7 @@ app.include_router(knowledge.router)
 app.include_router(code.router)
 app.include_router(web.router)
 app.include_router(tools.router)
+app.include_router(train.router)
 app.mount("/files", StaticFiles(directory=OUTPUTS_DIR), name="files")
 
 

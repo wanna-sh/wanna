@@ -12,7 +12,7 @@ import httpx
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse, Response, StreamingResponse
 
-from .. import db, jobs, presets
+from .. import db, jobs, presets, training
 from ..config import OUTPUTS_DIR, UPLOADS_DIR
 from ..workers.manager import LoadError, ModelNotFound, manager
 from . import tool_loop
@@ -209,6 +209,10 @@ async def images_generations(request: Request):
         "quality": {"low": "fast", "medium": "balanced", "high": "best", "hd": "best", "standard": "balanced"}
         .get(body.get("quality") or "", body.get("quality")),
     })
+    try:  # a trained style: {"lora": "<id from /api/training>", "lora_strength": 0.8}
+        params = training.apply(model, {**params, "lora": body.get("lora"), "lora_strength": body.get("lora_strength")})
+    except training.TrainError as e:
+        raise _err(400, str(e))
     job = await jobs.run_now("image", model, params, body["prompt"])
     return _image_payload(request, job, body.get("response_format"))
 
