@@ -40,6 +40,8 @@ DEFAULT_SETTINGS = {
     "brave_api_key": "",
     # When true, /v1 and /api require a valid API key (except from the bundled UI on localhost).
     "require_api_key": False,
+    # Extra host names wanna.sh answers to (for example "mypc.local"), on top of WANNA_ALLOWED_HOSTS.
+    "allowed_hosts": [],
     # Unload a model automatically after this many idle minutes. 0 disables.
     "idle_unload_minutes": 0,
     # Default context length for chat models.

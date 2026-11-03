@@ -121,8 +121,8 @@ own login in front of `127.0.0.1:7860`, rather than publishing the port on your 
 [Share on your network](/docs/guides/network/#behind-a-reverse-proxy).
 
 Other containers can use wanna.sh by its container name, for example `http://wanna:7860/v1` from an app on the same
-Docker network. To use other names or browser-based apps, set `WANNA_ALLOWED_HOSTS` or `WANNA_CORS` under
-`environment:` in `docker-compose.yml`; see [Security](/docs/reference/security/#protection-from-websites).
+Docker network. To use other names, add them under **Settings > Security > Allowed host names** or set `WANNA_ALLOWED_HOSTS`.
+For browser-based apps, set `WANNA_CORS` under `environment:` in `docker-compose.yml`; see [Security](/docs/reference/security/#protection-from-websites).
 
 ## Turning on Code
 

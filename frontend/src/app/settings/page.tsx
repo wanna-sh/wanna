@@ -13,6 +13,8 @@ interface Settings {
   brave_api_key: string;
   brave_api_key_set: boolean;
   require_api_key: boolean;
+  allowed_hosts: string[];
+  allowed_hosts_env: string[];
   idle_unload_minutes: number;
   default_context: number;
   stream_from_drive: boolean;
@@ -178,6 +180,12 @@ export default function SettingsPage() {
                 </span>
               </span>
             </label>
+            <AllowedHosts
+              key={s.allowed_hosts.join(",")}
+              saved={s.allowed_hosts}
+              fromEnv={s.allowed_hosts_env}
+              onSave={(hosts) => save({ allowed_hosts: hosts })}
+            />
           </Panel>
 
           {sys && (
@@ -262,6 +270,58 @@ function BigModels({ on, onChange }: { on: boolean; onChange: (v: boolean) => vo
         )}
       </div>
     </Panel>
+  );
+}
+
+/** Host names with a dot in them (mypc.local, a reverse proxy's domain) that wanna.sh answers to. */
+function AllowedHosts({
+  saved,
+  fromEnv,
+  onSave,
+}: {
+  saved: string[];
+  fromEnv: string[];
+  onSave: (hosts: string[]) => void;
+}) {
+  const [draft, setDraft] = useState(saved.join(", ")); // the parent remounts this (key) when the saved list changes
+  const hosts = draft
+    .split(",")
+    .map((h) => h.trim())
+    .filter(Boolean);
+  const changed = hosts.join(",").toLowerCase() !== saved.join(",");
+  return (
+    <div className="mt-5 text-[15px]">
+      <span className="font-medium">Allowed host names</span>
+      <span className="block text-slate mb-2">
+        Names with a dot in them that you open wanna.sh by, such as mypc.local or a reverse proxy&apos;s domain.
+        Separate several with commas. localhost, IP addresses and single-word names always work.
+      </span>
+      <form
+        className="flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSave(hosts);
+        }}
+      >
+        <input
+          className={inputClass}
+          autoComplete="off"
+          spellCheck={false}
+          placeholder="mypc.local, wanna.example.com"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          aria-label="Allowed host names"
+        />
+        <Button type="submit" disabled={!changed}>
+          Save
+        </Button>
+      </form>
+      {fromEnv.length > 0 && (
+        <span className="block text-slate text-[14px] mt-2">
+          Also allowed by WANNA_ALLOWED_HOSTS: {fromEnv.join(", ")}
+        </span>
+      )}
+    </div>
   );
 }
 

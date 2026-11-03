@@ -23,7 +23,7 @@ from .downloads import manager as downloads
 from .api import agents as agents_api
 from .api import code, knowledge, native, openai, tools, train, web
 from .api import tasks as tasks_api
-from .config import DOCKER_NETWORK, OUTPUTS_DIR
+from .config import DOCKER_NETWORK, OUTPUTS_DIR, SETTINGS_PATH, load_settings
 from .workers.manager import manager
 
 log = logging.getLogger("wanna")
@@ -62,7 +62,7 @@ app = FastAPI(
 #   don't send Origin, so they're unaffected.
 # - Host: a malicious site can point its own domain name at 127.0.0.1 ("DNS rebinding") to look like the same
 #   site. Only localhost, IP addresses, single-word names (like a Docker container name) and names listed in
-#   WANNA_ALLOWED_HOSTS are accepted.
+#   WANNA_ALLOWED_HOSTS or under Allowed host names in Settings are accepted.
 
 def _env_list(name: str) -> list[str]:
     return [v.strip() for v in os.environ.get(name, "").split(",") if v.strip()]
@@ -70,6 +70,21 @@ def _env_list(name: str) -> list[str]:
 
 CORS_ORIGINS = [o.rstrip("/") for o in _env_list("WANNA_CORS")]
 ALLOWED_HOSTS = {h.lower() for h in _env_list("WANNA_ALLOWED_HOSTS")}
+
+# Names saved in Settings. Every request checks them, so settings.json is only read again when it changes.
+_settings_hosts: tuple[int, set[str]] = (-1, set())
+
+
+def _saved_hosts() -> set[str]:
+    global _settings_hosts
+    try:
+        mtime = SETTINGS_PATH.stat().st_mtime_ns
+    except OSError:
+        return set()
+    if mtime != _settings_hosts[0]:
+        hosts = load_settings().get("allowed_hosts") or []
+        _settings_hosts = (mtime, {str(h).lower() for h in hosts if isinstance(h, str)})
+    return _settings_hosts[1]
 
 
 def _hostname(netloc: str) -> str:
@@ -87,7 +102,7 @@ def _host_allowed(host: str) -> bool:
         ipaddress.ip_address(host)
         return True
     except ValueError:
-        return False
+        return host in _saved_hosts()
 
 
 def _origin_allowed(origin: str, host_header: str) -> bool:
@@ -112,7 +127,7 @@ async def browser_protection(request: Request, call_next):
     host_header = request.headers.get("host", "")
     if not _host_allowed(_hostname(host_header)):
         msg = (f"wanna.sh doesn't answer to the name '{_hostname(host_header)}'. If you use that name on purpose, add it "
-               "to WANNA_ALLOWED_HOSTS.")
+               "under Allowed host names in Settings (open wanna.sh at http://localhost:7860) or to WANNA_ALLOWED_HOSTS.")
         return JSONResponse({"detail": msg, "error": {"message": msg, "type": "forbidden"}}, status_code=403)
     origin = request.headers.get("origin")
     if origin is not None and not _origin_allowed(origin, host_header):

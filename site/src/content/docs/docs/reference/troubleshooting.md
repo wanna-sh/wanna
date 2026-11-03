@@ -57,7 +57,8 @@ visit. If it's your own web app, add its origin to `WANNA_CORS`. See
 ### "wanna.sh doesn't answer to the name ..."
 
 You opened wanna.sh with a host name it doesn't know, such as `mypc.local` or a domain behind a reverse proxy. Add the
-name to `WANNA_ALLOWED_HOSTS`, or use `localhost` or the computer's IP address.
+name under **Settings > Security > Allowed host names** (open Settings at `http://localhost:7860` or the computer's IP
+address, which always work), or to `WANNA_ALLOWED_HOSTS`.
 
 ### Port 7860 is already in use
 

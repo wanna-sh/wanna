@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import uuid
@@ -380,6 +381,8 @@ def _public_settings(s: dict) -> dict:
     brave = s.get("brave_api_key") or ""
     s["brave_api_key"] = (brave[:4] + "…" + brave[-4:]) if brave else ""
     s["brave_api_key_set"] = bool(brave)
+    env_hosts = os.environ.get("WANNA_ALLOWED_HOSTS", "")
+    s["allowed_hosts_env"] = [h.strip().lower() for h in env_hosts.split(",") if h.strip()]
     return s
 
 
@@ -388,11 +391,38 @@ def get_settings():
     return _public_settings(load_settings())
 
 
+HOST_NAME = re.compile(r"^(?=.{1,253}$)[a-z0-9_]([a-z0-9_-]{0,62})(\.[a-z0-9_]([a-z0-9_-]{0,62}))*$")
+
+
+def _allowed_hosts(value) -> list[str]:
+    """A list or comma-separated text of host names -> clean, unique names. '*' only works as WANNA_ALLOWED_HOSTS."""
+    items = value.split(",") if isinstance(value, str) else value
+    if not isinstance(items, list):
+        raise HTTPException(400, "Allowed host names must be a list.")
+    hosts: list[str] = []
+    for item in items:
+        h = str(item).strip().lower()
+        h = h.split("://", 1)[-1].split("/", 1)[0]  # pasted a web address
+        if ":" in h and h.count(":") == 1:
+            h = h.split(":", 1)[0]  # the port doesn't matter
+        if not h:
+            continue
+        if h == "*":
+            raise HTTPException(400, "'*' turns the host check off, so it can only be set with WANNA_ALLOWED_HOSTS.")
+        if not HOST_NAME.match(h):
+            raise HTTPException(400, f"'{h}' isn't a host name. Use a name such as mypc.local or wanna.example.com.")
+        if h not in hosts:
+            hosts.append(h)
+    return hosts
+
+
 @router.put("/settings")
 def put_settings(patch: dict):
     for k in ("hf_token", "brave_api_key"):
         if k in patch and "…" in (patch[k] or ""):
             patch.pop(k)  # unchanged masked value
+    if "allowed_hosts" in patch:
+        patch["allowed_hosts"] = _allowed_hosts(patch["allowed_hosts"])
     s = save_settings(patch)
     hub._model_info.cache_clear()
     return _public_settings(s)

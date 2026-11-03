@@ -48,7 +48,7 @@ requests. wanna.sh refuses them with three checks:
 | --- | --- |
 | **Origin** | Browsers label requests made by a web page with the page's address (its *origin*). wanna.sh refuses requests from any origin other than its own. This includes plain form posts, which browsers send without asking first. |
 | **CORS** | Even if a request got through, other sites can't read wanna.sh's replies. No other origin is allowed by default. |
-| **Host** | A malicious site can point its own domain name at `127.0.0.1` ("DNS rebinding") to look like wanna.sh itself. wanna.sh only answers to `localhost`, IP addresses, single-word names (such as a Docker container name) and names you list in `WANNA_ALLOWED_HOSTS`. |
+| **Host** | A malicious site can point its own domain name at `127.0.0.1` ("DNS rebinding") to look like wanna.sh itself. wanna.sh only answers to `localhost`, IP addresses, single-word names (such as a Docker container name) and names you list under **Allowed host names** in Settings or in `WANNA_ALLOWED_HOSTS`. |
 
 Apps, scripts and SDKs (Python, JavaScript on a server, curl) don't send an origin, so these checks don't affect them.
 
@@ -57,13 +57,15 @@ You only need to change anything if:
 - **A web app in your browser calls the wanna.sh API directly** (not through its own server). Add its origin to
   `WANNA_CORS`, for example `WANNA_CORS=https://chat.example.com`. Several are separated by commas.
 - **You reach wanna.sh by a name with a dot in it**, such as `mypc.local` or `wanna.example.com` behind a reverse proxy.
-  Add it to `WANNA_ALLOWED_HOSTS`, for example `WANNA_ALLOWED_HOSTS=mypc.local`.
+  Add it under **Settings > Security > Allowed host names**, or to `WANNA_ALLOWED_HOSTS`, for example
+  `WANNA_ALLOWED_HOSTS=mypc.local`. Names from both places are allowed.
 
 Blocked requests get a `403` saying which setting to change.
 
 :::caution
 `WANNA_CORS=*` and `WANNA_ALLOWED_HOSTS=*` switch these protections off. Only use them if something else (such as a
-reverse proxy with its own login) stands between wanna.sh and the web.
+reverse proxy with its own login) stands between wanna.sh and the web. `*` can't be saved in Settings, only set this
+way.
 :::
 
 ## The model engines
@@ -174,7 +176,7 @@ Models are downloaded from Hugging Face, and anyone can publish one, so wanna.sh
 | `--host` | `127.0.0.1` | Who can connect. |
 | **Require API key** (Settings) | Off | Require a key for the API. |
 | `WANNA_CORS` | none | Web origins allowed to call the API from a browser. |
-| `WANNA_ALLOWED_HOSTS` | none | Extra host names wanna.sh answers to. |
+| **Allowed host names** (Settings) or `WANNA_ALLOWED_HOSTS` | none | Extra host names wanna.sh answers to. |
 | **Approval** (per Code project) | Ask before commands | What the agent can do without asking. |
 | `docker-compose.code.yml` | Not used | Turns on Code in Docker by giving wanna.sh the Docker socket. |
 
