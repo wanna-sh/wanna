@@ -1,16 +1,27 @@
 """Picture models that run on stable-diffusion.cpp (engines/sdcpp.py), by family.
 
 These come as loose files rather than diffusers folders: the diffusion model (usually a GGUF, in several sizes), a text
-encoder and a VAE. Some uploads carry all three; most carry only the diffusion model and expect the others from the
-original release. A family says how to recognise its uploads, which companion files it needs and where to get them when
-an upload doesn't have them, whether it edits pictures, and the settings it's made for.
+encoder and a VAE, and for editing with a GGUF text encoder, its vision projector. Some uploads carry all of them; most
+carry only the diffusion model and expect the rest from the original release.
 
-Only families run end to end with wanna.sh belong here. Companion files were checked to exist on 2026-11-03.
+What each file is, wanna.sh reads from the file itself, never from its name: a GGUF's header says its architecture
+(general.architecture: "qwen_image21" for a Qwen-Image 2.1 diffusion model, "qwen3vl" for its text encoder, "clip" for a
+vision projector), and a safetensors header lists its tensors (a VAE's encoder and decoder; a text encoder's layers,
+its hidden size, and whether it carries its own vision part). Only the first few kilobytes are fetched. Names are a
+fallback for when a header can't be read.
+
+A family says which diffusion architecture is its own, which text encoder fits it, where to get the parts an upload
+lacks, whether it edits, and the settings it's made for. Only families run end to end with wanna.sh belong here.
+Companion files were checked to exist, and their headers read, on 2026-11-03.
 """
 
 from __future__ import annotations
 
+import json
 import re
+import struct
+from concurrent.futures import ThreadPoolExecutor
+from functools import lru_cache
 
 from . import hub
 
@@ -20,38 +31,44 @@ SEP = "::"
 QWEN_IMAGE_VAE = "Comfy-Org/Qwen-Image::split_files/vae/qwen_image_vae.safetensors"
 QWEN25_VL = "mradermacher/Qwen2.5-VL-7B-Instruct-GGUF::Qwen2.5-VL-7B-Instruct.Q8_0.gguf"
 QWEN25_VL_VISION = "mradermacher/Qwen2.5-VL-7B-Instruct-GGUF::Qwen2.5-VL-7B-Instruct.mmproj-Q8_0.gguf"
+EDIT_NAME = re.compile(r"edit", re.I)
 
 FAMILIES = [
     {
         # Qwen-Image 2.1 makes pictures from a description and edits pictures you give it.
         "id": "qwen_image_2_1", "label": "Qwen-Image 2.1",
-        "match": re.compile(r"qwen[-_ ]?image[-_ ]?2\.1", re.I),
+        "arch": "qwen_image21",
+        "match": re.compile(r"qwen[-_ ]?image[-_ ]?2\.1", re.I),  # fallback, when no header can be read
         "makes": True, "edits": True,
         # "Up to 10 reference images" (Qwen's model card): people, products and scenes combined in one picture.
         "max_images": 10,
-        "llm": {"pattern": re.compile(r"qwen3[-_ ]?vl", re.I),
+        # Qwen3-VL-8B: "qwen3vl" in a GGUF; hidden size 4096 in a safetensors file.
+        "llm": {"arch": "qwen3vl", "hidden": 4096, "pattern": re.compile(r"qwen3[-_ ]?vl", re.I),
                 "companion": "Comfy-Org/Qwen-Image-2.1::text_encoders/qwen3vl_8b_int8_convrot.safetensors"},
-        # Editing needs the text encoder's vision part. Safetensors text encoders include it; a GGUF one needs its
-        # projector beside it (stable-diffusion.cpp docs/qwen_image_2.1.md), from the upload or from Qwen's release.
-        "vision": {"pattern": re.compile(r"mmproj", re.I),
-                   "companion": "Qwen/Qwen3-VL-8B-Instruct-GGUF::mmproj-Qwen3VL-8B-Instruct-F16.gguf"},
-        "vae": {"pattern": re.compile(r"vae", re.I),
-                "companion": "Comfy-Org/Qwen-Image-2.1::vae/qwen_image_2.1_vae_bf16.safetensors"},
+        # For editing with a GGUF text encoder (stable-diffusion.cpp docs/qwen_image_2.1.md). The safetensors companion
+        # above carries its own vision part, so this is only fetched to go with a GGUF one.
+        "vision": {"companion": "Qwen/Qwen3-VL-8B-Instruct-GGUF::mmproj-Qwen3VL-8B-Instruct-F16.gguf"},
+        # Qwen-Image 2.1's own VAE: the earlier Qwen-Image one doesn't fit it (stable-diffusion.cpp's docs).
+        "vae": {"companion": "Comfy-Org/Qwen-Image-2.1::vae/qwen_image_2.1_vae_bf16.safetensors"},
         # 40 steps as in Qwen's model card; guidance 6 as stable-diffusion.cpp's tested examples. Sides divisible by 32.
         "defaults": {"steps": 40, "guidance": 6.0, "width": 1024, "height": 1024},
         "sample_method": "euler", "flow_shift": None, "model_args": None,
     },
     {
-        # Qwen-Image-Edit, -2509 and -2511 only edit: they need a picture to start from.
+        # Qwen-Image-Edit, -2509 and -2511 only edit: they need a picture to start from. Their diffusion model has the
+        # same architecture as Qwen-Image's ("qwen_image"), so the name (or base model) must say Edit too.
         "id": "qwen_image_edit", "label": "Qwen-Image-Edit",
+        "arch": "qwen_image", "name_must": EDIT_NAME,
         "match": re.compile(r"qwen[-_ ]?image[-_ ]?edit", re.I),
         "makes": False, "edits": True,
         # 2509 added several pictures at once ("person + person", "person + scene"; best with 1 to 3, says Qwen's
         # model card) and pose maps; 2511 kept it. The original takes one picture.
         "max_images": lambda repo: 3 if re.search(r"25(09|11)", repo) else 1,
-        "llm": {"pattern": re.compile(r"qwen2\.?5[-_ ]?vl", re.I), "companion": QWEN25_VL},
-        "vision": {"pattern": re.compile(r"mmproj", re.I), "companion": QWEN25_VL_VISION},
-        "vae": {"pattern": re.compile(r"vae", re.I), "companion": QWEN_IMAGE_VAE},
+        # Qwen2.5-VL-7B: "qwen2vl" in a GGUF; hidden size 3584 in a safetensors file.
+        "llm": {"arch": "qwen2vl", "hidden": 3584, "pattern": re.compile(r"qwen2\.?5[-_ ]?vl", re.I),
+                "companion": QWEN25_VL},
+        "vision": {"companion": QWEN25_VL_VISION},
+        "vae": {"companion": QWEN_IMAGE_VAE},
         "defaults": {"steps": 40, "guidance": 2.5, "width": 1024, "height": 1024},
         "sample_method": "euler", "flow_shift": 3.0,
         # 2511 edits much worse without this (stable-diffusion.cpp docs/qwen_image_edit.md).
@@ -59,80 +76,219 @@ FAMILIES = [
     },
 ]
 
-# Uploads in these formats can't run on stable-diffusion.cpp on a PC (Apple's MLX) or need the newest cards (NVFP4).
+# GGUF architectures that are a text encoder or vision projector, not a picture model. Hugging Face reports one
+# architecture per repo, which may be one of these when an upload carries its text encoder too.
+_NOT_DIFFUSION = {"clip"} | {f["llm"]["arch"] for f in FAMILIES}
+# Uploads in these formats can't run on stable-diffusion.cpp on a PC (Apple's MLX) or need the newest cards (NVFP4);
+# LoRAs, ControlNets and Turbo variants (made for other settings) aren't whole models wanna.sh can run as they are.
 _SKIP_FILE = re.compile(r"(mlx|nvfp4|lora|controlnet|turbo|model_patches/)", re.I)
-# A vision projector is named after its language model too ("Qwen2.5-VL-7B-Instruct-mmproj-BF16.gguf").
-_PROJECTOR = re.compile(r"mmproj", re.I)
 
 
-def family(repo_id: str, tags=()) -> dict | None:
-    """The family of an upload, from its name or the model it was made from (its base_model tags)."""
+# --- what a file is, from its header ------------------------------------------------------------------------------
+
+def _range(repo: str, path: str, start: int, end: int) -> bytes:
+    import httpx
+    from huggingface_hub import hf_hub_url
+
+    from .config import hf_token
+
+    headers = {"Range": f"bytes={start}-{end}"}
+    if hf_token():
+        headers["Authorization"] = f"Bearer {hf_token()}"
+    r = httpx.get(hf_hub_url(repo, path), headers=headers, follow_redirects=True, timeout=15)
+    r.raise_for_status()
+    return r.content
+
+
+def _gguf_arch(data: bytes) -> str | None:
+    """general.architecture from the start of a GGUF file (it's the first key in every file wanna.sh has seen; a few
+    more are read in case it isn't)."""
+    if data[:4] != b"GGUF":
+        return None
+    off, kv_count = 24, struct.unpack_from("<Q", data, 16)[0]
+    fixed = {0: 1, 1: 1, 2: 2, 3: 2, 4: 4, 5: 4, 6: 4, 7: 1, 10: 8, 11: 8, 12: 8}  # GGUF value types -> byte sizes
+    try:
+        for _ in range(min(kv_count, 16)):
+            n = struct.unpack_from("<Q", data, off)[0]
+            key = data[off + 8: off + 8 + n].decode()
+            off += 8 + n
+            vtype = struct.unpack_from("<I", data, off)[0]
+            off += 4
+            if vtype == 8:  # string
+                n = struct.unpack_from("<Q", data, off)[0]
+                value = data[off + 8: off + 8 + n].decode()
+                off += 8 + n
+                if key == "general.architecture":
+                    return value
+            elif vtype in fixed:
+                off += fixed[vtype]
+            else:
+                return None  # an array before the architecture: give up rather than parse it all
+    except (struct.error, UnicodeDecodeError):
+        return None
+    return None
+
+
+@lru_cache(maxsize=1024)
+def inspect(repo: str, path: str) -> dict | None:
+    """What a model file is, read from its header: {"role": "diffusion" | "llm" | "vision" | "vae", ...} with "arch"
+    (GGUF), "hidden" (a text encoder's hidden size) and "vision" (a safetensors text encoder with its vision part).
+    None if it can't be read."""
+    try:
+        if path.endswith(".gguf"):
+            arch = _gguf_arch(_range(repo, path, 0, 65535))
+            if not arch:
+                return None
+            role = "vision" if arch == "clip" else "llm" if arch in _NOT_DIFFUSION else "diffusion"
+            return {"role": role, "arch": arch}
+        if path.endswith(".safetensors"):
+            n = struct.unpack("<Q", _range(repo, path, 0, 7))[0]
+            if n > 32 << 20:
+                return None
+            header = json.loads(_range(repo, path, 8, 7 + n))
+            header.pop("__metadata__", None)
+            names = list(header)
+            if any(k.startswith(("decoder.", "encoder.")) for k in names) and \
+                    not any(".layers." in k for k in names):
+                return {"role": "vae"}
+            emb = next((v for k, v in header.items() if k.endswith("embed_tokens.weight")), None)
+            if emb:
+                return {"role": "llm", "hidden": emb["shape"][-1],
+                        "vision": any(k.startswith("visual.") or ".visual." in k for k in names)}
+            if any(k.startswith("transformer_blocks.") for k in names):
+                return {"role": "diffusion", "arch": None}
+    except Exception:
+        return None
+    return None
+
+
+def _guess(path: str, fam: dict) -> dict:
+    """What a file is from its name, when its header can't be read."""
+    if re.search(r"mmproj", path, re.I):
+        return {"role": "vision"}
+    if re.search(r"vae", path, re.I):
+        return {"role": "vae"}
+    if fam["llm"]["pattern"].search(path):
+        llm = {"role": "llm", "arch": fam["llm"]["arch"], "hidden": fam["llm"]["hidden"]}
+        # By name alone, a safetensors text encoder from Comfy-Org (the usual source) carries its vision part.
+        return {**llm, "vision": path.endswith(".safetensors")}
+    return {"role": "diffusion", "arch": fam["arch"]} if path.endswith(".gguf") else {"role": None}
+
+
+def _candidates(files: list[dict]) -> list[dict]:
+    return [f for f in files if f["path"].endswith((".gguf", ".safetensors")) and not _SKIP_FILE.search(f["path"])
+            and not hub.NOT_A_MODEL_RE.search(f["path"])]
+
+
+def _roles(repo: str, files: list[dict], fam: dict, read_headers: bool = True) -> dict[str, dict]:
+    """What each model file in an upload is. Versions of one file that differ only in size (Q4_K_M, Q8_0...) are
+    the same thing, so one header is read for each group. Without read_headers, names decide (for lists)."""
+    groups: dict[tuple, list[str]] = {}
+    for f in _candidates(files):
+        folder, _, name = f["path"].rpartition("/")
+        key = (folder, hub.QUANT_RE.sub("", name.rsplit(".", 1)[0]).lower(), name.rsplit(".", 1)[-1])
+        groups.setdefault(key, []).append(f["path"])
+    reps = [paths[0] for paths in groups.values()]
+    found: dict[str, dict | None] = dict.fromkeys(reps)
+    if read_headers:
+        with ThreadPoolExecutor(6) as ex:
+            found = dict(zip(reps, ex.map(lambda p: inspect(repo, p), reps)))
+    out = {}
+    for paths in groups.values():
+        info = found[paths[0]] or _guess(paths[0], fam)
+        for p in paths:
+            out[p] = info
+    return out
+
+
+# --- families ------------------------------------------------------------------------------------------------------
+
+def _names(repo_id: str, tags) -> list[str]:
+    return [repo_id] + [t.rsplit(":", 1)[-1] for t in tags or () if t.startswith("base_model:")]
+
+
+def family(repo_id: str, tags=(), arch: str | None = None) -> dict | None:
+    """The family of an upload. `arch` is its diffusion model's GGUF architecture as Hugging Face reports it; with it
+    the name only has to tell Qwen-Image-Edit from Qwen-Image (they share an architecture). Without it (or when the
+    reported architecture is the upload's text encoder), the name or base model decides."""
+    names = _names(repo_id, tags)
+    if arch and arch not in _NOT_DIFFUSION:
+        for fam in FAMILIES:
+            if fam["arch"] == arch and (not fam.get("name_must") or any(fam["name_must"].search(n) for n in names)):
+                return fam
+        return None
     # The upload's own name decides first; failing that, a base_model tag ("base_model:quantized:Qwen/Qwen-Image-2.1").
-    bases = [t.rsplit(":", 1)[-1] for t in tags or () if t.startswith("base_model:")]
-    for names in ([repo_id], bases):
-        fam = next((f for f in FAMILIES if any(f["match"].search(n) for n in names)), None)
+    for group in ([repo_id], names[1:]):
+        fam = next((f for f in FAMILIES if any(f["match"].search(n) for n in group)), None)
         if fam:
             return fam
     return None
 
 
-def is_sdcpp_repo(repo_id: str, tags, siblings: list[str]) -> bool:
-    """A picture upload of a known family in loose files (no diffusers folder) with at least one GGUF diffusion model."""
-    if "model_index.json" in siblings or family(repo_id, tags) is None:
+def is_sdcpp_repo(repo_id: str, tags, siblings: list[str], arch: str | None = None) -> bool:
+    """A picture upload of a known family in loose files (no diffusers folder) with at least one GGUF. Cheap: for
+    lists of models. Which files are which is read from their headers when the upload is opened (variants)."""
+    if "model_index.json" in siblings or family(repo_id, tags, arch) is None:
         return False
-    return any(_is_diffusion(f, family(repo_id, tags)) for f in siblings)
+    return any(f.endswith(".gguf") and not _SKIP_FILE.search(f) for f in siblings)
 
 
-def _is_diffusion(path: str, fam: dict) -> bool:
-    if not path.endswith(".gguf") or _SKIP_FILE.search(path) or hub.NOT_A_MODEL_RE.search(path):
-        return False
-    return not any(fam[k] and fam[k]["pattern"].search(path) for k in ("llm", "vision", "vae"))
+def _rank(f: dict):
+    """8-bit if there is one (good quality, half the size), else full precision, else the smallest."""
+    name = f["path"].lower()
+    eight = any(k in name for k in ("int8", "q8_0", "q8"))
+    full = any(k in name for k in ("bf16", "f16", "fp16", "f32"))
+    return 0 if eight else 1 if full else 2, f["size"]
 
 
-def _pick(files: list[dict], spec: dict | None, ext=(".safetensors", ".gguf")) -> dict | None:
-    """The best in-repo file for a companion part: 8-bit if there is one (good quality, half the size), else the
-    smallest of at least 8 bits, else the smallest."""
-    if not spec:
-        return None
-    cands = [f for f in files if f["path"].endswith(ext) and spec["pattern"].search(f["path"])
-             and not _SKIP_FILE.search(f["path"])]
-    if not cands:
-        return None
-
-    def rank(f):
-        name = f["path"].lower()
-        eight = any(k in name for k in ("int8", "q8_0", "q8"))
-        full = any(k in name for k in ("bf16", "f16", "fp16", "f32"))
-        return (0 if eight else 1 if full else 2, f["size"])
-
-    return sorted(cands, key=rank)[0]
-
-
-def variants(repo_id: str, tags, files: list[dict], companion_size) -> list[dict]:
-    """Download choices for an upload: one per diffusion model size, each with the text encoder, VAE and (for editing
-    with a GGUF text encoder) vision projector it needs. `companion_size(ref)` gives the size of a "repo::path" file."""
-    fam = family(repo_id, tags)
+def variants(repo_id: str, tags, files: list[dict], companion_size, arch: str | None = None,
+             read_headers: bool = True) -> list[dict]:
+    """Download choices for an upload: one per diffusion model size, each with the text encoder, VAE and vision
+    projector it needs. The upload's own files are used when they fit the family (read from their headers); the rest
+    come from the original release. `companion_size(ref)` gives the size of a "repo::path" file."""
+    fam = family(repo_id, tags, arch)
     if fam is None:
         return []
-    parts = {}
-    for key in ("llm", "vision", "vae"):
-        spec = fam[key]
-        if not spec:
-            continue
-        pool = files if key == "vision" else [f for f in files if not _PROJECTOR.search(f["path"])]
-        found = _pick(pool, spec, (".gguf",) if key == "vision" else (".safetensors", ".gguf"))
-        if found:
-            parts[key] = (found["path"], found["size"])
-        else:
-            parts[key] = (spec["companion"], companion_size(spec["companion"]))
-    # A safetensors text encoder brings its own vision weights; the projector is only for a GGUF one.
-    if "vision" in parts and not parts["llm"][0].endswith(".gguf"):
-        parts.pop("vision")
+    roles = _roles(repo_id, files, fam, read_headers)
+
+    def by_role(role: str) -> list[dict]:
+        return [f for f in files if (roles.get(f["path"]) or {}).get("role") == role]
+
+    def fits(f: dict) -> bool:
+        info = roles[f["path"]]
+        if f["path"].endswith(".gguf"):
+            return info.get("arch") == fam["llm"]["arch"]
+        return info.get("hidden") == fam["llm"]["hidden"]
+
+    parts: dict[str, tuple[str, int]] = {}
+    own_llm = sorted((f for f in by_role("llm") if fits(f)), key=_rank)
+    if own_llm:
+        llm = own_llm[0]
+        parts["llm"] = (llm["path"], llm["size"])
+        # A text encoder without its vision part needs the projector made for it: the upload's own.
+        needs_vision = fam["edits"] and not roles[llm["path"]].get("vision")
+        own_vision = sorted(by_role("vision"), key=_rank)
+        if needs_vision and own_vision:
+            parts["vision"] = (own_vision[0]["path"], own_vision[0]["size"])
+        elif needs_vision:
+            parts["vision"] = (fam["vision"]["companion"], companion_size(fam["vision"]["companion"]))
+    else:
+        # The original release's text encoder, and its projector when it's a GGUF (the safetensors ones carry theirs).
+        ref = fam["llm"]["companion"]
+        parts["llm"] = (ref, companion_size(ref))
+        if fam["edits"] and ref.endswith(".gguf"):
+            parts["vision"] = (fam["vision"]["companion"], companion_size(fam["vision"]["companion"]))
+    own_vae = sorted(by_role("vae"), key=_rank)
+    if own_vae:
+        parts["vae"] = (own_vae[0]["path"], own_vae[0]["size"])
+    else:
+        parts["vae"] = (fam["vae"]["companion"], companion_size(fam["vae"]["companion"]))
 
     out = []
-    for f in files:
-        if not _is_diffusion(f["path"], fam):
-            continue
+    for f in by_role("diffusion"):
+        info = roles[f["path"]]
+        if not f["path"].endswith(".gguf") or (info.get("arch") and info["arch"] != fam["arch"]):
+            continue  # single-file safetensors models aren't offered yet; another family's model isn't this one
         m = hub.QUANT_RE.search(f["path"].rsplit("/", 1)[-1].removesuffix(".gguf"))
         quant = m.group(1).upper() if m else None
         tier = hub._tier(quant)
@@ -147,8 +303,8 @@ def variants(repo_id: str, tags, files: list[dict], companion_size) -> list[dict
             "model_size": f["size"],
             # Graphics memory while drawing: the diffusion model and VAE. The text encoder runs once per picture and
             # can sit in system memory.
-            "weights": f["size"] + (parts.get("vae", (None, 0))[1] or 0),
-            "encoder_size": (parts.get("llm", (None, 0))[1] or 0) + (parts.get("vision", (None, 0))[1] or 0),
+            "weights": f["size"] + (parts["vae"][1] or 0),
+            "encoder_size": (parts["llm"][1] or 0) + (parts.get("vision", (None, 0))[1] or 0),
             "components": components,
         })
     if len(out) > 2:
@@ -163,7 +319,7 @@ def variants(repo_id: str, tags, files: list[dict], companion_size) -> list[dict
 def settings(model: dict) -> dict:
     """What the worker needs to load an installed model: its family's sampler, flow shift and model arguments."""
     meta = (model.get("meta") or {}).get("sdcpp") or {}
-    fam = next((f for f in FAMILIES if f["id"] == meta.get("family")), None)
+    fam = by_id(meta.get("family"))
     if fam is None:
         return {}
     args = fam["model_args"](model["repo_id"]) if callable(fam["model_args"]) else fam["model_args"]

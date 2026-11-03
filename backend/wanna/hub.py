@@ -155,7 +155,7 @@ def classify(info) -> tuple[str | None, str | None]:
     if has_gguf:
         from . import imagefamilies
 
-        if imagefamilies.is_sdcpp_repo(info.id, tags, siblings):
+        if imagefamilies.is_sdcpp_repo(info.id, tags, siblings, gguf_arch(info)):
             return "image", "sdcpp"  # picture models in GGUF files, run on stable-diffusion.cpp
     if has_gguf and is_embed_gguf(info.id, pipeline, tags):
         return "embed", "llamacpp"
@@ -210,8 +210,9 @@ def _model_info(repo_id: str):
     return api().model_info(repo_id, files_metadata=True)
 
 
-def details(repo_id: str) -> dict:
-    """Everything the UI needs to show a model page and offer download choices."""
+def details(repo_id: str, read_headers: bool = True) -> dict:
+    """Everything the UI needs to show a model page and offer download choices. read_headers=False skips reading GGUF
+    picture models' file headers (which part is which comes from names instead): quick enough for lists of models."""
     info = _model_info(repo_id)
     task, engine = classify(info)
     curated = next((c for c in CURATED if c["repo_id"] == repo_id), None)
@@ -226,8 +227,10 @@ def details(repo_id: str) -> dict:
     if engine == "sdcpp":
         from . import imagefamilies
 
-        out["variants"] = imagefamilies.variants(repo_id, info.tags or [], files, companion_size)
-        fam = imagefamilies.family(repo_id, info.tags or [])
+        arch = gguf_arch(info)
+        out["variants"] = imagefamilies.variants(repo_id, info.tags or [], files, companion_size, arch,
+                                                 read_headers)
+        fam = imagefamilies.family(repo_id, info.tags or [], arch)
         out["family"] = fam["id"]
         out["edits"], out["makes"] = fam["edits"], fam["makes"]
         out["max_images"] = imagefamilies.max_images({"repo_id": repo_id, "family": fam["id"]})
@@ -275,6 +278,11 @@ def details(repo_id: str) -> dict:
     out["recommended"] = recommend_variant(out["variants"])
     out["verdict"] = next((v["verdict"] for v in out["variants"] if v["id"] == out["recommended"]), None)
     return out
+
+
+def gguf_arch(info) -> str | None:
+    """The GGUF architecture Hugging Face read from an upload's files ("qwen_image21"...), if it has GGUF files."""
+    return (getattr(info, "gguf", None) or {}).get("architecture")
 
 
 @lru_cache(maxsize=256)

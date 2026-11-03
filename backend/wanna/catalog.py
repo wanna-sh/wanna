@@ -236,7 +236,7 @@ def _quick(m, task: str, b: dict) -> dict | None:
         if task == "image" and "model_index.json" not in files and any(f.endswith(".gguf") for f in files):
             from . import imagefamilies
 
-            if not imagefamilies.is_sdcpp_repo(m.id, tags, list(files)):
+            if not imagefamilies.is_sdcpp_repo(m.id, tags, list(files), hub.gguf_arch(m)):
                 return None  # a picture model family wanna.sh doesn't know how to run yet
             return {"weights": None, "params": None, "verdict": None}  # sized from file list later
         if "model_index.json" not in files:
@@ -262,14 +262,19 @@ def _params_from_name(repo_id: str) -> int:
     return int(max(found) * 1e9) if found else 0
 
 
-def _diffusers_info(repo_id: str) -> tuple[int | None, bool]:
-    """(loaded weight bytes, needs a starting picture) from the repo's file list and model_index.json."""
+def _diffusers_info(repo_id: str) -> tuple[int | None, bool, bool, dict | None, int]:
+    """(loaded weight bytes, needs a starting picture, edits pictures, rating, pictures it takes at once) of the
+    recommended version, from the repo's files (hub.details)."""
     try:
-        d = hub.details(repo_id)
+        # Lists size dozens of models: read their files' headers only when one is opened or downloaded.
+        d = hub.details(repo_id, read_headers=False)
     except Exception:
-        return None, False
-    v = next((x for x in d.get("variants") or [] if x["id"] == d.get("recommended")), None) or         (d["variants"][0] if d.get("variants") else None)
-    return (v.get("weights") if v else None), bool(d.get("needs_image")), d.get("edits", False),         (v or {}).get("verdict"), d.get("max_images", 1)
+        log.warning("Couldn't read %s", repo_id, exc_info=True)
+        return None, False, False, None, 1
+    variants = d.get("variants") or []
+    v = next((x for x in variants if x["id"] == d.get("recommended")), None) or (variants[0] if variants else None)
+    return ((v.get("weights") if v else None), bool(d.get("needs_image")), d.get("edits", False),
+            (v or {}).get("verdict"), d.get("max_images", 1))
 
 
 def browse(task: str, query: str = "", sort: str = "popular", fits_only: bool = True,

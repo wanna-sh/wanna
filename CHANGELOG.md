@@ -13,6 +13,11 @@ Each version's section becomes its GitHub release notes (see `.github/workflows/
 - The picture engine's downloads go to disk instead of memory (the Windows one is about 900 MB).
 - Qwen-Image 2.1 uploads with a GGUF text encoder (such as the Genesis ones) download its vision file too, which
   changing and combining pictures need. Before, only making pictures from a description worked with them.
+- GGUF picture models are recognised from their files, not their names: wanna.sh reads each file's header (a few
+  kilobytes) to tell the picture model, text encoder, vision file and VAE apart, and uses an upload's own parts
+  only when they fit the model (the right text encoder, with its own vision file). Renamed uploads are found, and
+  mismatched parts are replaced with the original release's. Lists of models stay quick: headers are read when
+  you open a model or download it.
 
 ## 0.9.0 (2026-11-03)
 
