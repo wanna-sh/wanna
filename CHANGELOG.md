@@ -2,6 +2,13 @@
 
 Each version's section becomes its GitHub release notes (see `.github/workflows/release.yml`).
 
+## 0.8.2 (2026-11-03)
+
+- **Allowed host names in Settings.** Names with a dot in them that you open wanna.sh by, such as `mypc.local` or a
+  reverse proxy's domain, can now be added under **Settings > Security > Allowed host names**, as well as with
+  `WANNA_ALLOWED_HOSTS`. Names from both are allowed, and the page shows the ones set by `WANNA_ALLOWED_HOSTS`. `*`
+  (which turns the check off) can still only be set with `WANNA_ALLOWED_HOSTS`.
+
 ## 0.8.1 (2026-11-01)
 
 - Agents' programs that exit cleanly have finished: they're no longer restarted over and over as if they had crashed.
