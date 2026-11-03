@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ImagePlus } from "lucide-react";
 import { api, fileUrl, type Generation } from "@/lib/api";
 import { useJob, useModels, usePoll, useSystem } from "@/lib/hooks";
 import { ago } from "@/lib/format";
 import { NoModelYet, useTaskModel } from "@/components/models";
 import { AttachChip, AttachedPictures, type Upload } from "@/components/generate";
+import { PictureEngineSetup } from "@/components/engine";
 import {
   FeedItem,
   ModelMenu,
@@ -93,7 +94,18 @@ export default function ImagePage() {
   useEffect(() => {
     resume("image", () => refreshGallery());
   }, [resume, refreshGallery]);
-  const { data: sys } = useSystem(15000);
+  // GGUF picture models run on an engine set up the first time one is used: watch it closely while one is chosen.
+  const usesEngine = current?.engine === "sdcpp";
+  const { data: sys, refresh: refreshSys } = useSystem(usesEngine ? 3000 : 15000);
+  const engine = sys?.engines.sdcpp;
+  const engineReady = !usesEngine || engine?.status === "ready";
+  const setUpEngine = useCallback(() => {
+    api.post("/api/engines/sdcpp/install").then(refreshSys, refreshSys);
+  }, [refreshSys]);
+  // Start setting it up as soon as such a model is chosen, so it's often ready before the description is written.
+  useEffect(() => {
+    if (usesEngine && engine?.status === "idle") setUpEngine();
+  }, [usesEngine, engine?.status, setUpEngine]);
 
   if (loaded && !models.length) {
     return (
@@ -201,6 +213,11 @@ export default function ImagePage() {
                 <Notice tone="error">{error}</Notice>
               </div>
             )}
+            {usesEngine && engine && !engineReady && (
+              <div className="mb-3">
+                <PictureEngineSetup engine={engine} onRetry={setUpEngine} />
+              </div>
+            )}
             {gpuHelp && (
               <div className="mb-3">
                 <Notice>
@@ -227,7 +244,7 @@ export default function ImagePage() {
               }
               onSubmit={go}
               submitLabel={editing ? "Change" : "Create"}
-              canSubmit={!!prompt.trim() && !!model && (!needsImage || !!start) && !over}
+              canSubmit={!!prompt.trim() && !!model && (!needsImage || !!start) && !over && engineReady}
               busy={busy}
               onMore={() => setPanel(true)}
               top={

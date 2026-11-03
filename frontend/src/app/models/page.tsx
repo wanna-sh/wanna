@@ -10,6 +10,7 @@ import { ago, bytes, gpuName, prettyName } from "@/lib/format";
 import { Button, Field, LinkButton, LiveDot, Notice, PageHeader, inputClass } from "@/components/ui";
 import { CopyButton, SaveButton } from "@/components/save";
 import { SpeedEstimateView } from "@/components/models";
+import { PictureEngineSetup } from "@/components/engine";
 
 export default function ModelsPage() {
   const { data, refresh } = useModels(undefined, 2500);
@@ -30,12 +31,12 @@ export default function ModelsPage() {
           </Notice>
         </div>
       )}
-      {sys?.engines.sdcpp?.status === "installing" && (
+      {sys?.engines.sdcpp && ["installing", "error"].includes(sys.engines.sdcpp.status) && (
         <div className="mb-6">
-          <Notice>
-            Setting up the picture engine for your computer ({Math.round(sys.engines.sdcpp.progress * 100)}%).{" "}
-            {sys.engines.sdcpp.message}. This happens once.
-          </Notice>
+          <PictureEngineSetup
+            engine={sys.engines.sdcpp}
+            onRetry={() => api.post("/api/engines/sdcpp/install").catch(() => undefined)}
+          />
         </div>
       )}
 
