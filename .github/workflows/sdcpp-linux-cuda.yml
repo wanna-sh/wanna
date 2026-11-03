@@ -4,6 +4,8 @@
 #
 # It's built for the commit pinned in sdcpp.py, and published once per commit on its own prerelease
 # (sdcpp-<commit>-linux-cuda12), never marked latest, so the "latest release" download links stay on wanna.sh's own.
+# When it's already published, it isn't built again: the published build is downloaded and checked instead, so a change
+# to wanna.sh's binding or the CUDA runtime pins is checked against what people actually download.
 # NVIDIA's CUDA runtime and cuBLAS aren't in it: wanna.sh gets them from NVIDIA's packages on PyPI on each computer.
 name: Linux CUDA picture engine
 
@@ -60,9 +62,22 @@ jobs:
         run: |
           if [ "${{ inputs.rebuild }}" != "true" ] && \
              gh release view "$RELEASE" --json assets -q '.assets[].name' 2>/dev/null | grep -qxF "$ASSET.sha256"; then
-            echo "$RELEASE already has $ASSET; nothing to do."
+            echo "$RELEASE already has $ASSET: checking it instead of building."
             echo "skip=true" >> "$GITHUB_OUTPUT"
           fi
+
+      # Already published: no need to build, but this push may have changed what it's checked against (wanna.sh's
+      # binding, the CUDA runtime pins, the check itself). Check the published build, as people download it.
+      - name: Check the published build
+        if: steps.published.outputs.skip == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p published out
+          gh release download "$RELEASE" --pattern "$ASSET" --pattern "$ASSET.sha256" --dir published
+          (cd published && sha256sum --check "$ASSET.sha256")
+          tar -xzf "published/$ASSET" -C out
+          python3 scripts/sdcpp/check-linux-build.py out "$COMMIT"
 
       - name: Make room for the CUDA image
         if: steps.published.outputs.skip != 'true'
