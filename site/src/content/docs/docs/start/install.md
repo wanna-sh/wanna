@@ -27,8 +27,10 @@ Good to know:
   to download them the first time you open one of those pages, matched to your graphics card.
 - **Your graphics card:** keep the NVIDIA driver up to date. wanna.sh picks the chat engine and AI libraries that suit
   the driver you have.
-- **While the window is open,** other apps can use wanna.sh's [API](/docs/api/) at `http://localhost:7860`. Closing the
-  window stops wanna.sh and frees the graphics card.
+- **Closing the window keeps wanna.sh running** in the system tray (by the clock; it may be under the ^ arrow), so
+  other apps, other devices and reverse proxies can keep using its [API](/docs/api/) at `http://localhost:7860`.
+  Click the tray icon to open the window again. To stop wanna.sh and free the graphics card, right-click the icon and
+  choose **Quit wanna.sh**.
 - **Code** needs [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/) for its sandbox.
 - **Where things are:** your models, pictures and settings are in `C:\Users\<you>\.wanna`, the app in
   `%LOCALAPPDATA%\wanna.sh`, and its Python and logs in `%LOCALAPPDATA%\sh.wanna.desktop`.
@@ -57,8 +59,9 @@ Good to know:
   and the processor (much slower) on macOS 14.
 - **Memory:** your Mac's GPU shares its memory with everything else, and macOS lets it use only part of it. wanna.sh
   asks macOS how much and rates each model against that.
-- **While the app is open,** other apps can use wanna.sh's [API](/docs/api/) at `http://localhost:7860`. Quitting it
-  (⌘Q) stops wanna.sh and frees the memory.
+- **Closing the window keeps wanna.sh running,** with its icon in the menu bar, so other apps and devices can keep
+  using its [API](/docs/api/) at `http://localhost:7860`. Click the icon (or wanna.sh in the Dock) to open the window
+  again. Quitting it (⌘Q, or **Quit wanna.sh** from the menu bar icon) stops wanna.sh and frees the memory.
 - **Code** needs [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/) for its sandbox.
 - **Where things are:** your models, pictures and settings are in `~/.wanna`, and the app's Python and logs in
   `~/Library/Application Support/sh.wanna.desktop`.

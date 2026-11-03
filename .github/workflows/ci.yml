@@ -1,5 +1,5 @@
-# Checks every push and pull request: the app starts and answers, the interface and website build, and the scripts,
-# workflows and Docker image are valid. Models aren't downloaded; that's tested by hand on real hardware.
+# Checks every push and pull request: the app starts and answers, the interface, website and desktop app build, and
+# the scripts, workflows and Docker image are valid. Models aren't downloaded; that's tested by hand on real hardware.
 name: CI
 
 on:
@@ -90,13 +90,33 @@ jobs:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.3.3
       - name: Shell scripts
-        run: shellcheck install.sh docker/entrypoint.sh
+        run: shellcheck install.sh docker/entrypoint.sh scripts/sdcpp/*.sh
       - name: Workflows
         run: uvx --from actionlint-py actionlint
       - name: Compose files
         run: |
           docker compose -f docker-compose.yml config --quiet
           DOCKER_GID=999 docker compose -f docker-compose.yml -f docker-compose.code.yml config --quiet
+
+  # The desktop app is otherwise only compiled when a release is tagged. This catches mistakes on every push. Linux
+  # compiles all of it but the macOS- and Windows-only lines, which the release builds compile.
+  desktop:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2.9.3
+        with:
+          workspaces: desktop/src-tauri
+      - name: Libraries Tauri compiles against
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libwebkit2gtk-4.1-dev librsvg2-dev libayatana-appindicator3-dev libxdo-dev libssl-dev
+      - name: Compile-check the desktop app
+        run: |
+          # The bundled backend, UI and uv are made by the release workflow; empty folders are enough to check.
+          mkdir -p desktop/build/backend desktop/build/ui desktop/build/uv
+          cargo check --manifest-path desktop/src-tauri/Cargo.toml
 
   docker:
     runs-on: ubuntu-latest

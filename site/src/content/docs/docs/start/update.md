@@ -14,10 +14,12 @@ hand once, as below.
 To update by hand:
 
 **Windows app:** download the [latest version](https://github.com/wanna-sh/wanna/releases/latest/download/wanna.sh-setup-windows-x64.exe)
-and open it. It updates the app in place and keeps your models, chats and settings. Close wanna.sh first.
+and open it. It updates the app in place and keeps your models, chats and settings. Quit wanna.sh first: right-click
+its icon in the system tray and choose **Quit wanna.sh** (closing the window leaves it running).
 
 **Mac app:** download the [latest version](https://github.com/wanna-sh/wanna/releases/latest/download/wanna.sh-macos-arm64.dmg),
-quit wanna.sh, and drag the new one into **Applications**, replacing the old one. It keeps your models, chats and
+quit wanna.sh (its icon in the menu bar → **Quit wanna.sh**, or ⌘Q), and drag the new one into **Applications**,
+replacing the old one. It keeps your models, chats and
 settings.
 
 **Linux, macOS from the command line, and WSL2:** run the installer again. It updates the code, the app and the interface, and keeps your models, chats and settings:

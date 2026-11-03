@@ -4,6 +4,10 @@ Each version's section becomes its GitHub release notes (see `.github/workflows/
 
 ## Unreleased
 
+- **The Windows and Mac apps keep running in the tray.** Closing the window hides it: wanna.sh keeps running in the
+  system tray (the menu bar on a Mac), so apps, other devices and reverse proxies keep working. Click the icon to open
+  it again, or choose **Quit wanna.sh** from its menu to stop it and free the graphics card. The first time, a message
+  says so. CI now compile-checks the desktop app on every push, not only when a release is built.
 - **Settings has its own menu.** Its seven panels are now four pages, each with its own address: **This computer**
   (system check, graphics cards, engines), **Accounts** (Hugging Face, web search), **Models & memory** and
   **Security** (API key, allowed host names). Messages that send you to Settings name the page, and links go

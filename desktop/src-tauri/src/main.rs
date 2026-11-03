@@ -1,6 +1,8 @@
 // The wanna.sh desktop app. On first run it sets up wanna.sh's Python environment with the bundled uv; every time,
-// it starts the wanna.sh server and shows it in a window. Closing the window stops the server and the model engines
-// it started. wanna.sh itself is unchanged: it's the same app the installer and Docker image run.
+// it starts the wanna.sh server and shows it in a window. Closing the window hides it: wanna.sh keeps running in the
+// system tray (the menu bar on a Mac), so apps, other devices and reverse proxies keep working. Quit, from the tray
+// icon's menu, stops the server and the model engines it started. wanna.sh itself is unchanged: it's the same app the
+// installer and Docker image run.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::fs::{self, File, OpenOptions};
@@ -15,7 +17,9 @@ use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use tauri::webview::NewWindowResponse;
-use tauri::{AppHandle, Manager, RunEvent, Url, WebviewUrl, WebviewWindowBuilder};
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::{AppHandle, Manager, RunEvent, Url, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_updater::UpdaterExt;
@@ -310,6 +314,65 @@ fn stop_server(app: &AppHandle) {
     }
 }
 
+/// Bring the window back from the tray (or the Dock, on a Mac).
+fn show_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
+/// The first time the window is closed, say that wanna.sh is still running and how to quit it: otherwise it would
+/// sit in the tray unnoticed, holding graphics memory. Shown once (a marker file in the app's data folder).
+fn explain_tray_once(app: &AppHandle) {
+    let Ok(data) = app.path().app_local_data_dir() else { return };
+    let marker = data.join("tray-explained");
+    if marker.exists() || fs::write(&marker, b"").is_err() {
+        return;
+    }
+    let place = if cfg!(target_os = "macos") {
+        "in the menu bar at the top of the screen"
+    } else {
+        "in the system tray by the clock (it may be under the ^ arrow)"
+    };
+    app.dialog()
+        .message(format!(
+            "wanna.sh is still running, so apps and other devices can keep using it. Its icon is {place}: click it to \
+             open wanna.sh again, or right-click it and choose Quit wanna.sh to stop it and free your graphics card."
+        ))
+        .title("wanna.sh keeps running")
+        .kind(MessageDialogKind::Info)
+        .show(|_| {});
+}
+
+/// The tray icon (menu bar icon on a Mac): click to open wanna.sh, or its menu to open or quit.
+fn tray(app: &AppHandle) -> tauri::Result<()> {
+    let open = MenuItem::with_id(app, "open", "Open wanna.sh", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit wanna.sh", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&open, &quit])?;
+    let mut builder = TrayIconBuilder::with_id("main")
+        .tooltip("wanna.sh")
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            "open" => show_window(app),
+            // Exits through RunEvent::Exit, which stops the server and its model engines.
+            "quit" => app.exit(0),
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
+                show_window(tray.app_handle());
+            }
+        });
+    if let Some(icon) = app.default_window_icon() {
+        builder = builder.icon(icon.clone());
+    }
+    builder.build(app)?;
+    Ok(())
+}
+
 /// Pages that stay in the window: the setup screen and wanna.sh itself. Everything else opens in the browser.
 fn stays_in_app(app: &AppHandle, url: &Url) -> bool {
     if url.scheme() == "tauri" || url.host_str() == Some("tauri.localhost") {
@@ -364,18 +427,22 @@ fn open_logs(app: AppHandle) {
 fn main() {
     tauri::Builder::default()
         // A second launch brings the open window forward instead of starting another wanna.sh.
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.unminimize();
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
-        }))
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_window(app)))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![setup_state, retry, open_logs])
+        // Closing the window hides it; wanna.sh keeps running in the tray until Quit.
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main" {
+                    api.prevent_close();
+                    let _ = window.hide();
+                    explain_tray_once(window.app_handle());
+                }
+            }
+        })
         .setup(|app| {
             let handle = app.handle().clone();
             let for_navigation = handle.clone();
@@ -399,14 +466,17 @@ fn main() {
                     NewWindowResponse::Deny
                 })
                 .build()?;
+            tray(&handle)?;
             start(handle);
             Ok(())
         })
         .build(tauri::generate_context!())
         .expect("couldn't start the wanna.sh app")
-        .run(|app, event| {
-            if let RunEvent::Exit = event {
-                stop_server(app);
-            }
+        .run(|app, event| match event {
+            RunEvent::Exit => stop_server(app),
+            // Clicking the Dock icon while the window is hidden.
+            #[cfg(target_os = "macos")]
+            RunEvent::Reopen { .. } => show_window(app),
+            _ => {}
         });
 }
