@@ -2,7 +2,7 @@
 
 Each version's section becomes its GitHub release notes (see `.github/workflows/release.yml`).
 
-## Unreleased
+## 0.9.0 (2026-11-03)
 
 - **Change pictures by describing the change.** Editing models, such as Qwen-Image-Edit (and its 2509 and 2511
   versions) and Qwen-Image 2.1, are now in **Get models → Pictures**. Attach a picture on the Pictures page, say what to
