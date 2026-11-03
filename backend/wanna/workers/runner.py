@@ -508,8 +508,14 @@ class SdCppHandler:
             raise RuntimeError(self._error("Couldn't load the model."))
         if not lib.sd_ctx_supports_image_generation(self.ctx):
             raise RuntimeError("This model can't make pictures.")
-        method = self.cfg.get("sample_method")
+        # Names the library doesn't know come back as the enum's count: leave those to the library's default.
+        method, scheduler = self.cfg.get("sample_method"), self.cfg.get("scheduler")
         self.sample_method = lib.str_to_sample_method(method.encode()) if method else None
+        if self.sample_method is not None and self.sample_method >= L.SAMPLE_METHOD_COUNT:
+            self.sample_method = None
+        self.scheduler = lib.str_to_scheduler(scheduler.encode()) if scheduler else None
+        if self.scheduler is not None and self.scheduler >= L.SCHEDULER_COUNT:
+            self.scheduler = None
         print(f"Loaded {lib.sd_get_model_version_name(self.ctx).decode()} on stable-diffusion.cpp "
               f"{lib.sd_commit().decode()}", flush=True)
 
@@ -584,6 +590,8 @@ class SdCppHandler:
             sp.guidance.txt_cfg = float(p["guidance"])
         if self.sample_method is not None:
             sp.sample_method = self.sample_method
+        if self.scheduler is not None:
+            sp.scheduler = self.scheduler
         if self.cfg.get("flow_shift"):
             sp.flow_shift = float(self.cfg["flow_shift"])
         seed = p.get("seed")

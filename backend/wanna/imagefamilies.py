@@ -32,6 +32,28 @@ QWEN_IMAGE_VAE = "Comfy-Org/Qwen-Image::split_files/vae/qwen_image_vae.safetenso
 QWEN25_VL = "mradermacher/Qwen2.5-VL-7B-Instruct-GGUF::Qwen2.5-VL-7B-Instruct.Q8_0.gguf"
 QWEN25_VL_VISION = "mradermacher/Qwen2.5-VL-7B-Instruct-GGUF::Qwen2.5-VL-7B-Instruct.mmproj-Q8_0.gguf"
 EDIT_NAME = re.compile(r"edit", re.I)
+RAPID_NAME = re.compile(r"rapid", re.I)
+# A model version in a file or repo name: "qwen-rapid-nsfw-v9.0-Q4_K_M.gguf", "Qwen-Image-Edit-Rapid-AIO-V19".
+VERSION = re.compile(r"(?:^|[-_/ ])v(\d+(?:\.\d+)*)(?=[-_./ ]|$)", re.I)
+
+
+def _version(text: str) -> tuple[int, ...]:
+    """The highest version number in a name, as a tuple to compare ((9, 0) for "v9.0"), or () when there's none. Only
+    the last part of a path counts: folders are named loosely ("v90/qwen-rapid-nsfw-v9.0...")."""
+    found = [tuple(int(x) for x in m.group(1).split(".")) for m in VERSION.finditer(text.rsplit("/", 1)[-1])]
+    return max(found, default=())
+
+
+def _edit_2511(repo: str, diffusion: str = "") -> str | None:
+    """Qwen-Image-Edit-2511 edits much worse without this (stable-diffusion.cpp docs/qwen_image_edit.md)."""
+    return "qwen_image_zero_cond_t=true" if "2511" in repo or "2511" in diffusion else None
+
+
+def _rapid_args(repo: str, diffusion: str = "") -> str | None:
+    """Rapid AIO is built on Qwen-Image-Edit-2509 up to v14 and on 2511 from v15 (its model card)."""
+    version = max(_version(repo), _version(diffusion))
+    return "qwen_image_zero_cond_t=true" if version >= (15,) or _edit_2511(repo, diffusion) else None
+
 
 FAMILIES = [
     {
@@ -55,6 +77,26 @@ FAMILIES = [
         "sample_method": "euler", "flow_shift": None, "model_args": None,
     },
     {
+        # Phr00t's Qwen-Image-Edit Rapid AIO: Qwen-Image-Edit with accelerators (Lightning) and other LoRAs merged in,
+        # and its GGUF uploads (Phil2Sat's, ...). From its model card: "1 CFG, 4 step", pictures are optional ("provide
+        # no images to just do pure text to image"), and euler_a/beta is the sampler most of its versions recommend
+        # (v1, v4, v8, v9, v17 to v23). Listed before Qwen-Image-Edit, whose names it shares.
+        "id": "qwen_image_edit_rapid", "label": "Qwen-Image-Edit Rapid",
+        "arch": "qwen_image", "name_must": RAPID_NAME,
+        "match": re.compile(r"qwen[-_ ]?(image[-_ ]?edit[-_ ]?)?rapid", re.I),
+        "makes": True, "edits": True,
+        # Qwen's recommendation for its editing models (1 to 3 pictures).
+        "max_images": 3,
+        "llm": {"arch": "qwen2vl", "hidden": 3584, "pattern": re.compile(r"qwen2\.?5[-_ ]?vl", re.I),
+                "companion": QWEN25_VL},
+        "vision": {"companion": QWEN25_VL_VISION},
+        "vae": {"companion": QWEN_IMAGE_VAE},
+        # Its card says 4 steps (4 to 8 for some versions); Quick never goes below that.
+        "defaults": {"steps": 4, "min_steps": 4, "guidance": 1.0, "width": 1024, "height": 1024},
+        "sample_method": "euler_a", "scheduler": "beta", "flow_shift": 3.0,
+        "model_args": _rapid_args,
+    },
+    {
         # Qwen-Image-Edit, -2509 and -2511 only edit: they need a picture to start from. Their diffusion model has the
         # same architecture as Qwen-Image's ("qwen_image"), so the name (or base model) must say Edit too.
         "id": "qwen_image_edit", "label": "Qwen-Image-Edit",
@@ -71,8 +113,7 @@ FAMILIES = [
         "vae": {"companion": QWEN_IMAGE_VAE},
         "defaults": {"steps": 40, "guidance": 2.5, "width": 1024, "height": 1024},
         "sample_method": "euler", "flow_shift": 3.0,
-        # 2511 edits much worse without this (stable-diffusion.cpp docs/qwen_image_edit.md).
-        "model_args": lambda repo: "qwen_image_zero_cond_t=true" if "2511" in repo else None,
+        "model_args": _edit_2511,
     },
 ]
 
@@ -284,19 +325,28 @@ def variants(repo_id: str, tags, files: list[dict], companion_size, arch: str | 
     else:
         parts["vae"] = (fam["vae"]["companion"], companion_size(fam["vae"]["companion"]))
 
+    models = [f for f in by_role("diffusion") if f["path"].endswith(".gguf")
+              # single-file safetensors models aren't offered yet; another family's model isn't this one
+              and not (roles[f["path"]].get("arch") and roles[f["path"]]["arch"] != fam["arch"])]
+    # Some uploads carry several versions of the model, each in many sizes (Rapid AIO v5.0 to v9.0, 14 sizes each).
+    # Offer the newest version's sizes, labelled with the version, rather than a long mixed list.
+    stems = {_stem(f["path"]) for f in models}
+    newest = None
+    if len(stems) > 1 and any(_version(s) for s in stems):
+        newest = max(stems, key=lambda s: (_version(s), s))
+        models = [f for f in models if _stem(f["path"]) == newest]
+
     out = []
-    for f in by_role("diffusion"):
-        info = roles[f["path"]]
-        if not f["path"].endswith(".gguf") or (info.get("arch") and info["arch"] != fam["arch"]):
-            continue  # single-file safetensors models aren't offered yet; another family's model isn't this one
+    for f in models:
         m = hub.QUANT_RE.search(f["path"].rsplit("/", 1)[-1].removesuffix(".gguf"))
         quant = m.group(1).upper() if m else None
         tier = hub._tier(quant)
         components = {"diffusion": f["path"], **{k: v[0] for k, v in parts.items()}}
         extra = sum(v[1] or 0 for v in parts.values())
+        version = ".".join(map(str, _version(newest))) if newest else ""
         out.append({
             "id": f["path"], "quant": quant,
-            "label": tier["label"] + (f" ({quant})" if quant else ""),
+            "label": (f"v{version} " if version else "") + tier["label"] + (f" ({quant})" if quant else ""),
             "description": tier["description"], "rank": tier["rank"],
             "files": [f["path"], *(v[0] for v in parts.values())],
             "size": f["size"] + extra,
@@ -316,14 +366,24 @@ def variants(repo_id: str, tags, files: list[dict], companion_size, arch: str | 
     return out
 
 
+def _stem(path: str) -> str:
+    """A model file's name without its size ("v90/qwen-rapid-nsfw-v9.0" for "v90/qwen-rapid-nsfw-v9.0-Q4_K_M.gguf")."""
+    folder, _, name = path.rpartition("/")
+    stem = hub.QUANT_RE.sub("", name.rsplit(".", 1)[0])
+    return f"{folder}/{stem}" if folder else stem
+
+
 def settings(model: dict) -> dict:
-    """What the worker needs to load an installed model: its family's sampler, flow shift and model arguments."""
+    """What the worker needs to load an installed model: its family's sampler, scheduler, flow shift and model
+    arguments (some depend on which file was downloaded, such as a Rapid AIO version)."""
     meta = (model.get("meta") or {}).get("sdcpp") or {}
     fam = by_id(meta.get("family"))
     if fam is None:
         return {}
-    args = fam["model_args"](model["repo_id"]) if callable(fam["model_args"]) else fam["model_args"]
-    return {"sample_method": fam["sample_method"], "flow_shift": fam["flow_shift"], "model_args": args}
+    diffusion = (meta.get("parts") or {}).get("diffusion", "")
+    args = fam["model_args"](model["repo_id"], diffusion) if callable(fam["model_args"]) else fam["model_args"]
+    return {"sample_method": fam["sample_method"], "scheduler": fam.get("scheduler"), "flow_shift": fam["flow_shift"],
+            "model_args": args}
 
 
 def by_id(family_id: str | None) -> dict | None:

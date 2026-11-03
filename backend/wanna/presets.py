@@ -61,7 +61,9 @@ def apply(model: dict, params: dict) -> dict:
     quality = params.pop("quality", None)
     out = {**preset, **{k: v for k, v in params.items() if v is not None}}
     if quality in QUALITY and params.get("steps") is None and preset.get("steps"):
-        out["steps"] = max(1, round(preset["steps"] * QUALITY[quality]))
+        # Models made for a few steps (Rapid) have a floor below which pictures fall apart.
+        out["steps"] = max(preset.get("min_steps", 1), round(preset["steps"] * QUALITY[quality]))
+    out.pop("min_steps", None)
     # Keep dimensions friendly for VAEs (multiples of 8; video models prefer 32).
     mult = 32 if model["task"] == "video" else 8
     for k in ("width", "height"):

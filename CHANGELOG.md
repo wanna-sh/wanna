@@ -18,6 +18,11 @@ Each version's section becomes its GitHub release notes (see `.github/workflows/
   only when they fit the model (the right text encoder, with its own vision file). Renamed uploads are found, and
   mismatched parts are replaced with the original release's. Lists of models stay quick: headers are read when
   you open a model or download it.
+- **Qwen-Image-Edit Rapid** uploads (Phr00t's Rapid AIO and its GGUF versions) run with the settings their maker
+  recommends: 4 steps, prompt strength 1, euler_a with the beta scheduler. They make pictures from a description as
+  well as change pictures (up to 3 at once), and versions built on Qwen-Image-Edit-2511 (v15 and later) get its
+  setting. **Quick** never goes below 4 steps for them. When an upload carries several versions of a model, wanna.sh
+  offers the newest one's sizes, labelled with the version.
 
 ## 0.9.0 (2026-11-03)
 

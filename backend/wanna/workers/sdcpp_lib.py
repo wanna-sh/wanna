@@ -132,6 +132,9 @@ class sd_img_gen_params_t(C.Structure):
 LOG_CB = C.CFUNCTYPE(None, c_enum, C.c_char_p, C.c_void_p)
 PROGRESS_CB = C.CFUNCTYPE(None, C.c_int, C.c_int, C.c_float, C.c_void_p)
 
+# enum sample_method_t and scheduler_t: str_to_* return these counts for names they don't know.
+SAMPLE_METHOD_COUNT = 21
+SCHEDULER_COUNT = 17
 # enum sd_cancel_mode_t
 SD_CANCEL_ALL = 0
 # enum sd_log_level_t

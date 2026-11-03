@@ -48,6 +48,10 @@ Editing models change a picture you give them as you describe, and keep the rest
 evening*, *remove the people in the background*, *change the sign to say OPEN*. Find them under **Get models →
 Pictures**, marked **Changes pictures you give it** or **Can also change pictures you give it**. Qwen-Image 2.1 does
 both (it makes pictures from a description too); Qwen-Image-Edit (and its 2509 and 2511 versions) only edits.
+Qwen-Image-Edit **Rapid** uploads (merges with speed-ups built in) do both in 4 steps instead of 40, so the drawing
+takes about a tenth of the time. Pictures can look a little smooth or "plastic", as their maker notes; adding
+*professional digital photography* to the description helps. wanna.sh uses the settings their maker recommends (4
+steps, prompt strength 1); **Best** quality uses 6. When an upload has several versions, wanna.sh offers the newest.
 
 1. Choose the model, press **Change a picture** (or **Add the picture to change**) and pick a picture.
 2. Describe the change, then press **Change**.
@@ -63,6 +67,7 @@ person with a product, a product in a new setting.
 | --- | --- |
 | Qwen-Image 2.1 | Up to 10 |
 | Qwen-Image-Edit-2509 and Qwen-Image-Edit-2511 | Up to 3 (Qwen recommends 1 to 3) |
+| Qwen-Image-Edit Rapid | Up to 3 |
 | Qwen-Image-Edit (the original) and other picture models | 1 |
 
 The model menu on the Pictures page says **Combines up to 10 pictures** (or 3) for these models, and so does
