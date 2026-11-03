@@ -174,9 +174,9 @@ Models are downloaded from Hugging Face, and anyone can publish one, so wanna.sh
 | Setting | Default | Effect |
 | --- | --- | --- |
 | `--host` | `127.0.0.1` | Who can connect. |
-| **Require API key** (Settings) | Off | Require a key for the API. |
+| **Require API key** (Settings → Security) | Off | Require a key for the API. |
 | `WANNA_CORS` | none | Web origins allowed to call the API from a browser. |
-| **Allowed host names** (Settings) or `WANNA_ALLOWED_HOSTS` | none | Extra host names wanna.sh answers to. |
+| **Allowed host names** (Settings → Security) or `WANNA_ALLOWED_HOSTS` | none | Extra host names wanna.sh answers to. |
 | **Approval** (per Code project) | Ask before commands | What the agent can do without asking. |
 | `docker-compose.code.yml` | Not used | Turns on Code in Docker by giving wanna.sh the Docker socket. |
 

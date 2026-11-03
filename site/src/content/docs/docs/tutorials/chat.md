@@ -80,5 +80,5 @@ starts you with an empty list.
 ## Longer conversations
 
 How much of a conversation a model can keep in mind is its *memory* (also called context). The default is
-**Standard (8K)**, about 6,000 words. For long documents, choose a larger size in **Settings → Chat memory**, or per
+**Standard (8K)**, about 6,000 words. For long documents, choose a larger size in **Settings → Models & memory → Chat memory**, or per
 model under **My models → Options**. See [Graphics cards and memory](/docs/guides/hardware/).

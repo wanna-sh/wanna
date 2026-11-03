@@ -35,7 +35,7 @@ Music has no OpenAI equivalent; use the [wanna.sh API](/docs/api/native/#generat
 
 ## Authentication
 
-Off by default. When **Require API key** is on in Settings, send a key from **API & apps** with every request:
+Off by default. When **Require API key** is on in **Settings → Security**, send a key from **API & apps** with every request:
 
 ```http
 Authorization: Bearer wanna-...

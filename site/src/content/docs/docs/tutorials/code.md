@@ -110,7 +110,7 @@ a few minutes.
 
 Searches go through a private [SearXNG](https://docs.searxng.org/) search engine that wanna.sh runs in Docker on your
 computer, so no account or key is needed. If you have a [Brave Search API](https://brave.com/search/api/) key, add it in
-**Settings → Web search for Code** and it's used first.
+**Settings → Accounts → Web search for Code** and it's used first.
 
 `web_fetch` can't open addresses on your own computer or local network, except the project's own preview ports. That
 way the agent can check the app it built, but not reach wanna.sh itself or other devices at home.

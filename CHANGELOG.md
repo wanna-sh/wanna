@@ -4,6 +4,10 @@ Each version's section becomes its GitHub release notes (see `.github/workflows/
 
 ## Unreleased
 
+- **Settings has its own menu.** Its seven panels are now four pages, each with its own address: **This computer**
+  (system check, graphics cards, engines), **Accounts** (Hugging Face, web search), **Models & memory** and
+  **Security** (API key, allowed host names). Messages that send you to Settings name the page, and links go
+  straight to it.
 - **Linux and WSL: the picture engine for NVIDIA cards downloads ready-made.** GGUF picture models (Qwen-Image 2.1,
   Qwen-Image-Edit) no longer need the CUDA toolkit and a 10 to 20 minute build: wanna.sh downloads stable-diffusion.cpp
   built for CUDA 12 (GTX 10 series to RTX 50 series), and NVIDIA's CUDA runtime and cuBLAS from NVIDIA's packages on

@@ -154,7 +154,7 @@ def _from_drive(weights: int, b: dict) -> dict:
         return {"level": "disk", "label": "Runs from your drive, very slowly", "detail": detail}
     # Shown all the same, so people can find these models, with what it takes to run them.
     return {"level": "disk", "label": "Runs from your drive, very slowly",
-            "detail": detail + " To run models like this, turn on \"Run models bigger than memory\" in Settings.",
+            "detail": detail + " To run models like this, turn on \"Run models bigger than memory\" in Settings → Models & memory.",
             "drive_possible": True}
 
 

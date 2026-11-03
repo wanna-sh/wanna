@@ -544,7 +544,7 @@ def _find_original(repo_id: str) -> dict:
             mirror = _mirror(api, base, params)
             if not mirror:
                 return {"error": f"The original, {base}, needs permission to download. Accept its licence on Hugging "
-                                 "Face and add your token in Settings."}
+                                 "Face and add your token in Settings → Accounts."}
             base = mirror
     return {"repo": base, "params": params, "bytes": weights, "architecture": arch}
 

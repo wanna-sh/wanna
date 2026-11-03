@@ -131,5 +131,5 @@ Everything you make is also kept in the **Gallery**, and in the `outputs` folder
 
 :::tip
 Some models, such as FLUX.1 [dev], ask you to accept their licence on Hugging Face first. Accept it on the model's
-Hugging Face page, then add a token in **Settings → Hugging Face account**.
+Hugging Face page, then add a token in **Settings → Accounts → Hugging Face account**.
 :::

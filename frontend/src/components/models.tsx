@@ -204,8 +204,8 @@ export function ModelSheet({
                     its page on Hugging Face
                   </a>
                   , accept, then add your Hugging Face token in{" "}
-                  <Link className="text-accent underline" href="/settings/">
-                    Settings
+                  <Link className="text-accent underline" href="/settings/accounts/">
+                    Settings → Accounts
                   </Link>
                   .
                 </Notice>
@@ -302,8 +302,8 @@ export function ModelSheet({
                 {fromDrive && !estimate?.setting_on && (
                   <Notice>
                     To run it, turn on &ldquo;Run models bigger than memory&rdquo; in{" "}
-                    <Link className="text-accent underline" href="/settings/">
-                      Settings
+                    <Link className="text-accent underline" href="/settings/models/">
+                      Settings → Models &amp; memory
                     </Link>
                     . You can download it first.
                   </Notice>

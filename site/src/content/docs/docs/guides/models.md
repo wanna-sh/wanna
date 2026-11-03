@@ -76,7 +76,7 @@ Face before downloading:
 
 1. Sign in at [huggingface.co](https://huggingface.co), open the model's page and accept its terms.
 2. Create a **read** token at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens).
-3. Paste it into **Settings → Hugging Face account**.
+3. Paste it into **Settings → Accounts → Hugging Face account**.
 
 ## Removing models
 

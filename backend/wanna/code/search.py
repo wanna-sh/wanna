@@ -140,7 +140,7 @@ def _brave(query: str, n: int, key: str) -> list[dict]:
     r = httpx.get("https://api.search.brave.com/res/v1/web/search", params={"q": query, "count": min(n, 20)},
                   headers={"X-Subscription-Token": key, "Accept": "application/json"}, timeout=20)
     if r.status_code in (401, 403, 422):  # Brave answers an unknown key with 422
-        raise SearchError("The Brave Search key in Settings was refused.")
+        raise SearchError("The Brave Search key in Settings → Accounts was refused.")
     if r.status_code == 429:
         raise SearchError("The Brave Search key is out of quota or rate limited.")
     r.raise_for_status()

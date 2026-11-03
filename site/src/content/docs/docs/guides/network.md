@@ -12,7 +12,7 @@ Anyone who can reach wanna.sh can use your models, so protect it before you shar
 
 1. Open **API & apps**, type what the key is for (for example *Laptop* or *Home Assistant*) and press **Create**.
 2. Copy the key straight away. It's shown only once; wanna.sh stores only a fingerprint of it.
-3. In **Settings**, turn on **Require API key**.
+3. In **Settings → Security**, turn on **Require API key**.
 
 From then on, every request to `/v1` and `/api` needs a key, sent as either header:
 

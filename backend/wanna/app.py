@@ -127,7 +127,7 @@ async def browser_protection(request: Request, call_next):
     host_header = request.headers.get("host", "")
     if not _host_allowed(_hostname(host_header)):
         msg = (f"wanna.sh doesn't answer to the name '{_hostname(host_header)}'. If you use that name on purpose, add it "
-               "under Allowed host names in Settings (open wanna.sh at http://localhost:7860) or to WANNA_ALLOWED_HOSTS.")
+               "under Settings → Security → Allowed host names (open wanna.sh at http://localhost:7860) or to WANNA_ALLOWED_HOSTS.")
         return JSONResponse({"detail": msg, "error": {"message": msg, "type": "forbidden"}}, status_code=403)
     origin = request.headers.get("origin")
     if origin is not None and not _origin_allowed(origin, host_header):

@@ -695,7 +695,7 @@ def refusal(model: dict) -> str:
     title = (model.get("meta") or {}).get("title") or model["id"]
     return (f"{title} is bigger than this computer's graphics and system memory together, so it can only run by "
             "reading from your drive while it writes, which is very slow. To allow that, turn on \"Run models "
-            "bigger than memory\" in Settings, or choose a smaller version.")
+            "bigger than memory\" in Settings → Models & memory, or choose a smaller version.")
 
 
 def for_variant(repo_id: str, variant_id: str, context: int | None = None) -> dict:

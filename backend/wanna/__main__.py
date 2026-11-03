@@ -21,12 +21,12 @@ def main() -> None:
     if os.environ.get("WANNA_IN_DOCKER"):
         logging.info(
             "Running in Docker. Publish port %s only on 127.0.0.1 (docker-compose.yml does) unless 'Require API key' "
-            "is on in Settings.", args.port,
+            "is on in Settings → Security.", args.port,
         )
     elif args.host not in ("127.0.0.1", "localhost") and not load_settings().get("require_api_key"):
         logging.warning(
             "wanna.sh is reachable from your network without an API key. "
-            "Turn on 'Require API key' in Settings to protect it."
+            "Turn on 'Require API key' in Settings → Security to protect it."
         )
 
     import uvicorn

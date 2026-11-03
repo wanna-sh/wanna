@@ -101,7 +101,7 @@ GGUF files, which chat models run from, can't be trained. So the first time you 
 1. **Downloads the model's original version** from Hugging Face, about 2 GB per billion parameters (16 GB for an 8B
    model), into `~/.wanna/models/originals`. It finds it from the model card of the chat model you have. If the
    original needs permission to download (Meta's Llama models, for example), it uses an identical copy published by
-   Unsloth, or the original itself if you've accepted its licence on Hugging Face and added your token in Settings.
+   Unsloth, or the original itself if you've accepted its licence on Hugging Face and added your token in **Settings → Accounts**.
 2. **Makes a copy of the chat model from that original**, compressed the same way as yours (for example Q4_K_M),
    into `~/.wanna/models/matched`. The trained model runs on this copy, so it runs on exactly the weights it learned
    from. A published GGUF can come from slightly different weights than the original its card names, and what was

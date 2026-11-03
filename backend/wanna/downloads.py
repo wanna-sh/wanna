@@ -262,7 +262,7 @@ def _retryable(msg: str | None) -> bool:
 def _friendly_error(msg: str) -> str:
     if "GatedRepo" in msg or "401" in msg or "403" in msg:
         return ("This model needs you to accept its licence on huggingface.co and add your "
-                "Hugging Face token in Settings.")
+                "Hugging Face token in Settings → Accounts.")
     if msg.startswith("Stalled"):
         return "The download kept stalling. Check your internet connection and try again."
     if "No space left" in msg:

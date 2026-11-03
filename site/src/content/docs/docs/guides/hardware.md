@@ -15,7 +15,7 @@ measured from your own use).
 
 - **Start** and **Stop** load or unload a model.
 - **Stop all and free memory** unloads everything.
-- **Settings → Stop idle models after** unloads models you haven't used for 5 minutes, 15 minutes or an hour.
+- **Settings → Models & memory → Stop idle models after** unloads models you haven't used for 5 minutes, 15 minutes or an hour.
 
 If a new model needs room, wanna.sh unloads the models you used least recently first.
 
@@ -62,7 +62,7 @@ On Windows with WSL2, see the note on [WSL2 memory](/docs/start/install/#windows
 ## Models bigger than memory
 
 A chat model bigger than your graphics and system memory together can still run, if you allow it: turn on
-**Settings → Models bigger than memory → Run models bigger than memory**. It's off until you do.
+**Settings → Models & memory → Run models bigger than memory**. It's off until you do.
 
 Such a model runs by reading what doesn't fit from your drive as it writes. llama.cpp maps the model file into memory
 instead of loading it: your graphics cards hold what they can, the operating system keeps as much of the rest as fits
@@ -86,7 +86,7 @@ in spare memory, and reads the remainder from the drive when a token needs it.
 - **The estimate is a range** when the speed depends on the model: some models keep using the same few experts, which
   then stay in memory, so they run faster than when experts are used evenly (as Kimi K3 is trained to).
 - **Use a fast SSD.** wanna.sh measures the drive your models are saved on the first time it matters (it writes and
-  reads a 2 GB test file, about ten seconds) and shows the result in Settings, with **Measure again**. A hard disk is
+  reads a 2 GB test file, about ten seconds) and shows the result in **Settings → Models & memory**, with **Measure again**. A hard disk is
   far too slow. Reading doesn't wear out an SSD, but the drive stays busy, so other programs may feel slower.
 - **On Windows with WSL2, give WSL more memory.** WSL gets half of the PC's memory by default; raising it in
   [`.wslconfig`](https://learn.microsoft.com/windows/wsl/wsl-config) helps these models most. Where the model is
@@ -112,5 +112,5 @@ music and especially video will take a long time.
 
 On a Mac with Apple Silicon, wanna.sh uses its built-in GPU: chat through Apple's Metal, and pictures, video, voices,
 transcription and music through PyTorch (on macOS 15 or newer). The GPU shares the Mac's memory, and macOS lets it use
-only part of it; wanna.sh asks macOS how much and shows it as the graphics memory in **Settings** and the model
+only part of it; wanna.sh asks macOS how much and shows it as the graphics memory in **Settings → This computer** and the model
 ratings. Close other apps to leave more of it free.

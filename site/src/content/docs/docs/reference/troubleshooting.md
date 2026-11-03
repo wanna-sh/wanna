@@ -5,7 +5,7 @@ description: The system check, and fixes for common problems.
 
 ## The system check
 
-**Settings → System check** tests each part of wanna.sh on your computer. Each line is **Ready**, **Needs attention**
+**Settings → This computer → System check** tests each part of wanna.sh on your computer. Each line is **Ready**, **Needs attention**
 or **Not working**:
 
 | Check | If it isn't ready |
