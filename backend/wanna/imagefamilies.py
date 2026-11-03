@@ -31,8 +31,10 @@ FAMILIES = [
         "max_images": 10,
         "llm": {"pattern": re.compile(r"qwen3[-_ ]?vl", re.I),
                 "companion": "Comfy-Org/Qwen-Image-2.1::text_encoders/qwen3vl_8b_int8_convrot.safetensors"},
-        # The safetensors text encoders include the vision weights editing needs; a GGUF one would need a projector.
-        "vision": None,
+        # Editing needs the text encoder's vision part. Safetensors text encoders include it; a GGUF one needs its
+        # projector beside it (stable-diffusion.cpp docs/qwen_image_2.1.md), from the upload or from Qwen's release.
+        "vision": {"pattern": re.compile(r"mmproj", re.I),
+                   "companion": "Qwen/Qwen3-VL-8B-Instruct-GGUF::mmproj-Qwen3VL-8B-Instruct-F16.gguf"},
         "vae": {"pattern": re.compile(r"vae", re.I),
                 "companion": "Comfy-Org/Qwen-Image-2.1::vae/qwen_image_2.1_vae_bf16.safetensors"},
         # 40 steps as in Qwen's model card; guidance 6 as stable-diffusion.cpp's tested examples. Sides divisible by 32.
