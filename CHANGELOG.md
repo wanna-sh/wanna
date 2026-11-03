@@ -18,6 +18,11 @@ Each version's section becomes its GitHub release notes (see `.github/workflows/
   PyPI, checking each against a pinned checksum. It's built by a new workflow, `sdcpp-linux-cuda.yml`, once for each
   stable-diffusion.cpp version wanna.sh uses, and published on its own release. Building it here remains for Arm
   computers and drivers older than CUDA 12. Engines built here before keep working.
+- **GGUF picture models too big for one graphics card are split across your cards.** Before, the engine drew on one
+  card and copied the rest of the model onto it from system memory for every step: Qwen-Image-Edit Rapid (14 GB) on
+  a 12 GB RTX 3060 took minutes a step. Now its layers are shared between the cards, with the text encoder and VAE on
+  the second one so the first keeps room for changing and combining pictures: a picture in about 25 seconds, a change
+  or a combination of two in about 30, on an RTX 3060 and RTX 3070.
 - The picture engine's downloads go to disk instead of memory (the Windows one is about 900 MB).
 - Choosing a GGUF picture model on the Pictures page starts setting up its engine straight away, with a progress bar
   saying what it's doing (and **Try again** if it fails); **Create** waits until it's ready. My models shows it too.

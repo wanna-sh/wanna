@@ -144,7 +144,7 @@ class Worker:
                 cmd.append("--offload")
             env = dict(os.environ)
             if self.engine == "sdcpp":
-                cmd += ["--engine", "sdcpp", "--sdcpp", json.dumps(_sdcpp_config(self.model))]
+                cmd += ["--engine", "sdcpp", "--sdcpp", json.dumps(_sdcpp_config(self.model, self.gpus))]
                 lib_dir = str(sdcpp.installer.dir)
                 env["LD_LIBRARY_PATH"] = lib_dir + os.pathsep + env.get("LD_LIBRARY_PATH", "")
                 # ggml looks for its processor and graphics plugins beside the program and in the current folder.
@@ -245,15 +245,46 @@ def _sdcpp_setting_up() -> str:
     return f"The picture engine is still being set up{progress}. This happens once: {doing}. Try again shortly."
 
 
-def _sdcpp_config(model: dict) -> dict:
-    """What the worker needs to load a stable-diffusion.cpp picture model: absolute file paths and its settings."""
+# Working memory stable-diffusion.cpp keeps on a card for drawing, beside the model's weights (its auto-fit reserves
+# 2 GiB for the diffusion model; backend_fit.cpp).
+SDCPP_COMPUTE_RESERVE = 2 * 1024**3
+
+
+def _sdcpp_backend(weights: int, gpus: list[int]) -> str | None:
+    """How to place a picture model on several cards, as stable-diffusion.cpp's --backend, or None to let it decide.
+
+    On its own it draws on one card and keeps what doesn't fit in system memory, copying it onto the card for every
+    step: a model a little bigger than the card (Qwen-Image-Edit at Q5, 14 GB, on a 12 GB card) then takes minutes a
+    step. When the model doesn't fit on the roomiest card but fits on the cards together, its layers are split across
+    them instead ("diffusion=CUDA1&CUDA0", in proportion to their free memory), with the text encoder and VAE on the
+    roomiest card. Devices are numbered in CUDA_VISIBLE_DEVICES order, which is the order of `gpus`."""
+    if len(gpus) < 2 or not weights:
+        return None
+    free = {g["index"]: g["memory_free"] for g in gpu.list_gpus() if g["index"] in gpus}
+    if len(free) < 2:
+        return None
+    usable = {i: max(0, m - SDCPP_COMPUTE_RESERVE) for i, m in free.items()}
+    if weights <= max(usable.values()) or weights > sum(usable.values()):
+        return None  # fits on one card, or not even on all of them: stable-diffusion.cpp's own placement is best
+    order = sorted(usable, key=lambda i: -usable[i])
+    # The text encoder and VAE work on the second card: the first one, holding most of the layers, needs its free
+    # memory for drawing, which takes more when changing or combining pictures (their tokens come along). On the main
+    # card, the text encoder's working memory left an edit 300 MB short (Qwen-Image-Edit Rapid Q5, 3060 + 3070).
+    helper = f"CUDA{gpus.index(order[1])}"
+    return f"diffusion={'&'.join(f'CUDA{gpus.index(i)}' for i in order)},te={helper},vae={helper}"
+
+
+def _sdcpp_config(model: dict, gpus: list[int] | None = None) -> dict:
+    """What the worker needs to load a stable-diffusion.cpp picture model: absolute file paths, its settings, and how to
+    place it on the cards it was given."""
     from ..imagefamilies import settings
 
     meta = model.get("meta") or {}
     root = MODELS_DIR / model["id"]
     parts = {k: str(root / v) for k, v in ((meta.get("sdcpp") or {}).get("parts") or {}).items()}
     return {"lib_dir": str(sdcpp.installer.dir), "parts": parts, "edits": bool(meta.get("edits")),
-            "makes": meta.get("makes", True) is not False, **settings(model)}
+            "makes": meta.get("makes", True) is not False,
+            "backend": _sdcpp_backend(int(meta.get("vram_bytes") or 0), gpus or []), **settings(model)}
 
 
 def _tail_error(path: Path, returncode: int | None = None) -> str:

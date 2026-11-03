@@ -499,6 +499,8 @@ class SdCppHandler:
         p.llm_vision_path = text(parts.get("vision"))
         p.vae_path = text(parts.get("vae"))
         p.model_args = text(self.cfg.get("model_args"))
+        # Set when the model is split across several cards (see manager._sdcpp_backend); otherwise auto-fit decides.
+        p.backend = text(self.cfg.get("backend"))
         # Weights the graphics card can't hold go to system memory or the drive (stable-diffusion.cpp's auto-fit, on
         # by default). Memory-mapping lets the system drop pages and read them again when it needs the room.
         p.enable_mmap = True
