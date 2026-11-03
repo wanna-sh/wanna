@@ -1,0 +1,112 @@
+# Builds stable-diffusion.cpp for Linux with CUDA 12 and publishes it, so Linux computers with an NVIDIA card download
+# the picture engine instead of building it (stable-diffusion.cpp's releases have no Linux CUDA build). See
+# backend/wanna/engines/sdcpp.py, which downloads it.
+#
+# It's built for the commit pinned in sdcpp.py, and published once per commit on its own prerelease
+# (sdcpp-<commit>-linux-cuda12), never marked latest, so the "latest release" download links stay on wanna.sh's own.
+# NVIDIA's CUDA runtime and cuBLAS aren't in it: wanna.sh gets them from NVIDIA's packages on PyPI on each computer.
+name: Linux CUDA picture engine
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - backend/wanna/engines/sdcpp.py
+      - backend/wanna/engines/cuda12_runtime.json
+      - backend/wanna/workers/sdcpp_lib.py
+      - scripts/sdcpp/**
+      - .github/workflows/sdcpp-linux-cuda.yml
+  workflow_dispatch:
+    inputs:
+      rebuild:
+        description: Build and upload again even if this commit's build is already published
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sdcpp-linux-cuda
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # About an hour or two from scratch (nine generations of graphics cards); much less with the compiler cache.
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Read the pinned version
+        run: |
+          file=backend/wanna/engines/sdcpp.py
+          commit=$(python3 -c "import re; print(re.search(r'WANNA_SDCPP_COMMIT\", \"([0-9a-f]{40})\"', open('$file').read()).group(1))")
+          short=${commit:0:7}
+          # The names sdcpp.py downloads. Fail if they change there without changing here.
+          grep -qF 'LINUX_CUDA_RELEASE = f"sdcpp-{COMMIT[:7]}-linux-cuda12"' "$file"
+          grep -qF 'LINUX_CUDA_ASSET = f"sdcpp-{COMMIT[:7]}-linux-x64-cuda12.tar.gz"' "$file"
+          {
+            echo "COMMIT=$commit"
+            echo "RELEASE=sdcpp-$short-linux-cuda12"
+            echo "ASSET=sdcpp-$short-linux-x64-cuda12.tar.gz"
+          } >> "$GITHUB_ENV"
+          echo "stable-diffusion.cpp $commit"
+
+      - name: Already published?
+        id: published
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ inputs.rebuild }}" != "true" ] && \
+             gh release view "$RELEASE" --json assets -q '.assets[].name' 2>/dev/null | grep -qxF "$ASSET.sha256"; then
+            echo "$RELEASE already has $ASSET; nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Make room for the CUDA image
+        if: steps.published.outputs.skip != 'true'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Restore the compiler cache
+        if: steps.published.outputs.skip != 'true'
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/ccache
+          key: sdcpp-linux-cuda12-${{ env.COMMIT }}-${{ github.run_id }}
+          restore-keys: |
+            sdcpp-linux-cuda12-${{ env.COMMIT }}-
+            sdcpp-linux-cuda12-
+
+      - name: Build
+        if: steps.published.outputs.skip != 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/ccache" out
+          docker run --rm -v "$GITHUB_WORKSPACE:/w" -v "$RUNNER_TEMP/ccache:/ccache" \
+            -e CCACHE_DIR=/ccache -e CCACHE_MAXSIZE=5G \
+            nvidia/cuda:12.8.1-devel-ubuntu22.04 \
+            bash /w/scripts/sdcpp/build-linux-cuda.sh "$COMMIT" /w/out
+          sudo chown -R "$(id -u):$(id -g)" out "$RUNNER_TEMP/ccache"
+
+      - name: Check it
+        if: steps.published.outputs.skip != 'true'
+        run: python3 scripts/sdcpp/check-linux-build.py out "$COMMIT"
+
+      - name: Publish
+        if: steps.published.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tar -czf "$ASSET" -C out .
+          sha256sum "$ASSET" > "$ASSET.sha256"
+          cat "$ASSET.sha256"
+          if ! gh release view "$RELEASE" >/dev/null 2>&1; then
+            gh release create "$RELEASE" --prerelease --latest=false --target "$GITHUB_SHA" \
+              --title "Picture engine for Linux (stable-diffusion.cpp ${COMMIT:0:7}, CUDA 12)" \
+              --notes "stable-diffusion.cpp ${COMMIT} built for Linux x86-64 with CUDA 12.8, for NVIDIA graphics cards from the GTX 10 series to the RTX 50 series. wanna.sh downloads it by itself; you don't need to. NVIDIA's CUDA runtime and cuBLAS aren't included: wanna.sh downloads them from NVIDIA's packages on PyPI."
+          fi
+          # The checksum last: wanna.sh treats the build as published once the checksum is there.
+          gh release upload "$RELEASE" "$ASSET" --clobber
+          gh release upload "$RELEASE" "$ASSET.sha256" --clobber

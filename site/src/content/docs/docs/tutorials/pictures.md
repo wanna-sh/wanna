@@ -108,10 +108,11 @@ bigger than the model file alone. Parts that don't fit on your graphics card are
 they need **macOS 26 or newer**: stable-diffusion.cpp is only built for it, and older versions say so when you try one.
 
 :::note[Linux and WSL]
-stable-diffusion.cpp has no ready-made Linux build for NVIDIA cards, so wanna.sh builds one for your card (once, in
-10 to 20 minutes). That needs the CUDA toolkit, cmake and git. Without them it uses the processor, which is very slow,
-and the Pictures page says what to install; wanna.sh builds for your card the next time once they're there.
-[Set up your graphics card for these models](/docs/guides/linux-gpu-pictures/) walks through it step by step.
+On Linux and WSL with an NVIDIA card, wanna.sh downloads a ready-made engine for your card the first time (about 1 GB
+with NVIDIA's CUDA libraries). It needs an x86-64 computer and a driver that supports CUDA 12 or newer. Otherwise
+wanna.sh can build the engine itself once the CUDA toolkit, cmake and git are installed; until then these models use
+the processor, which is very slow, and the Pictures page says what to do.
+[Graphics card for GGUF picture models on Linux and WSL](/docs/guides/linux-gpu-pictures/) has the details.
 :::
 
 ## After it's made

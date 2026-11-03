@@ -2,6 +2,16 @@
 
 Each version's section becomes its GitHub release notes (see `.github/workflows/release.yml`).
 
+## Unreleased
+
+- **Linux and WSL: the picture engine for NVIDIA cards downloads ready-made.** GGUF picture models (Qwen-Image 2.1,
+  Qwen-Image-Edit) no longer need the CUDA toolkit and a 10 to 20 minute build: wanna.sh downloads stable-diffusion.cpp
+  built for CUDA 12 (GTX 10 series to RTX 50 series), and NVIDIA's CUDA runtime and cuBLAS from NVIDIA's packages on
+  PyPI, checking each against a pinned checksum. It's built by a new workflow, `sdcpp-linux-cuda.yml`, once for each
+  stable-diffusion.cpp version wanna.sh uses, and published on its own release. Building it here remains for Arm
+  computers and drivers older than CUDA 12. Engines built here before keep working.
+- The picture engine's downloads go to disk instead of memory (the Windows one is about 900 MB).
+
 ## 0.9.0 (2026-11-03)
 
 - **Change pictures by describing the change.** Editing models, such as Qwen-Image-Edit (and its 2509 and 2511

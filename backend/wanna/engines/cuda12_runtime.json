@@ -1,0 +1,17 @@
+{
+  "_comment": "NVIDIA's CUDA 12 runtime and cuBLAS, which the ready-made Linux build of stable-diffusion.cpp needs. Downloaded on each computer from NVIDIA's packages on PyPI (wanna.sh doesn't redistribute them) and checked against these hashes. 12.8, matching the CUDA version the build is made with. Checked on PyPI on 2026-11-03.",
+  "wheels": [
+    {
+      "name": "nvidia-cuda-runtime-cu12 12.8.90",
+      "url": "https://files.pythonhosted.org/packages/0d/9b/a997b638fcd068ad6e4d53b8551a7d30fe8b404d6f1804abf1df69838932/nvidia_cuda_runtime_cu12-12.8.90-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "sha256": "adade8dcbd0edf427b7204d480d6066d33902cab2a4707dcfc48a2d0fd44ab90",
+      "files": ["nvidia/cuda_runtime/lib/libcudart.so.12"]
+    },
+    {
+      "name": "nvidia-cublas-cu12 12.8.4.1",
+      "url": "https://files.pythonhosted.org/packages/dc/61/e24b560ab2e2eaeb3c839129175fb330dfcfc29e5203196e5541a4c44682/nvidia_cublas_cu12-12.8.4.1-py3-none-manylinux_2_27_x86_64.whl",
+      "sha256": "8ac4e771d5a348c551b2a426eda6193c19aa630236b418086020df5ba9667142",
+      "files": ["nvidia/cublas/lib/libcublas.so.12", "nvidia/cublas/lib/libcublasLt.so.12"]
+    }
+  ]
+}

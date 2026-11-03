@@ -1,20 +1,29 @@
 ---
 title: Graphics card for GGUF picture models on Linux and WSL
-description: Install the CUDA toolkit, cmake and git so wanna.sh can build its picture engine for your NVIDIA card.
+description: Most Linux and WSL computers need nothing. When yours does, install the CUDA toolkit, cmake and git so wanna.sh can build its picture engine for your NVIDIA card.
 ---
 
-GGUF picture models, such as Qwen-Image 2.1 and Qwen-Image-Edit, run on stable-diffusion.cpp. On **Linux and WSL**
-there's no ready-made version of it for NVIDIA cards, so wanna.sh builds one for your card. To do that it needs four
-tools: the **CUDA toolkit**, **cmake**, **git** and a **C++ compiler**. Until they're installed, these models run on
-the processor, which is very slow.
+GGUF picture models, such as Qwen-Image 2.1 and Qwen-Image-Edit, run on stable-diffusion.cpp. **On most Linux and WSL
+computers with an NVIDIA card you don't need to do anything**: the first time you use one of these models, wanna.sh
+downloads a ready-made engine for your card, along with NVIDIA's CUDA libraries (about 1 GB in all, once). Settings
+then shows **Picture engine: stable-diffusion.cpp, ready (cuda 12)**.
 
-You only do this once. It takes about 10 minutes to install the tools, then wanna.sh spends 10 to 20 minutes building
-the engine the next time you use one of these models.
+The ready-made engine needs:
+
+- an **x86-64** computer (most PCs; not Arm boards such as Jetson or DGX Spark),
+- an NVIDIA driver that supports **CUDA 12 or newer** (`nvidia-smi` shows the CUDA version at the top right),
+- a graphics card from the **GTX 10 series or newer**,
+- a recent Linux: **Ubuntu 22.04**, **Debian 12** or newer, or another distribution from 2022 on.
+
+This guide is for the computers that don't qualify, or when the download isn't available. Then wanna.sh builds the
+engine itself, which needs four tools: the **CUDA toolkit**, **cmake**, **git** and a **C++ compiler**. Until they're
+installed, these models run on the processor, which is very slow. You only do this once: about 10 minutes to install
+the tools, then 10 to 20 minutes for wanna.sh to build the engine the next time you use one of these models.
 
 :::note[Who needs this]
-Only Linux and WSL with an NVIDIA graphics card. **Windows** and **Mac** need nothing: wanna.sh downloads a
-ready-made engine for them. Other picture models (Stable Diffusion, SDXL, FLUX in diffusers format) don't use this
-engine and already use your graphics card.
+Only Linux and WSL with an NVIDIA graphics card, and only when the ready-made engine can't be used. **Windows** and
+**Mac** need nothing: wanna.sh downloads a ready-made engine for them. Other picture models (Stable Diffusion, SDXL,
+FLUX in diffusers format) don't use this engine and already use your graphics card.
 :::
 
 ## Do I need this?
@@ -23,8 +32,10 @@ You do if either of these is true:
 
 - The **Pictures** page shows a notice starting *Pictures from this kind of model are made on the processor*.
 - **Settings → This computer → Picture engine** ends with **cpu (no CUDA build tools)**.
+- Using one of these models says *There's no ready-made picture engine for Linux in this version of wanna.sh yet*.
 
-When it's working, the picture engine shows **cuda (built here)**.
+If the notice says your driver only supports an older CUDA version, update your NVIDIA driver instead (in WSL, on
+Windows). When it's working, the picture engine shows **cuda 12** (ready-made) or **cuda (built here)**.
 
 ## Step 1: Open a terminal in the right place
 

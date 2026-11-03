@@ -79,9 +79,10 @@ conversation, or a model rated **Runs great here**.
 
 ### Qwen-Image or Qwen-Image-Edit pictures are very slow on Linux or WSL
 
-GGUF picture models run on the processor until wanna.sh can build its picture engine for your NVIDIA card. The
-Pictures page says so, and **Settings → This computer → Picture engine** ends with **cpu (no CUDA build tools)**.
-Install the CUDA toolkit, cmake and git, following
+On most computers wanna.sh downloads a picture engine for your NVIDIA card by itself. When it can't (an Arm
+computer, or a driver older than CUDA 12), GGUF picture models run on the processor: the Pictures page says so, and
+**Settings → This computer → Picture engine** ends with **cpu (no CUDA build tools)**. Update your driver, or install
+the CUDA toolkit, cmake and git so wanna.sh can build the engine, following
 [Graphics card for GGUF picture models on Linux and WSL](/docs/guides/linux-gpu-pictures/).
 
 ### A download stopped

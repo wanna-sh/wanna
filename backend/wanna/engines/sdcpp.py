@@ -2,14 +2,19 @@
 (Qwen-Image and its editing models, and others) run on it, loaded into wanna.sh's own worker process through the
 library's C interface (see workers/sdcpp_lib.py). Nothing of it listens on a port.
 
-Releases ship ready-made builds for Windows (CUDA, Vulkan, CPU) and macOS, but for Linux only CPU, Vulkan and ROCm. On
-Linux with an NVIDIA card it's built from source with CUDA when the tools to build it are there (CUDA toolkit, cmake,
-git and a C++ compiler); otherwise the ready-made build is used, and it's built again once the tools appear.
+Where the library comes from:
+- Windows and macOS: stable-diffusion.cpp's own release builds (CUDA 12, or the processor, on Windows; Metal on Mac).
+- Linux with an NVIDIA card: a ready-made CUDA 12 build published on wanna.sh's GitHub releases by
+  .github/workflows/sdcpp-linux-cuda.yml (stable-diffusion.cpp has none for Linux), with NVIDIA's CUDA runtime and
+  cuBLAS from their packages on PyPI (cuda12_runtime.json). If that can't be downloaded, it's built here when the tools
+  are there (CUDA toolkit, cmake, git and a C++ compiler).
+- Otherwise on Linux: stable-diffusion.cpp's Vulkan or processor builds.
 """
 
 from __future__ import annotations
 
-import io
+import hashlib
+import json
 import logging
 import os
 import platform
@@ -17,6 +22,8 @@ import re
 import shutil
 import stat
 import subprocess
+import tarfile
+import tempfile
 import threading
 import zipfile
 from pathlib import Path
@@ -28,21 +35,33 @@ from ..config import ENGINES_DIR
 
 log = logging.getLogger("wanna.sdcpp")
 
-# Pinned, tested release and its commit (for building from source). Override both to try a newer one.
+# Pinned, tested release and its commit (for the Linux build). Override both to try a newer one.
 DEFAULT_TAG = os.environ.get("WANNA_SDCPP_TAG", "master-1043-3be2378")
 COMMIT = os.environ.get("WANNA_SDCPP_COMMIT", "3be23788fc0c9f35a2c24b1211caae11d4a54dbc")
 REPO = "leejet/stable-diffusion.cpp"
 ROOT = ENGINES_DIR / "sdcpp"
 LIB = {"Windows": "stable-diffusion.dll", "Darwin": "libstable-diffusion.dylib"}.get(platform.system(),
                                                                                     "libstable-diffusion.so")
-# Marker for a build made without the graphics card because the tools to build for it were missing.
+# The ready-made Linux CUDA build of the pinned commit, published by .github/workflows/sdcpp-linux-cuda.yml under these
+# names (the workflow reads them from here), with a .sha256 file beside it.
+LINUX_CUDA_RELEASE = f"sdcpp-{COMMIT[:7]}-linux-cuda12"
+LINUX_CUDA_ASSET = f"sdcpp-{COMMIT[:7]}-linux-x64-cuda12.tar.gz"
+LINUX_CUDA_URL = os.environ.get(
+    "WANNA_SDCPP_LINUX_CUDA_URL",
+    f"https://github.com/wanna-sh/wanna/releases/download/{LINUX_CUDA_RELEASE}/{LINUX_CUDA_ASSET}")
+CUDA12_RUNTIME = json.loads((Path(__file__).with_name("cuda12_runtime.json")).read_text())["wheels"]
+# Marker for a build made without the graphics card because there was no way to get one for it.
 NO_GPU_TOOLS = "no CUDA build tools"
 # The Mac release is built for macOS 26 and newer (its library's minimum version, read from the file on 2026-11-03).
 MAC_MIN = 26
 MAC_TOO_OLD = (f"GGUF picture models need macOS {MAC_MIN} or newer on a Mac: the picture engine they run on "
                "(stable-diffusion.cpp) is only built for it. Other picture models work as usual.")
-# Step-by-step instructions for installing those tools.
+# Step-by-step instructions for installing the tools to build it.
 GPU_HELP_URL = "https://wanna.sh/docs/guides/linux-gpu-pictures/"
+
+
+class NotPublished(RuntimeError):
+    """The ready-made Linux build of the pinned commit isn't on wanna.sh's releases (yet)."""
 
 
 class Installer:
@@ -69,8 +88,8 @@ class Installer:
     def installed(self) -> bool:
         if not self.library().exists():
             return False
-        # Built without the graphics card for lack of tools, and the tools are there now: build again.
-        return not (NO_GPU_TOOLS in self.backend_name() and _cuda_build_tools() is not None)
+        # Set up without the graphics card, and there's a way to use it now (the tools appeared): set up again.
+        return not (NO_GPU_TOOLS in self.backend_name() and NO_GPU_TOOLS not in _plan()[0])
 
     def state(self) -> dict:
         if self.installed() and self.status != "installing":
@@ -96,10 +115,26 @@ class Installer:
                 raise RuntimeError(MAC_TOO_OLD)
             shutil.rmtree(tmp, ignore_errors=True)
             tmp.mkdir(parents=True)
-            if how == "build":
+            if how == "linux-cuda":
+                try:
+                    self._linux_cuda(tmp)
+                except Exception as e:
+                    if _cuda_build_tools() is None:
+                        if isinstance(e, NotPublished):
+                            raise RuntimeError("There's no ready-made picture engine for Linux in this version of "
+                                               "wanna.sh yet. To use your graphics card now, install the CUDA toolkit, "
+                                               "cmake and git, and wanna.sh builds it here.") from e
+                        raise RuntimeError(f"Couldn't download the picture engine for your graphics card ({e}). "
+                                           "Check your internet connection and try again.") from e
+                    log.warning("Ready-made Linux CUDA build unavailable (%s); building it here", e)
+                    shutil.rmtree(tmp, ignore_errors=True)
+                    tmp.mkdir(parents=True)
+                    backend = "cuda (built here)"
+                    self._build(tmp)
+            elif how == "build":
                 self._build(tmp)
             else:
-                self._download(tmp, how)
+                self._release(tmp, how)
             if not (tmp / LIB).exists():
                 raise RuntimeError(f"{LIB} was not found in the stable-diffusion.cpp build")
             (tmp / "backend.txt").write_text(backend)
@@ -115,7 +150,30 @@ class Installer:
             shutil.rmtree(tmp, ignore_errors=True)
             self.status, self.error, self.message = "error", str(e), "Install failed"
 
-    def _download(self, dest: Path, patterns: list[str]) -> None:
+    def _fetch(self, url: str, name: str, done: int, total: int, sha256: str | None = None) -> tuple[Path, int]:
+        """Download to a temporary file (not memory: some of these are hundreds of megabytes), moving the progress bar
+        from done/total. Checks the SHA-256 when one is given. Returns the file and the new done count."""
+        self.message = f"Downloading {name}"
+        digest = hashlib.sha256()
+        fd, path = tempfile.mkstemp(prefix="wanna-sdcpp-", dir=ROOT if ROOT.exists() else None)
+        try:
+            with os.fdopen(fd, "wb") as out, \
+                    httpx.stream("GET", url, follow_redirects=True, timeout=60) as r:
+                r.raise_for_status()
+                for chunk in r.iter_bytes(1 << 20):
+                    out.write(chunk)
+                    digest.update(chunk)
+                    done += len(chunk)
+                    self.progress = min(0.99, done / (total or 1))
+            if sha256 and digest.hexdigest() != sha256.lower():
+                raise RuntimeError(f"{name} didn't download intact (its checksum doesn't match). Try again.")
+        except BaseException:
+            Path(path).unlink(missing_ok=True)
+            raise
+        return Path(path), done
+
+    def _release(self, dest: Path, patterns: list[str]) -> None:
+        """stable-diffusion.cpp's own release builds (Windows, macOS, and Linux without CUDA)."""
         self.message = "Finding the right picture engine for your computer"
         rel = httpx.get(f"https://api.github.com/repos/{REPO}/releases/tags/{DEFAULT_TAG}", timeout=30,
                         follow_redirects=True).json()
@@ -126,19 +184,48 @@ class Installer:
             if a is None:
                 raise RuntimeError(f"No stable-diffusion.cpp build matches {pat} in release {DEFAULT_TAG}")
             chosen.append(a)
-        total = sum(a["size"] for a in chosen) or 1
-        done = 0
+        total, done = sum(a["size"] for a in chosen), 0
         for a in chosen:
-            self.message = f"Downloading {a['name']}"
-            buf = io.BytesIO()
-            with httpx.stream("GET", a["browser_download_url"], follow_redirects=True, timeout=60) as r:
-                r.raise_for_status()
-                for chunk in r.iter_bytes(1 << 20):
-                    buf.write(chunk)
-                    done += len(chunk)
-                    self.progress = min(0.99, done / total)
-            self.message = f"Unpacking {a['name']}"
-            _extract_zip(buf, dest)
+            path, done = self._fetch(a["browser_download_url"], a["name"], done, total)
+            try:
+                self.message = f"Unpacking {a['name']}"
+                with zipfile.ZipFile(path) as z:
+                    _extract_flat(z, dest)
+            finally:
+                path.unlink(missing_ok=True)
+
+    def _linux_cuda(self, dest: Path) -> None:
+        """wanna.sh's ready-made Linux CUDA 12 build, and NVIDIA's CUDA runtime and cuBLAS from PyPI."""
+        self.message = "Finding the right picture engine for your computer"
+        with httpx.Client(follow_redirects=True, timeout=30) as c:
+            r = c.get(LINUX_CUDA_URL + ".sha256")
+            if r.status_code == 404:
+                raise NotPublished("there's no ready-made Linux build of this version yet")
+            r.raise_for_status()
+            build_sha = r.text.split()[0]
+            sizes = [int(c.head(u, timeout=30).headers.get("content-length") or 0)
+                     for u in [LINUX_CUDA_URL, *(w["url"] for w in CUDA12_RUNTIME)]]
+        total, done = sum(sizes), 0
+        path, done = self._fetch(LINUX_CUDA_URL, LINUX_CUDA_ASSET, done, total, build_sha)
+        try:
+            self.message = f"Unpacking {LINUX_CUDA_ASSET}"
+            with tarfile.open(path, "r:gz") as t:
+                for m in t.getmembers():
+                    if m.isfile():
+                        with t.extractfile(m) as src, open(dest / Path(m.name).name, "wb") as out:
+                            shutil.copyfileobj(src, out)
+        finally:
+            path.unlink(missing_ok=True)
+        for wheel in CUDA12_RUNTIME:
+            path, done = self._fetch(wheel["url"], wheel["name"], done, total, wheel["sha256"])
+            try:
+                self.message = f"Unpacking {wheel['name']}"
+                with zipfile.ZipFile(path) as z:
+                    for name in wheel["files"]:
+                        with z.open(name) as src, open(dest / Path(name).name, "wb") as out:
+                            shutil.copyfileobj(src, out)
+            finally:
+                path.unlink(missing_ok=True)
 
     def _build(self, dest: Path) -> None:
         """Build the library with CUDA from the pinned commit (Linux with an NVIDIA card)."""
@@ -191,7 +278,8 @@ def _cuda_build_tools() -> dict | None:
     nvcc = shutil.which("nvcc")
     if not nvcc:
         # NVIDIA's packages install to /usr/local/cuda-X.Y without touching PATH; Arch's to /opt/cuda.
-        found = sorted(Path("/usr/local").glob("cuda*/bin/nvcc"), reverse=True) +             [p for p in [Path("/opt/cuda/bin/nvcc")] if p.exists()]
+        found = sorted(Path("/usr/local").glob("cuda*/bin/nvcc"), reverse=True)
+        found += [p for p in [Path("/opt/cuda/bin/nvcc")] if p.exists()]
         nvcc = str(found[0]) if found else None
     tools = {"nvcc": nvcc, "cmake": shutil.which("cmake"), "git": shutil.which("git"),
              "cxx": shutil.which("c++") or shutil.which("g++")}
@@ -205,7 +293,7 @@ def _vulkan_available() -> bool:
 
 
 def _plan() -> tuple[str, list[str] | str]:
-    """(backend label, asset name regexes to download, "build", or "unsupported")."""
+    """(backend label, asset name regexes to download, or "linux-cuda", "build" or "unsupported")."""
     system = platform.system()
     sha = re.escape(DEFAULT_TAG.rsplit("-", 1)[-1])
     has_nvidia = bool(gpu.list_gpus())
@@ -219,6 +307,9 @@ def _plan() -> tuple[str, list[str] | str]:
             return "cuda 12", [rf"sd-master-{sha}-bin-win-cuda12-x64\.zip", r"cudart-sd-bin-win-cu12-x64\.zip"]
         return "cpu", [rf"sd-master-{sha}-bin-win-cpu-x64\.zip"]
     # Linux
+    drv = gpu.cuda_driver_version() or (0, 0)
+    if has_nvidia and drv >= (12, 0) and platform.machine().lower() in ("x86_64", "amd64"):
+        return "cuda 12", "linux-cuda"
     if has_nvidia and _cuda_build_tools():
         return "cuda (built here)", "build"
     if _vulkan_available():
@@ -242,26 +333,28 @@ def _mac_major() -> int:
 
 
 def gpu_help() -> str | None:
-    """What to install to use the graphics card, when the engine was set up without it."""
+    """What to install to use the graphics card, when the engine was set up without it (an NVIDIA driver too old for
+    CUDA 12, or a Linux computer that isn't x86-64)."""
     if NO_GPU_TOOLS not in installer.backend_name():
         return None
     drv = gpu.cuda_driver_version()
+    if drv and drv < (12, 0):
+        return ("Pictures from this kind of model are made on the processor, which is very slow, because your "
+                f"graphics driver only supports CUDA {drv[0]}.{drv[1]}. Update your NVIDIA driver to use your "
+                "graphics card.")
     package = f" (for your driver, cuda-toolkit-{drv[0]}-{drv[1]} or the newest below it)" if drv else ""
     return ("Pictures from this kind of model are made on the processor, which is very slow. To use your graphics "
             f"card, install the CUDA toolkit{package}, cmake and git, then use the model again: wanna.sh builds the "
             "engine for your card, once.")
 
 
-def _extract_zip(buf: io.BytesIO, dest: Path) -> None:
+def _extract_flat(z: zipfile.ZipFile, dest: Path) -> None:
     """Extract a release zip, flattening any folders (the libraries and their plugins sit side by side)."""
-    buf.seek(0)
-    with zipfile.ZipFile(buf) as z:
-        for m in z.infolist():
-            if m.is_dir():
-                continue
-            target = dest / Path(m.filename).name
-            with z.open(m) as src, open(target, "wb") as dst:
-                shutil.copyfileobj(src, dst)
+    for m in z.infolist():
+        if m.is_dir():
+            continue
+        with z.open(m) as src, open(dest / Path(m.filename).name, "wb") as out:
+            shutil.copyfileobj(src, out)
 
 
 installer = Installer()
