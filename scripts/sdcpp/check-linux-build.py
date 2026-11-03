@@ -7,6 +7,10 @@
 3. It's the pinned commit.
 
     python3 check-linux-build.py <build folder> <commit>
+
+The library links the graphics driver's libcuda.so.1, so loading it needs one. On a computer without a driver (CI), set
+SDCPP_DRIVER_STUB to a folder holding NVIDIA's stub as libcuda.so.1 (the CUDA toolkit's lib64/stubs/libcuda.so): it's
+used to load the library, never for the dependency check.
 """
 
 import hashlib
@@ -83,4 +87,8 @@ if __name__ == "__main__":
         load(folder, pinned)
     else:
         env = dependencies(folder)
+        stub = os.environ.get("SDCPP_DRIVER_STUB")
+        if stub:
+            env["LD_LIBRARY_PATH"] += f":{stub}"
+            print(f"..  loading with NVIDIA's driver stub from {stub} (no graphics driver here)")
         subprocess.run([sys.executable, __file__, str(folder), pinned, "--load"], env=env, check=True)
