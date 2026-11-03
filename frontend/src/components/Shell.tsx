@@ -121,12 +121,13 @@ export default function Shell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      {/* The home page is a full-bleed landing page and lays out its own width; app pages share one frame. */}
+      {/* The home page is a full-bleed landing page and lays out its own width; app pages share one frame, centred,
+          except Settings, whose own menu sits against the sidebar. */}
       {path === "/" ? (
         <main className="min-w-0">{children}</main>
       ) : (
         <main className="min-w-0 px-4 sm:px-8 lg:px-12 pt-6 pb-4 lg:pt-8">
-          <div className="mx-auto max-w-[1120px]">{children}</div>
+          <div className={`max-w-[1120px] ${path.startsWith("/settings") ? "" : "mx-auto"}`}>{children}</div>
         </main>
       )}
     </div>
