@@ -230,6 +230,21 @@ class Worker:
         }
 
 
+def _sdcpp_setting_up() -> str:
+    """What the picture engine is doing while it's set up: downloaded on most computers (about 1 GB with NVIDIA's CUDA
+    libraries, much less otherwise), built here on some Linux ones (10 to 20 minutes)."""
+    st = sdcpp.installer.state()
+    backend, how = sdcpp._plan()
+    if "Building" in (st["message"] or "") or how == "build":
+        doing = "building it for your graphics card takes 10 to 20 minutes"
+    elif "cuda" in backend:
+        doing = "it downloads about 1 GB for your graphics card"
+    else:
+        doing = "it's downloading"
+    progress = f" ({st['progress'] * 100:.0f}% done)" if st["progress"] else ""
+    return f"The picture engine is still being set up{progress}. This happens once: {doing}. Try again shortly."
+
+
 def _sdcpp_config(model: dict) -> dict:
     """What the worker needs to load a stable-diffusion.cpp picture model: absolute file paths and its settings."""
     from ..imagefamilies import settings
@@ -332,8 +347,7 @@ class ModelManager:
                     guide = f" See {sdcpp.GPU_HELP_URL}" if sys.platform.startswith("linux") else ""
                     raise LoadError(f"The picture engine couldn't be set up: {st['error']}{guide}")
                 sdcpp.installer.ensure()
-                raise LoadError("The picture engine is still being set up. This happens once (building it for your "
-                                "graphics card can take 10 to 20 minutes); please try again shortly.")
+                raise LoadError(_sdcpp_setting_up())
 
             need = self._estimate(model, context)
             from_drive = model["engine"] == "llamacpp" and model["task"] == "chat" and streaming.needs_drive(model, gpus)

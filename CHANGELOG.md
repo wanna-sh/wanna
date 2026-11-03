@@ -11,6 +11,8 @@ Each version's section becomes its GitHub release notes (see `.github/workflows/
   stable-diffusion.cpp version wanna.sh uses, and published on its own release. Building it here remains for Arm
   computers and drivers older than CUDA 12. Engines built here before keep working.
 - The picture engine's downloads go to disk instead of memory (the Windows one is about 900 MB).
+- While the picture engine is set up, the message says what's happening and how far along it is: a download on most
+  computers, not "building it for your graphics card" as it said everywhere before.
 - Qwen-Image 2.1 uploads with a GGUF text encoder (such as the Genesis ones) download its vision file too, which
   changing and combining pictures need. Before, only making pictures from a description worked with them.
 - GGUF picture models are recognised from their files, not their names: wanna.sh reads each file's header (a few
