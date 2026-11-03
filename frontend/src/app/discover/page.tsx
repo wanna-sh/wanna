@@ -353,11 +353,13 @@ function Grid({ results, onOpen }: { results: HubResult[]; onOpen: (id: string) 
             </p>
             <div className="mt-auto pt-3">
               <VerdictBadge verdict={r.verdict} detail />
-              {(r.gated || r.vision || r.needs_image) && (
+              {(r.gated || r.vision || r.needs_image || r.edits) && (
                 <p className="text-[13px] text-slate mt-1">
                   {[
                     r.vision && "Can look at pictures.",
-                    r.needs_image && "Needs a starting picture.",
+                    r.edits && (r.needs_image ? "Changes pictures you give it." : "Can also change pictures you give it."),
+                    (r.max_images ?? 1) > 1 && `Combines up to ${r.max_images} pictures.`,
+                    r.needs_image && !r.edits && "Needs a starting picture.",
                     r.gated && "Needs a free Hugging Face sign-off first.",
                   ]
                     .filter(Boolean)

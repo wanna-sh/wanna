@@ -12,7 +12,7 @@ import httpx
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse, Response, StreamingResponse
 
-from .. import db, jobs, presets, training
+from .. import db, imagefamilies, jobs, presets, training
 from ..config import OUTPUTS_DIR, UPLOADS_DIR
 from ..workers.manager import LoadError, ModelNotFound, manager
 from . import tool_loop
@@ -196,6 +196,9 @@ def _image_payload(request: Request, job, response_format: str | None):
 async def images_generations(request: Request):
     body = await request.json()
     model = _resolve(body.get("model"), "image")
+    if (model.get("meta") or {}).get("needs_image"):
+        raise _err(400, f"{model['id']} changes pictures you give it and can't start from a description alone. "
+                        "Use POST /v1/images/edits with a picture.")
     w, h = _size(body.get("size"))
     params = presets.apply(model, {
         "prompt": body["prompt"],
@@ -218,22 +221,35 @@ async def images_generations(request: Request):
 
 
 @router.post("/images/edits")
-async def images_edits(
-    request: Request,
-    image: UploadFile = File(...),
-    prompt: str = Form(...),
-    model: str | None = Form(None),
-    n: int = Form(1),
-    size: str | None = Form(None),
-    response_format: str | None = Form(None),
-    strength: float = Form(0.6),
-    seed: int | None = Form(None),
-):
-    m = _resolve(model, "image")
-    path = _save_upload(image)
-    params = presets.apply(m, {"prompt": prompt, "n": n, "image": str(path), "strength": strength, "seed": seed})
+async def images_edits(request: Request):
+    """One picture, or several to combine (OpenAI's SDKs send a list as repeated "image[]" fields; "image" repeated
+    works too). Models that take one picture refuse more."""
+    form = await request.form()
+    uploads = [f for key in ("image", "image[]") for f in form.getlist(key) if hasattr(f, "read")]
+    prompt = form.get("prompt")
+    if not uploads:
+        raise _err(400, "Attach a picture as 'image'.")
+    if not prompt:
+        raise _err(400, "'prompt' is required.")
+
+    def number(key, cast, default):
+        try:
+            return cast(form[key]) if form.get(key) not in (None, "") else default
+        except ValueError:
+            raise _err(400, f"'{key}' should be a number.") from None
+
+    m = _resolve(form.get("model"), "image")
+    problem = imagefamilies.too_many_pictures(m, len(uploads))
+    if problem:
+        raise _err(400, problem)
+    paths = [str(_save_upload(f)) for f in uploads]
+    params = {"prompt": prompt, "n": number("n", int, 1), "image": paths[0], "images": paths,
+              "strength": number("strength", float, 0.6), "seed": number("seed", int, None)}
+    if form.get("size") and form["size"] != "auto":
+        params["width"], params["height"] = _size(form["size"])
+    params = presets.apply(m, params)
     job = await jobs.run_now("image", m, params, prompt)
-    return _image_payload(request, job, response_format)
+    return _image_payload(request, job, form.get("response_format"))
 
 
 def _save_upload(f: UploadFile) -> Path:

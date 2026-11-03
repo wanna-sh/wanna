@@ -69,13 +69,15 @@ result = client.images.generate(
 
 An unknown id, an unfinished run, or a style trained on a different model returns a 400 error.
 
-## Restyle a picture
+## Restyle, change or combine pictures
 
 ```http
 POST /v1/images/edits
 ```
 
-Multipart form upload. Starts from your picture and changes it to match the prompt.
+Multipart form upload. Starts from your picture and changes it to match the prompt. With an editing model (such as
+Qwen-Image 2.1 or Qwen-Image-Edit), the prompt is an instruction, for example *"make it a snowy evening"*, the rest of
+the picture stays as it was, the result keeps the picture's shape, and `strength` is ignored.
 
 ```bash
 curl http://localhost:7860/v1/images/edits \
@@ -86,9 +88,39 @@ curl http://localhost:7860/v1/images/edits \
 
 | Field | Notes |
 | --- | --- |
-| `image` | Required. The starting picture. |
+| `image` | Required. The starting picture. Repeat it (or send `image[]`) for several pictures; see below. |
 | `prompt` | Required. |
 | `model`, `n`, `response_format`, `seed` | As above. |
+| `size` | `"WIDTHxHEIGHT"` for the result. With one picture to an editing model, it sets the number of pixels and the result keeps the picture's shape. |
 | `strength` | 0 to 1. How far it may move from the original. Default 0.6. |
 
+### Several pictures
+
+Models that combine pictures take several at once: Qwen-Image 2.1 up to 10, Qwen-Image-Edit-2509 and -2511 up to 3.
+Send each as its own `image` (or `image[]`, which is what OpenAI's SDKs send for a list) field, in order, and refer
+to them by number in the prompt:
+
+```bash
+curl http://localhost:7860/v1/images/edits \
+  -F "image[]=@person1.png" \
+  -F "image[]=@person2.png" \
+  -F prompt="the person in picture 1 and the person in picture 2 having coffee together at a café" \
+  -F size=1024x768
+```
+
+```python
+result = client.images.edit(
+    model="qwen-image-2-1-uncensored-quantized-q8-0",
+    image=[open("person1.png", "rb"), open("person2.png", "rb")],
+    prompt="the person in picture 1 and the person in picture 2 having coffee together at a café",
+)
+```
+
+More pictures than the model takes returns a 400 error naming the installed models that can take them. In
+`GET /api/models`, each picture model's `max_images` says how many it takes.
+
 Masks (painting over only part of a picture) aren't supported yet.
+
+Models that only edit (Qwen-Image-Edit) need a picture: `POST /v1/images/generations` with one returns a 400 error.
+In `GET /api/models`, a picture model's `meta.edits` is `true` when it edits, and `meta.needs_image` is `true` when it
+can't start from a description alone.

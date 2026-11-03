@@ -25,7 +25,10 @@ GPU_RESERVE = int(0.4 * GB)
 
 TASK_QUERIES = {
     "chat": [{"filter": "gguf"}],
-    "image": [{"filter": "diffusers", "pipeline_tag": "text-to-image"}],
+    "image": [{"filter": "diffusers", "pipeline_tag": "text-to-image"},
+              # Picture models in GGUF files (run on stable-diffusion.cpp), including ones that edit pictures.
+              {"filter": "gguf", "pipeline_tag": "text-to-image"},
+              {"filter": "gguf", "pipeline_tag": "image-to-image"}],
     "video": [{"filter": "diffusers", "pipeline_tag": "text-to-video"},
               {"filter": "diffusers", "pipeline_tag": "image-to-video"}],
     "speech": [{"filter": "transformers", "pipeline_tag": "text-to-speech"}],
@@ -118,6 +121,22 @@ def rate(task: str, weights: int | None, b: dict | None = None) -> dict:
     room = b["all_gpus"] if splits else b["best_gpu"]
     return {**out, "level": "no", "label": "Too big for this computer",
             "detail": f"Needs about {_gb(need)} of graphics memory to run; you have {_gb(room)}."}
+
+
+def rate_split(weights: int | None, encoder: int, b: dict | None = None) -> dict:
+    """Rate a stable-diffusion.cpp picture model. Its diffusion model and VAE (`weights`) do the drawing and want
+    graphics memory; its text encoder reads the description once per picture, so the engine keeps it wherever there's
+    room: graphics memory left over, otherwise system memory (or the drive, slowly)."""
+    b = b or budget()
+    verdict = rate("image", weights, b)
+    if verdict["level"] in ("unknown", "no") or not encoder:
+        return verdict
+    left_on_cards = max(0, b["all_gpus"] - (verdict.get("need") or 0))
+    if encoder <= left_on_cards + b["ram"] * 0.5:
+        return verdict
+    return {**verdict, "level": "slow", "label": "Runs, but slowly",
+            "detail": f"The part that reads your description ({_gb(encoder)}) doesn't fit in memory alongside the rest, "
+                      "so it's read from your drive for each picture."}
 
 
 def _from_drive(weights: int, b: dict) -> dict:
@@ -214,6 +233,12 @@ def _quick(m, task: str, b: dict) -> dict | None:
         return {"weights": weights, "params": g["total"], "verdict": rate(task, weights, b)}
     if task in ("image", "video"):
         files = {s.rfilename for s in (m.siblings or [])}
+        if task == "image" and "model_index.json" not in files and any(f.endswith(".gguf") for f in files):
+            from . import imagefamilies
+
+            if not imagefamilies.is_sdcpp_repo(m.id, tags, list(files)):
+                return None  # a picture model family wanna.sh doesn't know how to run yet
+            return {"weights": None, "params": None, "verdict": None}  # sized from file list later
         if "model_index.json" not in files:
             return None  # LoRAs and original-format checkpoints that diffusers can't load directly
         return {"weights": None, "params": None, "verdict": None}  # sized from file list later
@@ -243,8 +268,8 @@ def _diffusers_info(repo_id: str) -> tuple[int | None, bool]:
         d = hub.details(repo_id)
     except Exception:
         return None, False
-    v = d["variants"][0] if d.get("variants") else None
-    return (v.get("weights") if v else None), bool(d.get("needs_image"))
+    v = next((x for x in d.get("variants") or [] if x["id"] == d.get("recommended")), None) or         (d["variants"][0] if d.get("variants") else None)
+    return (v.get("weights") if v else None), bool(d.get("needs_image")), d.get("edits", False),         (v or {}).get("verdict"), d.get("max_images", 1)
 
 
 def browse(task: str, query: str = "", sort: str = "popular", fits_only: bool = True,
@@ -275,8 +300,9 @@ def browse(task: str, query: str = "", sort: str = "popular", fits_only: bool = 
             sizes = dict(zip(pending[:need_n], ex.map(_diffusers_info, pending[:need_n])))
         for m, q in rows:
             if m.id in sizes:
-                q["weights"], q["needs_image"] = sizes[m.id]
-                q["verdict"] = rate(task, q["weights"], b) if q["weights"] else None
+                q["weights"], q["needs_image"], q["edits"], verdict, q["max_images"] = sizes[m.id]
+                # GGUF picture models are rated with their text encoder in mind (hub.details did it).
+                q["verdict"] = verdict if verdict else rate(task, q["weights"], b) if q["weights"] else None
         rows = [(m, q) for m, q in rows if m.id in sizes and q["verdict"]]
 
     results = []
@@ -310,6 +336,8 @@ def _row(m, task: str, q: dict) -> dict:
         "verdict": q["verdict"],
         "vision": q.get("vision", False),
         "needs_image": q.get("needs_image", False),
+        "edits": q.get("edits", False),
+        "max_images": q.get("max_images", 1),
         "tested": m.id in TESTED,
         "created": m.created_at.isoformat() if getattr(m, "created_at", None) else None,
     }

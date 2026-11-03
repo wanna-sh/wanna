@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ImagePlus } from "lucide-react";
 import { api, fileUrl, type Generation } from "@/lib/api";
 import { useJob, useModels, usePoll } from "@/lib/hooks";
@@ -43,8 +43,12 @@ export default function VideoPage() {
   const [negative, setNegative] = useState("");
   const [seed, setSeed] = useState("");
   const [panel, setPanel] = useState(false);
-  const { job, error, busy, start: run } = useJob();
+  const { job, error, busy, start: run, resume } = useJob();
   const gallery = usePoll<Generation[]>("/api/gallery?kind=video&limit=20");
+  const refreshGallery = gallery.refresh;
+  useEffect(() => {
+    resume("video", () => refreshGallery());
+  }, [resume, refreshGallery]);
 
   if (loaded && !models.length) {
     return (

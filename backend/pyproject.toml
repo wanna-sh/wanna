@@ -16,6 +16,7 @@ dependencies = [
     "pypdf>=5.0",
     "numpy",  # document search (knowledge libraries)
     "scikit-learn>=1.5",  # your own tasks: trees for tables, and what learns from search-model vectors
+    "pillow",  # reading and saving pictures for GGUF picture models (stable-diffusion.cpp), which need no PyTorch
 ]
 
 [project.optional-dependencies]

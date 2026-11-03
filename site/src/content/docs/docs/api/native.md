@@ -35,14 +35,16 @@ For transcription, `result` holds `text`, timed `segments` and `duration` instea
 
 | Task | Main fields |
 | --- | --- |
-| `image` | `prompt`, `negative_prompt`, `width`, `height`, `n`, `quality` (`fast`, `balanced`, `best`), `steps`, `guidance`, `seed`, `sampler`, `image_upload` and `strength` to start from a picture |
+| `image` | `prompt`, `negative_prompt`, `width`, `height`, `n`, `quality` (`fast`, `balanced`, `best`), `steps`, `guidance`, `seed`, `sampler`, `image_upload` and `strength` to start from a picture; `image_uploads` (a list) for several pictures to combine, with `keep_shape: true` to use picture 1's shape |
 | `video` | `prompt`, `negative_prompt`, `width`, `height`, `num_frames`, `quality`, `seed`, `image_upload` |
 | `speech` | `text`, `voice`, `speed`, `format` (`wav`, `mp3`, `flac`, `ogg`) |
 | `sound` | `prompt`, `duration` in seconds |
 | `transcribe` | `file_upload` (required), `language`, `translate` |
 
 Files go in by id, never by path: upload them first with `POST /api/uploads` (multipart field `file`), which returns
-`{"id": ..., "filename": ...}`, then pass that `id` as `image_upload` or `file_upload`.
+`{"id": ..., "filename": ...}`, then pass that `id` as `image_upload` or `file_upload`, or a list of them as
+`image_uploads`. A picture model takes as many pictures as its `max_images` in `GET /api/models`; more returns a 400
+error.
 
 ## Models
 

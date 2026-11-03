@@ -174,8 +174,18 @@ export function ModelSheet({
             {data.supported && data.verdict && (
               <div className="mt-5 rounded-xl bg-paper border border-line p-4">
                 <VerdictBadge verdict={chosen ? shownVerdict(chosen) : data.verdict} detail />
-                {data.needs_image && (
-                  <p className="text-[13px] mt-2">This model brings a picture to life, so you&apos;ll need a starting picture.</p>
+                {data.edits ? (
+                  <p className="text-[13px] mt-2">
+                    {data.needs_image
+                      ? "This model changes pictures you give it, as you describe. It needs a picture to start from."
+                      : "This model makes pictures from a description, and can also change a picture you give it."}
+                    {(data.max_images ?? 1) > 1 &&
+                      ` It can combine up to ${data.max_images} pictures, for example two people in one scene.`}
+                  </p>
+                ) : (
+                  data.needs_image && (
+                    <p className="text-[13px] mt-2">This model brings a picture to life, so you&apos;ll need a starting picture.</p>
+                  )
                 )}
               </div>
             )}

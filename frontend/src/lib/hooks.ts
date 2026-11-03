@@ -89,8 +89,26 @@ export function useJob() {
     [follow],
   );
 
+  /** Pick up a job of this task that's still running on the server (started before the page was reloaded or left),
+   * so its progress shows again. */
+  const resume = useCallback(
+    async (task: Task, onDone?: (j: Job) => void) => {
+      try {
+        const jobs = await api.get<Job[]>("/api/jobs");
+        const active = jobs.find((j) => j.task === task && ["queued", "loading", "running"].includes(j.status));
+        if (active) {
+          setJob(active);
+          follow(active.id, onDone);
+        }
+      } catch {
+        // Nothing to pick up; the page works as usual.
+      }
+    },
+    [follow],
+  );
+
   const busy = !!job && !["completed", "failed"].includes(job.status);
-  return { job, error, busy, start, setError };
+  return { job, error, busy, start, resume, setError };
 }
 
 /** localStorage-backed state, safe during static prerender. */

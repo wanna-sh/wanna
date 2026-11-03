@@ -74,6 +74,7 @@ export default defineConfig({
           items: [
             { slug: "docs/guides/models" },
             { slug: "docs/guides/hardware" },
+            { slug: "docs/guides/linux-gpu-pictures" },
             { slug: "docs/guides/connect-apps" },
             { slug: "docs/guides/network" },
           ],

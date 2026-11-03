@@ -12,10 +12,10 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
-from .. import addons, catalog, db, gpu, hub, jobs, presets, readiness, samplers, streaming, training
+from .. import addons, catalog, db, gpu, hub, imagefamilies, jobs, presets, readiness, samplers, streaming, training
 from ..config import MODELS_DIR, OUTPUTS_DIR, UPLOADS_DIR, load_settings, save_settings
 from ..downloads import manager as downloads
-from ..engines import llamacpp
+from ..engines import llamacpp, sdcpp
 from ..workers.manager import LoadError, ModelNotFound, manager
 from .auth import create_key, require_key
 
@@ -32,7 +32,9 @@ def system():
     loaded = manager.loaded()
     for g in info["gpus"]:
         g["models"] = [w["id"] for w in loaded if g["index"] in w["gpus"]]
-    info["engines"] = {"llamacpp": llamacpp.installer.state()}
+    info["engines"] = {"llamacpp": llamacpp.installer.state(),
+                       "sdcpp": {**sdcpp.installer.state(), "gpu_help": sdcpp.gpu_help(),
+                                 "gpu_help_url": sdcpp.GPU_HELP_URL}}
     info["loaded"] = loaded
     info["events"] = list(manager.events)[:20]
     info["disk_free"] = shutil.disk_usage(MODELS_DIR).free
@@ -79,6 +81,12 @@ def measure_drive():
 def install_llamacpp():
     llamacpp.installer.ensure()
     return llamacpp.installer.state()
+
+
+@router.post("/engines/sdcpp/install")
+def install_sdcpp():
+    sdcpp.installer.ensure()
+    return sdcpp.installer.state()
 
 
 # --- hub --------------------------------------------------------------------
@@ -184,6 +192,7 @@ def list_models():
             m["abilities"] = readiness.abilities(m)
             m["speed"] = readiness.measured_speed(m["id"])
         if m["task"] == "image":
+            m["max_images"] = imagefamilies.max_images(m)  # pictures it takes at once
             m["samplers"] = samplers.options_for(m["repo_id"], m["path"])
             m["styles"] = training.for_model(m)  # trained styles (LoRAs) it can use
         out.append(m)
@@ -319,16 +328,30 @@ async def generate(task: str, params: dict):
     except ModelNotFound as e:
         raise HTTPException(404, str(e))
     # Never accept raw file paths from clients; only ids from /api/uploads.
-    image = _upload_path(params.pop("image_upload", None))
+    ids = params.pop("image_uploads", None) or []
+    if not isinstance(ids, list):
+        raise HTTPException(400, "image_uploads should be a list of upload ids")
+    if params.get("image_upload"):
+        ids = [params["image_upload"], *ids]
+    params.pop("image_upload", None)
+    images = [_upload_path(i) for i in dict.fromkeys(ids)]  # in order, each once
     audio = _upload_path(params.pop("file_upload", None))
-    params.pop("image", None)
-    params.pop("file", None)
-    if image:
-        params["image"] = image
+    for k in ("image", "images", "file"):
+        params.pop(k, None)
+    if images:
+        problem = imagefamilies.too_many_pictures(model, len(images)) if task == "image" else None
+        if problem:
+            raise HTTPException(400, problem)
+        if task == "video" and len(images) > 1:
+            raise HTTPException(400, "Videos start from one picture.")
+        params["image"] = images[0]  # what models that take one picture read
+        params["images"] = images
     if audio:
         params["file"] = audio
     if task == "transcribe" and not audio:
         raise HTTPException(400, "Attach an audio file first")
+    if task == "image" and not images and (model.get("meta") or {}).get("needs_image"):
+        raise HTTPException(400, "This model changes pictures you give it. Attach a picture and describe the change.")
     if task in ("image", "video"):
         params = presets.apply(model, params)
     try:

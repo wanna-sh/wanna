@@ -426,7 +426,11 @@ export function PendingItem({ job, noun }: { job: Job; noun: string }) {
       ? "Waiting for a turn…"
       : job.status === "loading"
         ? "Starting the model. The first time takes a little longer…"
-        : job.total_steps
+        : job.phase === "preparing"
+          ? "Getting ready: reading your description (the first one also loads the model's parts)…"
+          : job.phase === "finishing"
+            ? `Finishing your ${noun}…`
+            : job.total_steps
           ? `Making your ${noun}, step ${Math.min(job.step, job.total_steps)} of ${job.total_steps}`
           : `Making your ${noun}…`;
   return (

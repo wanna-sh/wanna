@@ -13,7 +13,7 @@ from .config import MODELS_DIR, hf_token
 # Friendly task taxonomy shown in the UI.
 TASKS = {
     "chat": {"label": "Chat & write", "blurb": "Talk to an assistant, write, summarise and code."},
-    "image": {"label": "Create images", "blurb": "Turn a description into a picture."},
+    "image": {"label": "Create images", "blurb": "Turn a description into a picture, or change a picture you give it."},
     "video": {"label": "Create videos", "blurb": "Turn a description (or a picture) into a short clip."},
     "speech": {"label": "Read text aloud", "blurb": "Turn text into a natural sounding voice."},
     "transcribe": {"label": "Speech to text", "blurb": "Turn recordings into written text."},
@@ -152,6 +152,11 @@ def classify(info) -> tuple[str | None, str | None]:
     pipeline = info.pipeline_tag
     library = info.library_name
 
+    if has_gguf:
+        from . import imagefamilies
+
+        if imagefamilies.is_sdcpp_repo(info.id, tags, siblings):
+            return "image", "sdcpp"  # picture models in GGUF files, run on stable-diffusion.cpp
     if has_gguf and is_embed_gguf(info.id, pipeline, tags):
         return "embed", "llamacpp"
     if has_gguf and is_chat_gguf(info.id, pipeline, tags):
@@ -218,7 +223,15 @@ def details(repo_id: str) -> dict:
     out["license"] = (info.card_data or {}).get("license") if info.card_data else None
     out["tags"] = [t for t in (info.tags or []) if ":" not in t][:20]
 
-    if engine == "llamacpp":
+    if engine == "sdcpp":
+        from . import imagefamilies
+
+        out["variants"] = imagefamilies.variants(repo_id, info.tags or [], files, companion_size)
+        fam = imagefamilies.family(repo_id, info.tags or [])
+        out["family"] = fam["id"]
+        out["edits"], out["makes"] = fam["edits"], fam["makes"]
+        out["max_images"] = imagefamilies.max_images({"repo_id": repo_id, "family": fam["id"]})
+    elif engine == "llamacpp":
         out["variants"] = gguf_variants(files)
         params = (getattr(info, "gguf", None) or {}).get("total")
         for v in out["variants"]:
@@ -249,14 +262,30 @@ def details(repo_id: str) -> dict:
     b = budget()
     free = shutil.disk_usage(MODELS_DIR).free
     for v in out["variants"]:
-        v["verdict"] = rate(task, v["weights"], b) if task else None
+        if engine == "sdcpp":
+            from .catalog import rate_split
+
+            v["verdict"] = rate_split(v["weights"], v["encoder_size"], b)
+        else:
+            v["verdict"] = rate(task, v["weights"], b) if task else None
         v["fits_disk"] = v["size"] <= free
     out["disk_free"] = free
     out["tested"] = repo_id in TESTED
-    out["needs_image"] = task == "video" and _needs_image(repo_id)
+    out["needs_image"] = (task == "video" and _needs_image(repo_id)) or (engine == "sdcpp" and not out["makes"])
     out["recommended"] = recommend_variant(out["variants"])
     out["verdict"] = next((v["verdict"] for v in out["variants"] if v["id"] == out["recommended"]), None)
     return out
+
+
+@lru_cache(maxsize=256)
+def companion_size(ref: str) -> int:
+    """Size of a file in another repo, written "repo::path" (a text encoder or VAE a picture model needs)."""
+    repo, path = ref.split("::", 1)
+    try:
+        info = api().get_paths_info(repo, [path])
+        return int(getattr(info[0], "size", 0) or 0) if info else 0
+    except Exception:
+        return 0
 
 
 def _loaded_weights(info, task, engine, variant, files, chosen) -> int:

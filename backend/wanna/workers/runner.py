@@ -1,4 +1,5 @@
-"""A worker process that hosts exactly one Python model (diffusers or transformers).
+"""A worker process that hosts exactly one model: diffusers or transformers in Python, or a picture model on
+stable-diffusion.cpp's library, loaded into this process (see SdCppHandler).
 
 Started by the model manager with CUDA_VISIBLE_DEVICES already set, so "cuda" here means
 only the GPUs this model was assigned. On a Mac with Apple Silicon, "mps" is its built-in GPU.
@@ -14,6 +15,7 @@ import json
 import logging
 import os
 import subprocess
+import sys
 import threading
 import time
 import traceback
@@ -26,7 +28,10 @@ from fastapi.responses import StreamingResponse
 
 log = logging.getLogger("wanna.worker")
 
-STATE = {"status": "loading", "error": None, "step": 0, "total_steps": 0, "busy": False, "device": None}
+# phase (stable-diffusion.cpp only): "preparing" (loading the model's parts, reading the description), "drawing"
+# (the steps), "finishing" (decoding the picture). None for other engines.
+STATE = {"status": "loading", "error": None, "step": 0, "total_steps": 0, "busy": False, "device": None,
+         "phase": None}
 _run_lock = threading.Lock()
 handler = None
 
@@ -430,6 +435,197 @@ def _text_content(content) -> str:
     return str(content or "")
 
 
+class SdCppHandler:
+    """Pictures from GGUF models on stable-diffusion.cpp, through its C library loaded into this process. The model
+    stays loaded between pictures, and nothing but this token-protected worker can reach it. No PyTorch needed.
+
+    Models that edit (Qwen-Image 2.1, Qwen-Image-Edit) take attached pictures as references and follow an
+    instruction ("make the sky purple", "the person in picture 1 and the person in picture 2 at a cafe"). With one
+    picture the result keeps its shape; with several, the requested shape, or picture 1's with keep_shape. Others start
+    from one attached picture and redraw it (image to image, with a strength)."""
+
+    def __init__(self, args):
+        import ctypes as C
+        from collections import deque
+
+        from . import sdcpp_lib as L
+
+        self.C, self.L = C, L
+        self.args = args
+        self.out_dir = Path(args.outputs)
+        self.cfg = json.loads(args.sdcpp)
+        self.errors: deque[str] = deque(maxlen=20)
+        lib = self.lib = L.load(self.cfg["lib_dir"])
+        L.check_layout(lib)
+
+        def on_log(level, text, _data):
+            msg = (text or b"").decode("utf-8", "replace").rstrip()
+            if not msg:
+                return
+            if level >= 3:
+                self.errors.append(msg)
+            # Debug and verbose lines would flood the log; progress comes from the progress callback instead.
+            if level >= 2:
+                name = L.LOG_LEVELS[level] if level < len(L.LOG_LEVELS) else level
+                print(f"[sd.cpp {name}] {msg}", flush=True)
+
+        def on_progress(step, steps, _time, _data):
+            # The same callback reports loading the model's parts (counted in tensors, the first time each is used)
+            # and decoding as well as drawing. Only a count matching the requested steps is the drawing.
+            if self.expected_steps and steps == self.expected_steps:
+                STATE["step"], STATE["total_steps"], STATE["phase"] = step, steps, "drawing"
+            elif STATE["phase"] == "drawing" and STATE["step"] >= STATE["total_steps"]:
+                STATE["phase"] = "finishing"
+
+        self.expected_steps = 0
+
+        # Kept on self: ctypes callbacks must outlive every call into the library.
+        self._log_cb, self._progress_cb = L.LOG_CB(on_log), L.PROGRESS_CB(on_progress)
+        lib.sd_set_log_callback(self._log_cb, None)
+        lib.sd_set_progress_callback(self._progress_cb, None)
+
+        p = L.sd_ctx_params_t()
+        lib.sd_ctx_params_init(C.byref(p))
+        parts = self.cfg["parts"]
+        self._keep = []  # bytes whose pointers the library holds on to
+
+        def text(v):
+            b = v.encode() if v else None
+            self._keep.append(b)
+            return b
+
+        p.diffusion_model_path = text(parts["diffusion"])
+        p.llm_path = text(parts.get("llm"))
+        p.llm_vision_path = text(parts.get("vision"))
+        p.vae_path = text(parts.get("vae"))
+        p.model_args = text(self.cfg.get("model_args"))
+        # Weights the graphics card can't hold go to system memory or the drive (stable-diffusion.cpp's auto-fit, on
+        # by default). Memory-mapping lets the system drop pages and read them again when it needs the room.
+        p.enable_mmap = True
+        STATE["device"] = "cuda" if os.environ.get("CUDA_VISIBLE_DEVICES") else "cpu"
+        self.ctx = lib.new_sd_ctx(C.byref(p))
+        if not self.ctx:
+            raise RuntimeError(self._error("Couldn't load the model."))
+        if not lib.sd_ctx_supports_image_generation(self.ctx):
+            raise RuntimeError("This model can't make pictures.")
+        method = self.cfg.get("sample_method")
+        self.sample_method = lib.str_to_sample_method(method.encode()) if method else None
+        print(f"Loaded {lib.sd_get_model_version_name(self.ctx).decode()} on stable-diffusion.cpp "
+              f"{lib.sd_commit().decode()}", flush=True)
+
+    def _error(self, fallback: str) -> str:
+        msg = next((e for e in reversed(self.errors) if e), "")
+        if "out of memory" in msg.lower():
+            return "Not enough memory for this model. Try a smaller version, or stop other models first."
+        return msg[-400:] or fallback
+
+    def _image(self, path: str):
+        """An sd_image_t over the picture's pixels (RGB, or RGBA when it has transparency), and the buffer behind it."""
+        from PIL import Image, ImageOps
+
+        C, L = self.C, self.L
+        with Image.open(path) as im:
+            im = ImageOps.exif_transpose(im)
+            mode = "RGBA" if im.mode in ("RGBA", "LA", "PA") or "transparency" in im.info else "RGB"
+            im = im.convert(mode)
+            w, h = im.size
+            data = im.tobytes()
+        buf = (C.c_uint8 * len(data)).from_buffer_copy(data)
+        img = L.sd_image_t(width=w, height=h, channel=len(mode), data=C.cast(buf, C.POINTER(C.c_uint8)))
+        return img, buf
+
+    @staticmethod
+    def _fit(w: int, h: int, area: int) -> tuple[int, int]:
+        """A size with the picture's shape and about `area` pixels, sides multiples of 32 (as these models need)."""
+        scale = (area / (w * h)) ** 0.5
+        return max(256, round(w * scale / 32) * 32), max(256, round(h * scale / 32) * 32)
+
+    def run(self, p: dict) -> dict:
+        import random
+
+        from PIL import Image
+
+        C, L, lib = self.C, self.L, self.lib
+        paths = p.get("images") or ([p["image"]] if p.get("image") else [])
+        edits, makes = self.cfg.get("edits"), self.cfg.get("makes", True)
+        if len(paths) > 1 and not edits:
+            raise ValueError("This model starts from one picture.")
+        if not paths and not makes:
+            raise ValueError("This model changes pictures you give it. Attach a picture and describe the change.")
+
+        g = L.sd_img_gen_params_t()
+        lib.sd_img_gen_params_init(C.byref(g))
+        prompt = (p.get("prompt") or "").encode()
+        negative = (p.get("negative_prompt") or "").encode()
+        g.prompt, g.negative_prompt = prompt, negative
+        width = max(256, int(p.get("width") or 1024) // 32 * 32)
+        height = max(256, int(p.get("height") or 1024) // 32 * 32)
+        keep = []  # pixel buffers the library reads during the call
+        if paths:
+            loaded = [self._image(path) for path in paths]
+            keep += loaded
+            first = loaded[0][0]
+            if edits:
+                # Follow the instruction with the pictures as references, in order ("picture 1", "picture 2"...).
+                refs = (L.sd_image_t * len(loaded))(*(img for img, _ in loaded))
+                keep.append(refs)
+                g.ref_images, g.ref_images_count = refs, len(loaded)
+            else:
+                g.init_image = first
+                g.strength = float(p.get("strength") or 0.6)
+            if len(paths) == 1 or p.get("keep_shape"):
+                # Keep the (first) picture's shape, at about the requested number of pixels.
+                width, height = self._fit(first.width, first.height, width * height)
+        g.width, g.height = width, height
+        sp = g.sample_params
+        if p.get("steps"):
+            sp.sample_steps = int(p["steps"])
+        if p.get("guidance") is not None:
+            sp.guidance.txt_cfg = float(p["guidance"])
+        if self.sample_method is not None:
+            sp.sample_method = self.sample_method
+        if self.cfg.get("flow_shift"):
+            sp.flow_shift = float(self.cfg["flow_shift"])
+        seed = p.get("seed")
+        if seed is None or int(seed) < 0:
+            seed = random.randint(0, 2**31 - 1)
+        g.seed = int(seed)
+        g.batch_count = max(1, min(8, int(p.get("n") or 1)))
+
+        STATE["step"], STATE["total_steps"], STATE["phase"] = 0, sp.sample_steps, "preparing"
+        self.expected_steps = sp.sample_steps
+        self.errors.clear()
+        result = C.POINTER(L.sd_image_generation_result_t)()
+        try:
+            ok = lib.generate_image(self.ctx, C.byref(g), C.byref(result))
+        finally:
+            STATE["phase"], self.expected_steps = None, 0
+        if not ok or not result:
+            raise RuntimeError(self._error("The picture couldn't be made."))
+        files = []
+        try:
+            res = result.contents
+            for i in range(res.count):
+                im = res.items[i].image
+                if not im.data:
+                    continue
+                mode = {1: "L", 3: "RGB", 4: "RGBA"}[im.channel]
+                data = C.string_at(im.data, im.width * im.height * im.channel)
+                name = _new_name("png")
+                pic = Image.frombytes(mode, (im.width, im.height), data)
+                if mode == "RGBA" and pic.getchannel("A").getextrema()[0] >= 250:
+                    # Qwen-Image 2.1 always returns an alpha channel; unless transparency was asked for, it's solid
+                    # apart from rounding (253, 254), so save a plain picture.
+                    pic = pic.convert("RGB")
+                pic.save(self.out_dir / name)
+                files.append(name)
+        finally:
+            lib.free_sd_image_generation_result(result)
+        if not files:
+            raise RuntimeError(self._error("The picture couldn't be made."))
+        return {"files": files, "seed": int(seed), "width": width, "height": height}
+
+
 HANDLERS = {
     "image": DiffusionHandler,
     "video": DiffusionHandler,
@@ -494,6 +690,8 @@ def stream(params: dict):
 
 
 def _free_cache():
+    if "torch" not in sys.modules:
+        return  # stable-diffusion.cpp workers don't use PyTorch; importing it here would only cost memory
     try:
         torch = _torch()
         if torch.cuda.is_available():
@@ -507,7 +705,7 @@ def _free_cache():
 def _load(args):
     global handler
     try:
-        handler = HANDLERS[args.task](args)
+        handler = SdCppHandler(args) if args.engine == "sdcpp" else HANDLERS[args.task](args)
         STATE["status"] = "ready"
     except Exception as e:
         log.error(traceback.format_exc())
@@ -523,6 +721,8 @@ def main():
     ap.add_argument("--variant", default=None)
     ap.add_argument("--gpu-count", type=int, default=0)
     ap.add_argument("--offload", action="store_true", help="Keep weights in RAM and stream them to the GPU")
+    ap.add_argument("--engine", default=None, help="sdcpp: a picture model on stable-diffusion.cpp")
+    ap.add_argument("--sdcpp", default=None, help="JSON: library folder, model files and settings")
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     threading.Thread(target=_load, args=(args,), daemon=True).start()

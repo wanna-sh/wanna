@@ -54,6 +54,11 @@ model you'll see **Choose a version**:
 Some chat models also say **Can also look at pictures you attach**. For those, wanna.sh downloads the extra file they
 need to see pictures.
 
+Picture models in GGUF files (such as Qwen-Image 2.1 and Qwen-Image-Edit) come in versions too. Their download also
+includes the parts that read your description and decode the picture, from the model's original release when the
+upload doesn't carry them, so it's bigger than the version's own file. Their rating counts the part that reads your
+description separately: it's used once per picture, so it can sit in system memory.
+
 ## Downloading
 
 Press **Download**. Progress shows at the bottom of the sidebar and on the model's page, and you can keep using the app

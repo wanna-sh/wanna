@@ -199,6 +199,12 @@ export default function SettingsPage() {
                 <Row k="Processor threads" v={String(sys.cpu_count)} />
                 <Row k="Free disk space" v={bytes(sys.disk_free)} />
                 <Row k="Chat engine" v={`llama.cpp, ${sys.engines.llamacpp.status} (${sys.engines.llamacpp.backend})`} />
+                {sys.engines.sdcpp && (
+                  <Row
+                    k="Picture engine"
+                    v={`stable-diffusion.cpp, ${sys.engines.sdcpp.status} (${sys.engines.sdcpp.backend})`}
+                  />
+                )}
                 {sys.cuda_driver && <Row k="CUDA driver" v={sys.cuda_driver} />}
               </dl>
             </Panel>

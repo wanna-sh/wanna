@@ -88,7 +88,7 @@ class Download:
 
     def _make_model_id(self) -> str:
         base = _slug(self.repo_id.split("/")[-1].removesuffix("-GGUF").removesuffix("-gguf"))
-        if self.details["engine"] == "llamacpp" and self.variant.get("quant"):
+        if self.details["engine"] in ("llamacpp", "sdcpp") and self.variant.get("quant"):
             base = f"{base}-{_slug(self.variant['quant'])}"
         return base
 
@@ -138,6 +138,8 @@ class Download:
             manager.save_pending()
             return
         shutil.rmtree(self.dest / ".cache", ignore_errors=True)
+        for cache in (self.dest / "companions").glob("*/.cache"):
+            shutil.rmtree(cache, ignore_errors=True)
         self.done_bytes = self.total
         self._register()
         self.status = "done"
@@ -208,7 +210,17 @@ class Download:
 
     def _register(self) -> None:
         d, v = self.details, self.variant
-        if d["engine"] == "llamacpp":
+        if d["engine"] == "sdcpp":
+            from .download_worker import local_path
+
+            parts = {k: local_path(ref) for k, ref in v["components"].items()}
+            path = str(self.dest / parts["diffusion"])
+            meta = {"quant": v.get("quant"), "edits": d.get("edits"), "makes": d.get("makes"),
+                    "needs_image": bool(d.get("needs_image")),
+                    # paths relative to the model's folder
+                    "sdcpp": {"family": d.get("family"), "parts": parts},
+                    "vram_bytes": v.get("weights"), "encoder_bytes": v.get("encoder_size")}
+        elif d["engine"] == "llamacpp":
             weights = [f for f in self.files if "mmproj" not in f.lower()]
             projector = next((f for f in self.files if "mmproj" in f.lower()), None)
             path = str(self.dest / sorted(weights)[0])

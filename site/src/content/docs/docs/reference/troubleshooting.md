@@ -77,6 +77,13 @@ Another program (or another copy of wanna.sh) is using it. Stop it, or start wan
 Check **My models**: if the model says part of it runs on the processor, choose a smaller version, less memory for
 conversation, or a model rated **Runs great here**.
 
+### Qwen-Image or Qwen-Image-Edit pictures are very slow on Linux or WSL
+
+GGUF picture models run on the processor until wanna.sh can build its picture engine for your NVIDIA card. The
+Pictures page says so, and **Settings → This computer → Picture engine** ends with **cpu (no CUDA build tools)**.
+Install the CUDA toolkit, cmake and git, following
+[Graphics card for GGUF picture models on Linux and WSL](/docs/guides/linux-gpu-pictures/).
+
 ### A download stopped
 
 Downloads resume where they left off, including after a restart. If one stays stuck, cancel it and start it again.

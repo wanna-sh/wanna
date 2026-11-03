@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import secrets
@@ -18,8 +19,8 @@ from pathlib import Path
 import httpx
 
 from .. import db, gpu, streaming
-from ..config import HOME, LOGS_DIR, OUTPUTS_DIR, load_settings
-from ..engines import llamacpp
+from ..config import HOME, LOGS_DIR, MODELS_DIR, OUTPUTS_DIR, load_settings
+from ..engines import llamacpp, sdcpp
 from ..knowledge.families import family
 
 log = logging.getLogger("wanna.manager")
@@ -115,6 +116,7 @@ class Worker:
         return {"Authorization": f"Bearer {self.token}"}
 
     def start(self) -> None:
+        cwd = None
         if self.engine == "llamacpp":
             meta = self.model.get("meta") or {}
             cmd, env = llamacpp.server_command(
@@ -141,6 +143,12 @@ class Worker:
             if self.offload:
                 cmd.append("--offload")
             env = dict(os.environ)
+            if self.engine == "sdcpp":
+                cmd += ["--engine", "sdcpp", "--sdcpp", json.dumps(_sdcpp_config(self.model))]
+                lib_dir = str(sdcpp.installer.dir)
+                env["LD_LIBRARY_PATH"] = lib_dir + os.pathsep + env.get("LD_LIBRARY_PATH", "")
+                # ggml looks for its processor and graphics plugins beside the program and in the current folder.
+                cwd = lib_dir
             env["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
             env["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, self.gpus)) if self.gpus else ""
             env["WANNA_WORKER_TOKEN"] = self.token
@@ -154,7 +162,7 @@ class Worker:
         logf.write(" ".join(cmd) + "\n\n")
         logf.flush()
         kwargs = {"start_new_session": True} if os.name != "nt" else {}
-        self.proc = subprocess.Popen(cmd, env=env, stdout=logf, stderr=subprocess.STDOUT, **kwargs)
+        self.proc = subprocess.Popen(cmd, env=env, stdout=logf, stderr=subprocess.STDOUT, cwd=cwd, **kwargs)
         threading.Thread(target=self._wait_ready, daemon=True, name=f"wait-{self.id}").start()
 
     def _wait_ready(self) -> None:
@@ -162,7 +170,7 @@ class Worker:
             while True:
                 if self.proc.poll() is not None:
                     self.status = "error"
-                    self.error = self.error or _tail_error(self.log_path)
+                    self.error = self.error or _tail_error(self.log_path, self.proc.returncode)
                     self.ready.set()
                     return
                 try:
@@ -222,11 +230,27 @@ class Worker:
         }
 
 
-def _tail_error(path: Path) -> str:
+def _sdcpp_config(model: dict) -> dict:
+    """What the worker needs to load a stable-diffusion.cpp picture model: absolute file paths and its settings."""
+    from ..imagefamilies import settings
+
+    meta = model.get("meta") or {}
+    root = MODELS_DIR / model["id"]
+    parts = {k: str(root / v) for k, v in ((meta.get("sdcpp") or {}).get("parts") or {}).items()}
+    return {"lib_dir": str(sdcpp.installer.dir), "parts": parts, "edits": bool(meta.get("edits")),
+            "makes": meta.get("makes", True) is not False, **settings(model)}
+
+
+def _tail_error(path: Path, returncode: int | None = None) -> str:
     try:
-        lines = path.read_text(errors="replace").strip().splitlines()
+        # The log starts with the command the worker was started with, then a blank line: not its output.
+        lines = path.read_text(errors="replace").split("\n\n", 1)[-1].strip().splitlines()
     except OSError:
         return "The model stopped unexpectedly."
+    if returncode == -9 and not lines:
+        # Killed without a word: the system's out-of-memory killer, almost always.
+        return ("The model was stopped by the system, most likely because the computer ran out of memory while "
+                "loading it. Close other programs or containers using memory, or choose a smaller version.")
     interesting = [l for l in lines if any(w in l.lower() for w in ("error", "out of memory", "exception", "failed"))]
     msg = (interesting[-1] if interesting else (lines[-1] if lines else "")).strip()
     if "out of memory" in msg.lower() or "outofmemory" in msg.lower():
@@ -297,6 +321,19 @@ class ModelManager:
             if model["engine"] == "llamacpp" and not llamacpp.installer.installed():
                 llamacpp.installer.ensure()
                 raise LoadError("The chat engine is still being set up. This happens once; please try again shortly.")
+            if model["engine"] == "sdcpp" and sdcpp.unsupported():
+                raise LoadError(sdcpp.unsupported())
+            if model["engine"] == "sdcpp" and not sdcpp.installer.installed():
+                st = sdcpp.installer.state()
+                if st["status"] == "error":
+                    # Say why once; the next attempt tries again (after the person has fixed what the message says).
+                    sdcpp.installer.status = "idle"
+                    # On Linux it's built here: the guide covers the tools and the usual build problems.
+                    guide = f" See {sdcpp.GPU_HELP_URL}" if sys.platform.startswith("linux") else ""
+                    raise LoadError(f"The picture engine couldn't be set up: {st['error']}{guide}")
+                sdcpp.installer.ensure()
+                raise LoadError("The picture engine is still being set up. This happens once (building it for your "
+                                "graphics card can take 10 to 20 minutes); please try again shortly.")
 
             need = self._estimate(model, context)
             from_drive = model["engine"] == "llamacpp" and model["task"] == "chat" and streaming.needs_drive(model, gpus)
@@ -318,9 +355,11 @@ class ModelManager:
                     return worker
             if gpus == []:
                 plan = {"gpus": [], "split": None, "fits": True, "reason": "Running on the processor, as requested."}
+            elif model["engine"] == "sdcpp":
+                plan = self._plan_sdcpp(model, need, gpus)
             else:
                 plan = gpu.plan_placement(need, gpus, self._reserved(), allow_split=True)
-            if not plan["fits"] and not gpus and not from_drive:
+            if not plan["fits"] and not gpus and not from_drive and model["engine"] != "sdcpp":
                 # Make room by unloading the least recently used models, then plan again.
                 for w in sorted(self.workers.values(), key=lambda w: w.last_used):
                     if w.status in ("loading", "ready") and not w.progress.get("busy"):
@@ -330,7 +369,9 @@ class ModelManager:
                         plan = gpu.plan_placement(need, None, self._reserved(), allow_split=True)
                         if plan["fits"]:
                             break
-            use_offload = offload if offload is not None else (not plan["fits"] and model["engine"] != "llamacpp")
+            # stable-diffusion.cpp places parts that don't fit in system memory (or on the drive) by itself.
+            use_offload = offload if offload is not None else (not plan["fits"] and
+                                                               model["engine"] not in ("llamacpp", "sdcpp"))
             if use_offload and model["engine"] != "llamacpp":
                 # Memory saver keeps every weight in system RAM. Refuse rather than let the OS kill things.
                 import psutil
@@ -397,6 +438,18 @@ class ModelManager:
                 if p and p["full_gpu"]:
                     return p
         return readiness.fit_plan(model, context, sorted(g["index"] for g in cards))
+
+    def _plan_sdcpp(self, model: dict, need: int, gpus: list[int] | None) -> dict:
+        """Cards for a stable-diffusion.cpp picture model. It draws on one card and puts what doesn't fit there (the
+        text encoder first) on another card, in system memory or on the drive, so it's given every card that has room
+        for a part of it, and never refused for size."""
+        whole = need + int((model.get("meta") or {}).get("encoder_bytes") or 0)
+        plan = gpu.plan_placement(whole, gpus, self._reserved(), allow_split=True)
+        if plan["fits"]:
+            return plan
+        cards = gpus or [g["index"] for g in gpu.list_gpus()]
+        return {"gpus": cards, "split": None, "fits": True,
+                "reason": "Parts that don't fit on the graphics cards are kept in system memory (slower)."}
 
     def _estimate(self, model: dict, context: int | None) -> int:
         size = int((model.get("meta") or {}).get("vram_bytes") or model.get("size_bytes") or 0)
@@ -466,7 +519,7 @@ class ModelManager:
             for w in list(self.workers.values()):
                 if w.status == "error" or (w.proc and w.proc.poll() is not None and w.status == "ready"):
                     if w.status == "ready":
-                        w.status, w.error = "error", _tail_error(w.log_path)
+                        w.status, w.error = "error", _tail_error(w.log_path, w.proc.returncode)
                     continue
                 if minutes and w.status == "ready" and time.time() - w.last_used > minutes * 60:
                     self._log(f"{w.id} was idle for {minutes} minutes")

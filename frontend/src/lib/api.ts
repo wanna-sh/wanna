@@ -238,7 +238,14 @@ export interface SystemInfo {
   wsl?: boolean;
   cuda_driver: string | null;
   gpus: Gpu[];
-  engines: { llamacpp: { status: string; progress: number; message: string; error: string | null; backend: string } };
+  engines: {
+    llamacpp: { status: string; progress: number; message: string; error: string | null; backend: string };
+    /** stable-diffusion.cpp, for GGUF picture models. gpu_help: what to install to use the graphics card. */
+    sdcpp?: {
+      status: string; progress: number; message: string; error: string | null; backend: string;
+      gpu_help: string | null; gpu_help_url: string;
+    };
+  };
   loaded: Worker[];
   events: { time: number; message: string }[];
   disk_free: number;
@@ -253,6 +260,9 @@ export interface InstalledModel {
   size_bytes: number;
   meta: {
     title?: string; quant?: string; mmproj?: string | null; vram_bytes?: number; pipeline_tag?: string; needs_image?: boolean;
+    /** Picture models on stable-diffusion.cpp: changes an attached picture as described (edits), makes pictures
+     * from a description alone (makes; false for editing-only models, which then need a picture). */
+    edits?: boolean; makes?: boolean;
     /** A chat model trained here: its training run. */
     trained?: string;
   };
@@ -275,6 +285,8 @@ export interface InstalledModel {
   samplers?: { samplers: { id: string; label: string }[]; default: string | null };
   /** Picture models only: your trained styles (LoRAs) that work with it. */
   styles?: TrainedStyle[];
+  /** Picture models only: how many pictures it takes at once (several for models that combine them). */
+  max_images?: number;
   created_at: number;
 }
 
@@ -306,8 +318,13 @@ export interface HubResult {
   verdict: Verdict | null;
   vision?: boolean;
   tested?: boolean;
-  /** Video models that animate a starting picture and can't work from text alone. */
+  /** Video models that animate a starting picture, and picture models that only edit: they can't work from text
+   * alone. */
   needs_image?: boolean;
+  /** Picture models that change a picture you give them, as you describe. */
+  edits?: boolean;
+  /** Picture models: how many pictures they take at once. */
+  max_images?: number;
   installed: boolean;
 }
 
@@ -420,6 +437,8 @@ export interface Job {
   progress: number;
   step: number;
   total_steps: number;
+  /** GGUF picture models: preparing (loading parts, reading the description), drawing, finishing (decoding). */
+  phase?: "preparing" | "drawing" | "finishing" | null;
   prompt: string;
   result: { files?: string[]; seed?: number; text?: string; segments?: Segment[]; duration?: number } | null;
 }

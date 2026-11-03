@@ -2,6 +2,31 @@
 
 Each version's section becomes its GitHub release notes (see `.github/workflows/release.yml`).
 
+## Unreleased
+
+- **Change pictures by describing the change.** Editing models, such as Qwen-Image-Edit (and its 2509 and 2511
+  versions) and Qwen-Image 2.1, are now in **Get models → Pictures**. Attach a picture on the Pictures page, say what to
+  change (*make it a snowy evening*) and press **Change**: the rest of the picture stays as it was, and the result
+  keeps its shape. Qwen-Image 2.1 also makes pictures from a description. `POST /v1/images/edits` uses them too.
+- **Combine several pictures.** Qwen-Image 2.1 takes up to 10 pictures at once, and Qwen-Image-Edit-2509 and -2511 up
+  to 3: **Add pictures**, then describe how to combine them by number (*the person in picture 1 and the person in
+  picture 2 at a café*), or give a pose map to change a person's pose. wanna.sh checks the number against the model:
+  extra pictures aren't added silently, and switching to a model that takes fewer offers one that takes them all.
+  `/v1/images/edits` takes several `image` (or `image[]`) fields, and `/api/generate/image` takes `image_uploads`.
+- Pictures and Videos pick up a picture or video still being made when you come back to the page, and show its
+  progress again. GGUF picture models show their progress in stages: getting ready, the steps, then finishing.
+- **Picture models in GGUF files.** These run on a new engine, stable-diffusion.cpp, which wanna.sh sets up the first
+  time it's needed. Its library is loaded into wanna.sh's own worker, so nothing new listens on a port, and it doesn't
+  need the AI libraries download. A model's download includes the text encoder and VAE it needs, from the original
+  release when the upload doesn't have them. Parts that don't fit on the graphics card go to system memory. On Linux
+  and WSL with an NVIDIA card, wanna.sh builds the engine for your card (once) when the CUDA toolkit, cmake and git are
+  installed, and otherwise uses the processor, says what to install and links to step-by-step instructions
+  ([Graphics card for GGUF picture models on Linux and WSL](https://wanna.sh/docs/guides/linux-gpu-pictures/)).
+  On a Mac they need macOS 26 or newer, which is what stable-diffusion.cpp is built for.
+  Tested on WSL (Debian 13) with an RTX 3060 and RTX 3070: Qwen-Image 2.1 in Q8_0 made a 512 × 512 picture in under a
+  minute, and combined two pictures into one. Not yet tested on Windows or Mac.
+- Pillow is now installed with wanna.sh itself, not only with the AI libraries.
+
 ## 0.8.2 (2026-11-03)
 
 - **Allowed host names in Settings.** Names with a dot in them that you open wanna.sh by, such as `mypc.local` or a

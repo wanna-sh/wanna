@@ -34,6 +34,12 @@ def _match(table, repo_id: str) -> dict:
 
 
 def for_model(model: dict) -> dict:
+    if model.get("engine") == "sdcpp":
+        from .imagefamilies import by_id
+
+        fam = by_id(((model.get("meta") or {}).get("sdcpp") or {}).get("family"))
+        if fam:
+            return dict(fam["defaults"])
     if model["task"] == "image":
         return _match(IMAGE_PRESETS, model["repo_id"])
     if model["task"] == "video":

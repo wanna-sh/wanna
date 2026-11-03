@@ -30,6 +30,14 @@ export default function ModelsPage() {
           </Notice>
         </div>
       )}
+      {sys?.engines.sdcpp?.status === "installing" && (
+        <div className="mb-6">
+          <Notice>
+            Setting up the picture engine for your computer ({Math.round(sys.engines.sdcpp.progress * 100)}%).{" "}
+            {sys.engines.sdcpp.message}. This happens once.
+          </Notice>
+        </div>
+      )}
 
       {(sys?.loaded.length ?? 0) > 0 && (
         <div className="mb-7 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-line px-4 py-3 text-[15px]">

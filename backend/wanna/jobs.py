@@ -32,6 +32,7 @@ class Job:
         self.completed_at: float | None = None
         self.step = 0
         self.total_steps = int(params.get("steps") or 0)
+        self.phase: str | None = None  # stable-diffusion.cpp pictures: preparing, drawing or finishing
         self.done = asyncio.Event()
 
     def to_dict(self) -> dict:
@@ -49,6 +50,7 @@ class Job:
             "progress": progress,
             "step": self.step,
             "total_steps": self.total_steps,
+            "phase": self.phase,
             "prompt": self.prompt,
             "result": self.result,
             "generation": self.generation,
@@ -102,7 +104,7 @@ async def _run(job: Job) -> None:
         worker.last_used = time.time()
         kind = KIND_FOR_TASK[job.task]
         if job.result.get("files"):
-            stored = {k: v for k, v in job.params.items() if k not in ("image", "file")}
+            stored = {k: v for k, v in job.params.items() if k not in ("image", "images", "file")}
             stored["seed"] = job.result.get("seed", stored.get("seed"))
             job.generation = db.add_generation(job.id, kind, job.model["id"], job.prompt, stored, job.result["files"])
         job.status = "completed"
@@ -122,6 +124,7 @@ async def _poll_progress(job: Job, url: str, headers: dict) -> None:
             try:
                 st = (await c.get(f"{url}/health")).json()
                 job.step = st.get("step", 0)
+                job.phase = st.get("phase")
                 if st.get("total_steps"):
                     job.total_steps = st["total_steps"]
             except Exception:
