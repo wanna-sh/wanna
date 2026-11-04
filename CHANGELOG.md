@@ -2,6 +2,12 @@
 
 Each version's section becomes its GitHub release notes (see `.github/workflows/release.yml`).
 
+## Unreleased
+
+- When the chat engine can't be set up (its download fails, say), using a chat model now says why, and the next try
+  sets it up again. It used to say "The chat engine is still being set up" for ever. While it's being set up, the
+  message says how far along it is.
+
 ## 0.9.1 (2026-11-04)
 
 - **wanna.sh has a Discord server.** Join it from the sidebar, the home page or the website.

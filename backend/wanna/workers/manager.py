@@ -365,8 +365,16 @@ class ModelManager:
             if model["task"] == "embed" and not context:
                 context = EMBED_CONTEXT  # passages are short; a fixed size keeps the batch settings simple
             if model["engine"] == "llamacpp" and not llamacpp.installer.installed():
+                st = llamacpp.installer.state()
+                if st["status"] == "error":
+                    # Say why once (a failed download used to read "still being set up" for ever); the next attempt
+                    # tries again.
+                    llamacpp.installer.status = "idle"
+                    raise LoadError(f"The chat engine couldn't be set up: {st['error']}")
                 llamacpp.installer.ensure()
-                raise LoadError("The chat engine is still being set up. This happens once; please try again shortly.")
+                progress = f" ({st['progress'] * 100:.0f}% done)" if st["status"] == "installing" and st["progress"] else ""
+                raise LoadError(f"The chat engine is still being set up{progress}. This happens once; please try again "
+                                "shortly.")
             if model["engine"] == "sdcpp" and sdcpp.unsupported():
                 raise LoadError(sdcpp.unsupported())
             if model["engine"] == "sdcpp" and not sdcpp.installer.installed():
