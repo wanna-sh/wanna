@@ -7,6 +7,13 @@
 # When it's already published, it isn't built again: the published build is downloaded and checked instead, so a change
 # to wanna.sh's binding or the CUDA runtime pins is checked against what people actually download.
 # NVIDIA's CUDA runtime and cuBLAS aren't in it: wanna.sh gets them from NVIDIA's packages on PyPI on each computer.
+#
+# Two jobs, so a failure doesn't throw away an hour of compiling: "build" keeps its compiler cache even when it fails
+# and hands the finished build to "publish" as an artifact; if publishing fails, re-run just that job.
+#
+# The release's tag is pushed by hand first, as for wanna.sh's own releases (the workflow's token is refused when it
+# tries to create one):
+#   git tag sdcpp-<first 7 of the commit>-linux-cuda12 && git push origin sdcpp-<first 7 of the commit>-linux-cuda12
 name: Linux CUDA picture engine
 
 on:
@@ -26,21 +33,30 @@ on:
         default: false
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: sdcpp-linux-cuda
   cancel-in-progress: false
+
+env:
+  CUDA_IMAGE: nvidia/cuda:12.8.1-devel-ubuntu22.04
 
 jobs:
   build:
     runs-on: ubuntu-latest
     # About an hour or two from scratch (nine generations of graphics cards); much less with the compiler cache.
     timeout-minutes: 330
+    outputs:
+      skip: ${{ steps.published.outputs.skip }}
+      commit: ${{ steps.pin.outputs.commit }}
+      release: ${{ steps.pin.outputs.release }}
+      asset: ${{ steps.pin.outputs.asset }}
     steps:
       - uses: actions/checkout@v7
 
       - name: Read the pinned version
+        id: pin
         run: |
           file=backend/wanna/engines/sdcpp.py
           commit=$(python3 -c "import re; print(re.search(r'WANNA_SDCPP_COMMIT\", \"([0-9a-f]{40})\"', open('$file').read()).group(1))")
@@ -48,19 +64,19 @@ jobs:
           # The names sdcpp.py downloads. Fail if they change there without changing here.
           grep -qF 'LINUX_CUDA_RELEASE = f"sdcpp-{COMMIT[:7]}-linux-cuda12"' "$file"
           grep -qF 'LINUX_CUDA_ASSET = f"sdcpp-{COMMIT[:7]}-linux-x64-cuda12.tar.gz"' "$file"
-          {
-            echo "COMMIT=$commit"
-            echo "RELEASE=sdcpp-$short-linux-cuda12"
-            echo "ASSET=sdcpp-$short-linux-x64-cuda12.tar.gz"
-          } >> "$GITHUB_ENV"
+          release="sdcpp-$short-linux-cuda12"
+          asset="sdcpp-$short-linux-x64-cuda12.tar.gz"
+          printf 'COMMIT=%s\nRELEASE=%s\nASSET=%s\n' "$commit" "$release" "$asset" >> "$GITHUB_ENV"
+          printf 'commit=%s\nrelease=%s\nasset=%s\n' "$commit" "$release" "$asset" >> "$GITHUB_OUTPUT"
           echo "stable-diffusion.cpp $commit"
 
       - name: Already published?
         id: published
         env:
           GH_TOKEN: ${{ github.token }}
+          REBUILD: ${{ inputs.rebuild }}
         run: |
-          if [ "${{ inputs.rebuild }}" != "true" ] && \
+          if [ "$REBUILD" != "true" ] && \
              gh release view "$RELEASE" --json assets -q '.assets[].name' 2>/dev/null | grep -qxF "$ASSET.sha256"; then
             echo "$RELEASE already has $ASSET: checking it instead of building."
             echo "skip=true" >> "$GITHUB_OUTPUT"
@@ -83,11 +99,12 @@ jobs:
           gh release download "$RELEASE" --pattern "$ASSET" --pattern "$ASSET.sha256" --dir published
           (cd published && sha256sum --check "$ASSET.sha256")
           tar -xzf "published/$ASSET" -C out
-          docker run --rm -v "$GITHUB_WORKSPACE:/w" nvidia/cuda:12.8.1-devel-ubuntu22.04             bash /w/scripts/sdcpp/check-in-container.sh /w/out "$COMMIT"
+          docker run --rm -v "$GITHUB_WORKSPACE:/w" "$CUDA_IMAGE" \
+            bash /w/scripts/sdcpp/check-in-container.sh /w/out "$COMMIT"
 
       - name: Restore the compiler cache
         if: steps.published.outputs.skip != 'true'
-        uses: actions/cache@v6
+        uses: actions/cache/restore@v6
         with:
           path: ${{ runner.temp }}/ccache
           key: sdcpp-linux-cuda12-${{ env.COMMIT }}-${{ github.run_id }}
@@ -96,30 +113,72 @@ jobs:
             sdcpp-linux-cuda12-
 
       - name: Build
+        id: build
         if: steps.published.outputs.skip != 'true'
         run: |
           mkdir -p "$RUNNER_TEMP/ccache" out
           docker run --rm -v "$GITHUB_WORKSPACE:/w" -v "$RUNNER_TEMP/ccache:/ccache" \
             -e CCACHE_DIR=/ccache -e CCACHE_MAXSIZE=5G \
-            nvidia/cuda:12.8.1-devel-ubuntu22.04 \
-            bash /w/scripts/sdcpp/build-linux-cuda.sh "$COMMIT" /w/out
+            "$CUDA_IMAGE" bash /w/scripts/sdcpp/build-linux-cuda.sh "$COMMIT" /w/out
           sudo chown -R "$(id -u):$(id -g)" out "$RUNNER_TEMP/ccache"
+
+      # Saved even when a later step fails (or the build itself), so the next attempt compiles only what changed.
+      - name: Save the compiler cache
+        if: always() && steps.published.outputs.skip != 'true' && steps.build.outcome != 'skipped'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ runner.temp }}/ccache
+          key: sdcpp-linux-cuda12-${{ env.COMMIT }}-${{ github.run_id }}
 
       - name: Check it
         if: steps.published.outputs.skip != 'true'
         run: |
-          docker run --rm -v "$GITHUB_WORKSPACE:/w" nvidia/cuda:12.8.1-devel-ubuntu22.04             bash /w/scripts/sdcpp/check-in-container.sh /w/out "$COMMIT"
+          docker run --rm -v "$GITHUB_WORKSPACE:/w" "$CUDA_IMAGE" \
+            bash /w/scripts/sdcpp/check-in-container.sh /w/out "$COMMIT"
+
+      - name: Package it
+        if: steps.published.outputs.skip != 'true'
+        run: |
+          mkdir -p dist
+          tar -czf "dist/$ASSET" -C out .
+          (cd dist && sha256sum "$ASSET" > "$ASSET.sha256" && cat "$ASSET.sha256")
+
+      - uses: actions/upload-artifact@v7
+        if: steps.published.outputs.skip != 'true'
+        with:
+          name: sdcpp-linux-cuda12
+          path: dist/
+          retention-days: 14
+
+  publish:
+    needs: build
+    if: needs.build.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      COMMIT: ${{ needs.build.outputs.commit }}
+      RELEASE: ${{ needs.build.outputs.release }}
+      ASSET: ${{ needs.build.outputs.asset }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: sdcpp-linux-cuda12
+          path: dist
 
       - name: Publish
-        if: steps.published.outputs.skip != 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          tar -czf "$ASSET" -C out .
-          sha256sum "$ASSET" > "$ASSET.sha256"
-          cat "$ASSET.sha256"
+          cd dist
+          sha256sum --check "$ASSET.sha256"
+          if ! gh api "repos/$GH_REPO/git/ref/tags/$RELEASE" >/dev/null 2>&1; then
+            echo "::error::The tag $RELEASE doesn't exist yet. Push it, then re-run this job:"
+            echo "  git tag $RELEASE && git push origin $RELEASE"
+            exit 1
+          fi
           if ! gh release view "$RELEASE" >/dev/null 2>&1; then
-            gh release create "$RELEASE" --prerelease --latest=false --target "$GITHUB_SHA" \
+            gh release create "$RELEASE" --verify-tag --prerelease --latest=false \
               --title "Picture engine for Linux (stable-diffusion.cpp ${COMMIT:0:7}, CUDA 12)" \
               --notes "stable-diffusion.cpp ${COMMIT} built for Linux x86-64 with CUDA 12.8, for NVIDIA graphics cards from the GTX 10 series to the RTX 50 series. wanna.sh downloads it by itself; you don't need to. NVIDIA's CUDA runtime and cuBLAS aren't included: wanna.sh downloads them from NVIDIA's packages on PyPI."
           fi
