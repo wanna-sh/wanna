@@ -13,6 +13,7 @@ const CUSTOM_DOMAIN = process.env.SITE_DOMAIN ?? "";
 const site = CUSTOM_DOMAIN ? `https://${CUSTOM_DOMAIN}` : "https://wanna-sh.github.io";
 const base = CUSTOM_DOMAIN ? "/" : "/wanna";
 const REPO = "https://github.com/wanna-sh/wanna";
+const DISCORD = "https://discord.gg/svVa7erzn";
 
 /** Writes the CNAME file GitHub Pages needs for a custom domain. */
 const cname = {
@@ -36,7 +37,10 @@ export default defineConfig({
       favicon: "/favicon.svg",
       head: [{ tag: "script", content: clarityScript }],
       customCss: ["@fontsource-variable/inter", "@fontsource-variable/jetbrains-mono", "./src/styles/theme.css"],
-      social: [{ icon: "github", label: "GitHub", href: REPO }],
+      social: [
+        { icon: "github", label: "GitHub", href: REPO },
+        { icon: "discord", label: "Discord", href: DISCORD },
+      ],
       editLink: { baseUrl: `${REPO}/edit/main/site/` },
       lastUpdated: false,
       sidebar: [

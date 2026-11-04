@@ -31,6 +31,7 @@ import type { AgentSummary, Download as DownloadT, Task } from "@/lib/api";
 import { usePoll, useSystem } from "@/lib/hooks";
 import { TASKS, TASK_ORDER } from "@/lib/tasks";
 import { gpuName, mem } from "@/lib/format";
+import { DISCORD_URL, DiscordMark } from "./discord";
 
 const TASK_ICONS: Record<Task, LucideIcon> = {
   chat: MessageSquare,
@@ -116,6 +117,14 @@ export default function Shell({ children }: { children: ReactNode }) {
           </nav>
           <div className="mt-auto pt-8 flex flex-col gap-4">
             <GpuMeters />
+            <a
+              href={DISCORD_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 px-3 text-[14px] text-slate hover:text-ink transition-colors"
+            >
+              <DiscordMark size={16} /> Join the Discord
+            </a>
             <ThemeToggle />
           </div>
         </div>

@@ -8,6 +8,7 @@ import { useModels, useSystem } from "@/lib/hooks";
 import { TASKS, TASK_ORDER } from "@/lib/tasks";
 import { gpuName, hardwareSummary, mem } from "@/lib/format";
 import { GitHubMark, REPO_URL } from "@/components/github";
+import { DISCORD_URL, DiscordMark } from "@/components/discord";
 
 const ART: ("home" | Task)[] = ["home", ...TASK_ORDER];
 // The landing page lays out its own width so the hero can run edge to edge.
@@ -277,6 +278,9 @@ export default function Home() {
               <a href={REPO_URL} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 underline underline-offset-4">
                 <GitHubMark size={15} /> Read the source
               </a>
+              <a href={DISCORD_URL} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 underline underline-offset-4">
+                <DiscordMark size={15} /> Join the Discord
+              </a>
             </div>
           </div>
           <pre className="rounded-2xl bg-paper border border-line p-5 overflow-x-auto text-[13px] leading-relaxed font-mono">
@@ -343,6 +347,7 @@ const FOOTER_LINKS: { title: string; links: { label: string; href: string; exter
       { label: "API reference", href: "/docs", external: true },
       { label: "Source code", href: REPO_URL, external: true },
       { label: "Report a problem", href: `${REPO_URL}/issues`, external: true },
+      { label: "Discord community", href: DISCORD_URL, external: true },
     ],
   },
 ];
@@ -358,15 +363,26 @@ function Footer() {
           <p className="text-[14px] text-slate mt-2">
             Every kind of AI in one app, running privately on your own computer.
           </p>
-          <a
-            href={REPO_URL}
-            target="_blank"
-            rel="noreferrer"
-            aria-label="wanna.sh on GitHub"
-            className="mt-5 inline-grid place-items-center size-10 rounded-full border border-line hover:bg-well transition-colors"
-          >
-            <GitHubMark size={18} />
-          </a>
+          <div className="mt-5 flex gap-2">
+            <a
+              href={REPO_URL}
+              target="_blank"
+              rel="noreferrer"
+              aria-label="wanna.sh on GitHub"
+              className="inline-grid place-items-center size-10 rounded-full border border-line hover:bg-well transition-colors"
+            >
+              <GitHubMark size={18} />
+            </a>
+            <a
+              href={DISCORD_URL}
+              target="_blank"
+              rel="noreferrer"
+              aria-label="wanna.sh on Discord"
+              className="inline-grid place-items-center size-10 rounded-full border border-line hover:bg-well transition-colors"
+            >
+              <DiscordMark size={18} />
+            </a>
+          </div>
         </div>
         {FOOTER_LINKS.map((col) => (
           <nav key={col.title} aria-label={col.title}>
