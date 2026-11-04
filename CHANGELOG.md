@@ -2,7 +2,7 @@
 
 Each version's section becomes its GitHub release notes (see `.github/workflows/release.yml`).
 
-## Unreleased
+## 0.9.1 (2026-11-04)
 
 - **wanna.sh has a Discord server.** Join it from the sidebar, the home page or the website.
 - **Chat no longer fails when a small model gets a tool call wrong.** With web search (or your own tools) on, some
@@ -46,6 +46,12 @@ Each version's section becomes its GitHub release notes (see `.github/workflows/
   well as change pictures (up to 3 at once), and versions built on Qwen-Image-Edit-2511 (v15 and later) get its
   setting. **Quick** never goes below 4 steps for them. When an upload carries several versions of a model, wanna.sh
   offers the newest one's sizes, labelled with the version.
+
+Tested on WSL (Debian 13) with an RTX 3060 and an RTX 3070: the ready-made Linux engine downloaded from its release
+and made a picture; Qwen-Image-Edit Rapid made, changed and combined pictures split across both cards (about 25 to
+30 seconds each); Llama 3.2 1B's unreadable tool calls were reproduced, and asking again without tools answered.
+The Windows app's picture engine set itself up and made a picture. The tray, the Settings pages, the Discord links and
+Chat's retry were checked by building them, not by hand; nothing in this release has been tested on a Mac.
 
 ## 0.9.0 (2026-11-03)
 

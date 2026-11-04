@@ -1,6 +1,6 @@
 [package]
 name = "wanna-desktop"
-version = "0.9.0"
+version = "0.9.1"
 description = "wanna.sh desktop app"
 authors = ["Wannaverse"]
 license = "MIT"
