@@ -97,5 +97,5 @@ WSL2 ran out of memory. Use models that fit on your graphics card, or give WSL2 
 ## Still stuck?
 
 [Open an issue on GitHub](https://github.com/wanna-sh/wanna/issues) with what you did, what happened, and the
-output of the system check. Or ask in the [wanna.sh Discord](https://discord.gg/svVa7erzn), where other people running
+output of the system check. Or ask in the [wanna.sh Discord](https://discord.gg/GxQTGxjM2W), where other people running
 wanna.sh can help too.

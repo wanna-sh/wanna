@@ -1,5 +1,5 @@
 // wanna.sh's Discord server, and Discord's mark (Simple Icons 16.36.0, CC0). Lucide no longer ships brand logos.
-export const DISCORD_URL = "https://discord.gg/svVa7erzn";
+export const DISCORD_URL = "https://discord.gg/GxQTGxjM2W";
 
 export function DiscordMark({ size = 16, className = "" }: { size?: number; className?: string }) {
   return (

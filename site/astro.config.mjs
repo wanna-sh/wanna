@@ -13,7 +13,7 @@ const CUSTOM_DOMAIN = process.env.SITE_DOMAIN ?? "";
 const site = CUSTOM_DOMAIN ? `https://${CUSTOM_DOMAIN}` : "https://wanna-sh.github.io";
 const base = CUSTOM_DOMAIN ? "/" : "/wanna";
 const REPO = "https://github.com/wanna-sh/wanna";
-const DISCORD = "https://discord.gg/svVa7erzn";
+const DISCORD = "https://discord.gg/GxQTGxjM2W";
 
 /** Writes the CNAME file GitHub Pages needs for a custom domain. */
 const cname = {
