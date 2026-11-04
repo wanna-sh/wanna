@@ -4,6 +4,11 @@ Each version's section becomes its GitHub release notes (see `.github/workflows/
 
 ## Unreleased
 
+- **Chat no longer fails when a small model gets a tool call wrong.** With web search (or your own tools) on, some
+  small models ask for a tool in a form llama.cpp can't read (Llama 3.2 1B writes `"function": "web_search"`
+  instead of `"name"`), and llama.cpp then failed the whole reply: *The model produced output that does not match
+  the expected peg-native format*. Chat now asks the model again without tools, so you get an answer, with a note
+  that it was made without them.
 - **The Windows and Mac apps keep running in the tray.** Closing the window hides it: wanna.sh keeps running in the
   system tray (the menu bar on a Mac), so apps, other devices and reverse proxies keep working. Click the icon to open
   it again, or choose **Quit wanna.sh** from its menu to stop it and free the graphics card. The first time, a message

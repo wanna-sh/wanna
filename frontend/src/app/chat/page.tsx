@@ -46,7 +46,14 @@ interface Message {
   web?: WebSource[];
   /** Your own tools the answer used. */
   tools?: string[];
+  /** Something to know about how the answer was made (e.g. it was made without tools the model couldn't use). */
+  note?: string;
 }
+
+/** llama.cpp couldn't read the model's output as a reply or a tool call: small models get tool calls subtly wrong
+ * (Llama 3.2 1B writes {"type": "function", "function": "web_search", ...}) and llama.cpp then fails the reply. */
+const MALFORMED_TOOL_CALL = /does not match the expected .* format/;
+
 interface Conversation {
   id: string;
   title: string;
@@ -273,17 +280,29 @@ export default function ChatPage() {
       // the results, and go again until it answers. The last round has no tools, so it answers with what it found.
       let round: Awaited<ReturnType<typeof streamChat>>;
       let usedWeb = false;
+      let note: string | undefined;
       for (let n = 0; ; n++) {
         out = "";
         const tools = offered.length && n < MAX_WEB_ROUNDS ? { tools: offered } : {};
-        round = await streamChat(
-          { model, messages: payload, ...tools },
-          (piece) => {
-            out += piece;
-            show(out);
-          },
-          ctrl.signal,
-        );
+        try {
+          round = await streamChat(
+            { model, messages: payload, ...tools },
+            (piece) => {
+              out += piece;
+              show(out);
+            },
+            ctrl.signal,
+          );
+        } catch (e) {
+          // The model asked for a tool in a form llama.cpp can't read. Rather than fail, answer without tools.
+          if (!tools.tools || !MALFORMED_TOOL_CALL.test((e as Error).message)) throw e;
+          note =
+            "This model couldn't use its tools properly (it asked for one in a form that can't be read), so it " +
+            "answered without them. Bigger models handle web search and tools better.";
+          n = MAX_WEB_ROUNDS - 1;
+          show("");
+          continue;
+        }
         if (!round.toolCalls.length || !tools.tools) {
           // After reading, a model now and then stops without writing its answer. Ask once more, without tools.
           if (!out.trim() && usedWeb && n < MAX_WEB_ROUNDS) {
@@ -323,6 +342,7 @@ export default function ChatPage() {
           ...(sources ? { sources } : {}),
           ...(web.length ? { web } : {}),
           ...(usedTools.length ? { tools: usedTools } : {}),
+          ...(note ? { note } : {}),
         };
         return { ...c, messages: ms };
       });
@@ -531,6 +551,7 @@ export default function ChatPage() {
                         )}
                       </div>
                       {m.stats && <div className="text-[12px] text-slate mt-1">{m.stats}</div>}
+                      {m.note && <div className="text-[13px] text-slate mt-1">{m.note}</div>}
                       {!!m.sources?.length && textOf(m.content) && <Sources sources={m.sources} answer={textOf(m.content)} />}
                       {!!m.web?.length && textOf(m.content) && <WebPages pages={m.web} />}
                       {!!m.tools?.length && textOf(m.content) && (
