@@ -2,7 +2,7 @@
 
 Each version's section becomes its GitHub release notes (see `.github/workflows/release.yml`).
 
-## Unreleased
+## 0.9.2 (2026-11-08)
 
 - **Code: the agent's edits work on Windows.** In the Windows app, every edit whose text ran over more than one line
   failed with *old_string wasn't found*, so the agent spent most of its steps retrying edits and rewriting whole
@@ -14,6 +14,11 @@ Each version's section becomes its GitHub release notes (see `.github/workflows/
 - When the chat engine can't be set up (its download fails, say), using a chat model now says why, and the next try
   sets it up again. It used to say "The chat engine is still being set up" for ever. While it's being set up, the
   message says how far along it is.
+
+Tested on Windows 11 with the Windows app's Python and on WSL (Debian 13): a script wrote, read, searched and edited
+files with Windows line endings, plain ones and ones damaged by 0.9.1. Before the fix it reproduced the failed edits
+and the blank lines; after it, every check passed. The chat engine change wasn't tested by hand for this release,
+and nothing in it has been tested on a Mac.
 
 ## 0.9.1 (2026-11-04)
 
