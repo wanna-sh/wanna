@@ -4,6 +4,13 @@ Each version's section becomes its GitHub release notes (see `.github/workflows/
 
 ## Unreleased
 
+- **Code: the agent's edits work on Windows.** In the Windows app, every edit whose text ran over more than one line
+  failed with *old_string wasn't found*, so the agent spent most of its steps retrying edits and rewriting whole
+  files. Saving a file on Windows turned each line ending into `\r\n`, which edits didn't match, and every later save
+  added another `\r`, which reading the file then showed as blank lines that weren't there. Files are now saved
+  exactly as written, so they're the same on every computer (and scripts and Dockerfiles made on Windows work in the
+  Linux sandbox). Edits match a file whatever its line endings and keep them, and files damaged by earlier versions
+  are repaired the next time the agent edits them. Reading and searching files count lines the way editors do.
 - When the chat engine can't be set up (its download fails, say), using a chat model now says why, and the next try
   sets it up again. It used to say "The chat engine is still being set up" for ever. While it's being set up, the
   message says how far along it is.

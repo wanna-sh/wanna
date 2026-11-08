@@ -133,6 +133,33 @@ def _read_text(p: Path) -> str:
     return data.decode("utf-8", errors="replace")
 
 
+# A line ends at \n, with any \r before it. Windows line endings are \r\n, and earlier versions of these tools added
+# one more \r every time they saved a file on Windows, so lines can end in several.
+_EOL = re.compile(r"\r*\n")
+
+
+def _lines(text: str) -> list[str]:
+    """The lines the model sees. Only \\n ends a line: str.splitlines also splits at a lone \\r, form feeds and
+    Unicode separators, which shows blank lines that aren't there and puts line numbers out of step with the file."""
+    lines = _EOL.split(text)
+    if lines[-1] == "":
+        lines.pop()
+    return lines
+
+
+def _line_ending(text: str) -> str:
+    """\\r\\n if most of the file's lines end that way, otherwise \\n."""
+    crlf = len(re.findall(r"\r+\n", text))
+    return "\r\n" if crlf > text.count("\n") - crlf else "\n"
+
+
+def _write_text(p: Path, text: str, append: bool = False) -> None:
+    # newline="" writes the text exactly as given. Without it Python turns every \n into \r\n on Windows, so files
+    # made on Windows didn't match what the model read, and each edit added another \r to every line.
+    with open(p, "a" if append else "w", encoding="utf-8", newline="") as f:
+        f.write(text)
+
+
 def _walk(root: Path):
     if root.is_file():
         yield root
@@ -148,7 +175,7 @@ def _walk(root: Path):
 
 def read_file(pid, path, offset=None, limit=None):
     p = _resolve(pid, path)
-    lines = _read_text(p).splitlines()
+    lines = _lines(_read_text(p))
     start = max(1, int(offset or 1))
     count = max(1, min(int(limit or READ_LIMIT), READ_LIMIT))
     chunk = lines[start - 1:start - 1 + count]
@@ -164,12 +191,37 @@ def write_file(pid, path, content, append=False):
     existed = p.exists()
     p.parent.mkdir(parents=True, exist_ok=True)
     if append and existed:
-        with open(p, "a") as f:
-            f.write(content)
-        total = len(p.read_text(errors="replace").splitlines())
-        return f"Added {len(content.splitlines())} lines to {_rel(pid, p)} (now {total} lines)."
-    p.write_text(content)
-    return f"{'Updated' if existed else 'Created'} {_rel(pid, p)} ({len(content.splitlines())} lines)."
+        if _line_ending(_read_text(p)) == "\r\n":  # keep a Windows file's line endings the same throughout
+            content = _EOL.sub("\r\n", content)
+        _write_text(p, content, append=True)
+        total = len(_lines(_read_text(p)))
+        return f"Added {len(_lines(content))} lines to {_rel(pid, p)} (now {total} lines)."
+    _write_text(p, content)
+    return f"{'Updated' if existed else 'Created'} {_rel(pid, p)} ({len(_lines(content))} lines)."
+
+
+def _edit(p: Path, path: str, edits: list[tuple[str, str, bool]], numbered: bool = False) -> list[int]:
+    """Apply exact-text edits to a file, all or nothing, and return how many replacements each made. With numbered,
+    an error says which edit failed.
+
+    The model reads lines without their \\r (see _lines), so edits are matched with every line ending as \\n, and the
+    file is saved with the line ending most of it had. A Windows file stays \\r\\n, and the extra \\r that earlier
+    versions added are dropped.
+    """
+    raw = _read_text(p)
+    text = _EOL.sub("\n", raw)
+    counts = []
+    for i, (old, new, replace_all) in enumerate(edits, 1):
+        try:
+            text, n = _apply_edit(text, _EOL.sub("\n", old), _EOL.sub("\n", new), replace_all, path)
+        except ToolError as err:
+            if numbered:
+                raise ToolError(f"Edit {i}: {err} No changes were made.")
+            raise
+        counts.append(n)
+    eol = _line_ending(raw)
+    _write_text(p, text.replace("\n", eol) if eol != "\n" else text)
+    return counts
 
 
 def _apply_edit(text, old, new, replace_all, path):
@@ -186,23 +238,15 @@ def _apply_edit(text, old, new, replace_all, path):
 
 def edit_file(pid, path, old_string, new_string, replace_all=False):
     p = _resolve(pid, path)
-    text, n = _apply_edit(_read_text(p), old_string, new_string, replace_all, path)
-    p.write_text(text)
+    [n] = _edit(p, path, [(old_string, new_string, replace_all)])
     return f"Edited {_rel(pid, p)} ({n} replacement{'s' if n != 1 else ''})."
 
 
 def multi_edit(pid, path, edits):
     p = _resolve(pid, path)
-    text = _read_text(p)
-    total = 0
-    for i, e in enumerate(edits, 1):
-        try:
-            text, n = _apply_edit(text, e["old_string"], e["new_string"], e.get("replace_all", False), path)
-        except ToolError as err:
-            raise ToolError(f"Edit {i}: {err} No changes were made.")
-        total += n
-    p.write_text(text)
-    return f"Edited {_rel(pid, p)} ({len(edits)} edits, {total} replacements)."
+    counts = _edit(p, path, [(e["old_string"], e["new_string"], e.get("replace_all", False)) for e in edits],
+                   numbered=True)
+    return f"Edited {_rel(pid, p)} ({len(edits)} edits, {sum(counts)} replacements)."
 
 
 def list_files(pid, path=None, depth=3):
@@ -266,7 +310,7 @@ def grep(pid, pattern, path=None, glob=None, ignore_case=False, output_mode="con
             continue
         if b"\x00" in data[:8000]:
             continue
-        lines = data.decode("utf-8", errors="replace").splitlines()
+        lines = _lines(data.decode("utf-8", errors="replace"))
         matches = [i for i, line in enumerate(lines) if rx.search(line)]
         if not matches:
             continue
