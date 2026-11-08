@@ -51,7 +51,7 @@ SCHEMAS = [
          "append": {"type": "boolean", "description": "Add content to the end of the file instead of replacing it."}},
         ["path", "content"]),
     _fn("edit_file", "Replace exact text in a file. old_string must match the file exactly, including indentation, "
-        "and appear once unless replace_all is true. Read the file first.",
+        "and appear once unless replace_all is true. Read the file first. Leave out the line numbers read_file shows.",
         {"path": {"type": "string"}, "old_string": {"type": "string"}, "new_string": {"type": "string"},
          "replace_all": {"type": "boolean", "description": "Replace every occurrence."}},
         ["path", "old_string", "new_string"]),
@@ -224,12 +224,46 @@ def _edit(p: Path, path: str, edits: list[tuple[str, str, bool]], numbered: bool
     return counts
 
 
+# read_file shows each line as "    19\t<line>"; small models often copy that number into old_string.
+_LINE_NUMBER = re.compile(r"^ *\d+\t")
+
+
+def _not_found(text: str, old: str, path: str) -> str:
+    """Why old_string didn't match, as specifically as we can tell. "Copy the text exactly" alone isn't enough: small
+    models send the same wrong text again and again without knowing what's wrong with it."""
+    msg = f"old_string wasn't found in {path}."
+    olds = old.split("\n")
+    filled = [line for line in olds if line.strip()]
+    if filled and all(_LINE_NUMBER.match(line) for line in filled):
+        return (f"{msg} It starts with a line number and a tab ({olds[0][:12]!r}). read_file shows those in front of "
+                "each line, but they aren't part of the file: copy only the text after the tab.")
+    if not filled:
+        return f"{msg} It's only blank space; put the exact text to replace in it."
+    lines = text.split("\n")
+    want = [line.strip() for line in olds]
+    for i in range(len(lines) - len(want) + 1):
+        if [line.strip() for line in lines[i:i + len(want)]] == want:
+            found = "\n".join(lines[i:i + len(want)])[:1500]
+            return (f"{msg} The same text is at line {i + 1}, but with different indentation or spacing. These are the "
+                    f"exact lines in the file; copy them into old_string as they are:\n{found}")
+    first = next((line.strip() for line in olds if line.strip()), "")
+    starts = [i for i, line in enumerate(lines) if first and line.strip() == first]
+    if starts and len(filled) > 1:
+        n = starts[0] + 1
+        return (f"{msg} Its first line is at line {n}, but the lines after it don't match the file. Read the file from "
+                f"line {n} again (read_file with offset={n}) and copy the lines exactly.")
+    return f"{msg} Read the file again and copy the text exactly, including indentation."
+
+
 def _apply_edit(text, old, new, replace_all, path):
+    if not old:
+        raise ToolError("old_string is empty. Put the exact text to replace in it (to add text, include a line next to "
+                        "where it goes), or use write_file for a new file.")
     if old == new:
         raise ToolError("old_string and new_string are the same.")
     n = text.count(old)
     if n == 0:
-        raise ToolError(f"old_string wasn't found in {path}. Read the file and copy the text exactly.")
+        raise ToolError(_not_found(text, old, path))
     if n > 1 and not replace_all:
         raise ToolError(f"old_string appears {n} times in {path}. Add more surrounding text to make it unique, "
                         "or set replace_all.")

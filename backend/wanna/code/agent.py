@@ -25,6 +25,10 @@ log = logging.getLogger("wanna.code.agent")
 
 MAX_STEPS = 50  # tool-using steps per request before the agent must stop and report
 MAX_CUTOFFS = 3  # replies cut off for length in one request before giving up
+# The same failing tool call (same tool, same arguments): warn the model from this many times, stop the turn at the
+# second number. Small models can send one wrong edit dozens of times, which spends every step on nothing.
+REPEAT_WARN = 3
+REPEAT_STOP = 6
 TOOL_RESULT_EVENT_LIMIT = 20_000  # characters of a tool result kept for display
 SCHEMA_TOKENS = 2500  # rough size of the tool definitions in the prompt
 
@@ -39,6 +43,8 @@ How to work
 - Understand before changing: use list_files, glob, grep and read_file. Read a file before editing it.
 - For work with 3 or more steps, plan it with todo_write and keep the list current: mark one item in_progress at a time and complete items as soon as they are done.
 - Prefer edit_file for small changes and write_file for new files. Keep changes focused on what was asked; follow the project's existing style.
+- read_file shows a line number and a tab before each line. They aren't in the file: never put them in old_string.
+- If a tool call fails, read the error and change what you send. Sending the same call again gives the same error.
 - Your memory is limited. Keep thinking short and put code in files, not in your thoughts. Write one file per step, and split long files: write_file the first part (up to about 150 lines), then write_file with append=true for the rest.
 - After changing code, check it works: run it, its tests, or a build. If something fails, read the error and fix it.
 - Don't run destructive commands (deleting files or history, force pushes) unless the user asked for that.
@@ -51,6 +57,15 @@ Communicating
 
 def _id() -> str:
     return uuid.uuid4().hex[:12]
+
+
+def _call_key(call: dict) -> str:
+    """A tool call's name and arguments, the same however the model spaced or ordered its JSON."""
+    try:
+        args = json.dumps(json.loads(call["arguments"] or "{}"), sort_keys=True)
+    except json.JSONDecodeError:
+        args = call["arguments"]
+    return f"{call['name']}:{args}"
 
 
 class Session:
@@ -170,6 +185,7 @@ class Session:
         worker, model, context = await self._prepare(meta)
 
         cutoffs = 0
+        failures: dict[str, int] = {}  # failing tool call -> how many times it was sent in this request
         for step in range(MAX_STEPS):
             if self.cancel.is_set():
                 self.emit({"type": "notice", "text": "Stopped."})
@@ -209,13 +225,31 @@ class Session:
                 if not content.strip():
                     self.emit({"type": "notice", "text": "The model stopped without a reply. Try asking again, or rephrase."})
                 return
+            stuck = None
             for c in calls:
                 if self.cancel.is_set():
                     break
                 result = await self._run_tool(c, meta)
+                key = _call_key(c)
+                if result.startswith("Error:"):
+                    failures[key] = failures.get(key, 0) + 1
+                    if failures[key] >= REPEAT_WARN:
+                        result += (f"\n\n[wanna.sh] You have sent this exact {c['name']} call {failures[key]} times and "
+                                   "it failed every time. Sending it again won't work: read the error, look at the file "
+                                   "or output again, and change what you send, or try another way.")
+                    if failures[key] >= REPEAT_STOP:
+                        stuck = c["name"]
+                else:
+                    failures.pop(key, None)
+                # Every call gets its result, even when stopping, so the conversation can be continued.
                 self.messages.append({"role": "tool", "tool_call_id": c["id"], "content": result})
                 self.save()
                 meta = self._meta() or meta  # "always allow" may have changed
+            if stuck:
+                self.emit({"type": "error", "text": f"Stopped: the model sent the same failing {stuck} call "
+                                                    f"{REPEAT_STOP} times. Ask again with more detail, or try a "
+                                                    "bigger model."})
+                return
         self.emit({"type": "notice", "text": f"Paused after {MAX_STEPS} steps. Say \"continue\" to keep going."})
 
     async def _call_model(self, worker, model_id: str, context: int) -> dict:

@@ -70,6 +70,10 @@ exact command in this project.
 | `web_fetch` | Read a web page or PDF, such as documentation. |
 | `search_knowledge` | Search the [Knowledge](/docs/tutorials/knowledge/#in-code) libraries you gave the project. Only offered when the project has some. |
 
+The agent works for up to 50 steps per message, then pauses: say "continue" to let it go on. When a step fails, the
+agent is told what went wrong (an edit says why its text didn't match the file, for example). If it sends exactly the
+same failing step six times, it stops and says so; ask again with more detail, or pick a bigger model.
+
 ## What the sandbox can reach
 
 The sandbox is a Docker container that only sees its project folder. Commands run as your own user ID, with no
