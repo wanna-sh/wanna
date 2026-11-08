@@ -2,6 +2,24 @@
 
 Each version's section becomes its GitHub release notes (see `.github/workflows/release.yml`).
 
+## 0.9.3 (2026-11-08)
+
+- **Code: when an edit doesn't match, the agent is told why.** "old_string wasn't found" now says what's wrong: the
+  text starts with the line numbers read_file shows (which aren't in the file), or it's in the file with different
+  indentation (and these are the exact lines to copy), or its first line is at line N but the rest differs (read from
+  there again). An empty old_string says so too. Small models used to send the same wrong text over and over: one
+  sent `"    19\t"` 65 times.
+- **Code stops a model that keeps repeating a failing step.** From the third time the agent sends exactly the same
+  tool call and it fails, it's told that repeating it won't work; at the sixth, the turn stops with a message saying
+  why, instead of spending the rest of its 50 steps on it. Different calls that fail aren't affected.
+- The agent's instructions now say that read_file's line numbers aren't part of the file, and that a failed call
+  needs a change, not a retry.
+
+Tested on Windows 11 with the Windows app's Python and on WSL (Debian 13): a script checked each kind of edit error
+against a file with Windows line endings, and ran the agent with a stand-in model that kept sending the same bad edit
+(stopped at the sixth, with a result for every call) or different bad edits (not stopped). The 0.9.2 line-ending
+checks still pass. Not tried with a real model yet, and nothing in this release has been tested on a Mac.
+
 ## 0.9.2 (2026-11-08)
 
 - **Code: the agent's edits work on Windows.** In the Windows app, every edit whose text ran over more than one line
