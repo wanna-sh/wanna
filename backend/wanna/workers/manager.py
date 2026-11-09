@@ -19,7 +19,7 @@ from pathlib import Path
 import httpx
 
 from .. import db, gpu, streaming
-from ..config import HOME, LOGS_DIR, MODELS_DIR, OUTPUTS_DIR, load_settings
+from ..config import HOME, LOGS_DIR, OUTPUTS_DIR, load_settings
 from ..engines import llamacpp, sdcpp
 from ..knowledge.families import family
 
@@ -280,7 +280,7 @@ def _sdcpp_config(model: dict, gpus: list[int] | None = None) -> dict:
     from ..imagefamilies import settings
 
     meta = model.get("meta") or {}
-    root = MODELS_DIR / model["id"]
+    root = db.model_folder(model)
     parts = {k: str(root / v) for k, v in ((meta.get("sdcpp") or {}).get("parts") or {}).items()}
     return {"lib_dir": str(sdcpp.installer.dir), "parts": parts, "edits": bool(meta.get("edits")),
             "makes": meta.get("makes", True) is not False,

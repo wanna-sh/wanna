@@ -10,7 +10,7 @@ Everything wanna.sh downloads or makes lives in one data folder, `~/.wanna` by d
 
 | Path | What's in it |
 | --- | --- |
-| `models/` | Downloaded models. `models/originals/` holds the original versions of chat models you've [trained](/docs/tutorials/train-chat/) (free to delete; downloaded again if you train that model again), and `models/matched/` the copies trained chat models run on. |
+| `models/` | Downloaded models, unless you chose another folder for them (see below). `models/originals/` holds the original versions of chat models you've [trained](/docs/tutorials/train-chat/) (free to delete; downloaded again if you train that model again), and `models/matched/` the copies trained chat models run on. |
 | `outputs/` | Pictures, videos, recordings and music you've made. Also served at `http://localhost:7860/files/`. |
 | `uploads/` | Files you've attached or uploaded. |
 | `tools/` | [Your own tools](/docs/tutorials/tools/), one Python file each. |
@@ -32,6 +32,12 @@ Everything wanna.sh downloads or makes lives in one data folder, `~/.wanna` by d
 | `workers.pid` | Model processes wanna.sh started, so leftovers are stopped after a crash. |
 
 Chats from the Chat page are stored in your browser, not here.
+
+To save models somewhere else, such as a bigger drive, type or paste a folder's full path in **Settings → Models &
+memory → Where models are saved**. New downloads go there; models you already have stay where they are and keep
+working. wanna.sh leaves a small `.wanna-models` file in that folder, and only deletes model folders it finds next to
+one. The original versions of chat models you train stay in `models/originals/`. When wanna.sh runs in
+[Docker](/docs/start/docker/), the folder is a path inside the container, so mount the drive into it first.
 
 The app itself is installed in `~/wanna.sh` (or wherever you chose with `--dir`), with the `wanna` command linked from
 `~/.local/bin`.

@@ -20,6 +20,10 @@ export interface Settings {
   idle_unload_minutes: number;
   default_context: number;
   stream_from_drive: boolean;
+  /** Where new downloads are saved; blank means models_dir_default (the data folder's models folder). */
+  models_dir: string;
+  models_dir_default: string;
+  models_dir_free: number;
 }
 
 interface DriveSpeed {
@@ -32,7 +36,7 @@ interface DriveSpeed {
 export const SETTINGS_PAGES = [
   { href: "/settings/", label: "This computer", icon: Monitor, blurb: "System check, graphics cards and engines" },
   { href: "/settings/accounts/", label: "Accounts", icon: KeyRound, blurb: "Hugging Face, web search" },
-  { href: "/settings/models/", label: "Models & memory", icon: MemoryStick, blurb: "Idle models, chat memory, big models" },
+  { href: "/settings/models/", label: "Models & memory", icon: MemoryStick, blurb: "Models folder, idle models, chat memory" },
   { href: "/settings/security/", label: "Security", icon: ShieldCheck, blurb: "API key, allowed host names" },
 ] as const;
 

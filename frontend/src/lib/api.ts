@@ -249,6 +249,8 @@ export interface SystemInfo {
   loaded: Worker[];
   events: { time: number; message: string }[];
   disk_free: number;
+  /** wanna.sh's version, e.g. "0.9.5". */
+  version: string;
 }
 
 export interface InstalledModel {

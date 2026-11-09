@@ -8,7 +8,6 @@ import importlib.util
 import logging
 import os
 import re
-import shutil
 import struct
 import subprocess
 import threading
@@ -21,7 +20,7 @@ import httpx
 import psutil
 
 from . import gpu
-from .config import DOCKER_NETWORK, LOGS_DIR, MODELS_DIR, load_settings
+from .config import DOCKER_NETWORK, LOGS_DIR, disk_free, load_settings, models_dir
 from .engines import llamacpp
 
 log = logging.getLogger("wanna.readiness")
@@ -352,7 +351,7 @@ def system_check(refresh: bool = False) -> list[dict]:
         add("docker", "Code sandbox", "ok" if ds["docker"] and ds["image"] else ("warn" if ds["docker"] else "fail"),
             f"Docker {ds.get('version')}, sandbox ready." if ds["docker"] and ds["image"] else ds["message"])
 
-    free = shutil.disk_usage(MODELS_DIR).free
+    free = disk_free(models_dir())
     add("disk", "Free disk space", "ok" if free > 50e9 else ("warn" if free > 10e9 else "fail"),
         f"{free / 1e9:.0f} GB free for models." + ("" if free > 50e9 else " Big models need 5 to 30 GB each."))
 

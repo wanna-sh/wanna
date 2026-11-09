@@ -138,7 +138,7 @@ A trained task that's on for Chat is also a tool for [chat completions](/docs/ap
 
 | Endpoint | What it does |
 | --- | --- |
-| `GET /api/system` | Graphics cards, memory, disk, engines and loaded models. |
+| `GET /api/system` | Graphics cards, memory, disk, engines, loaded models and wanna.sh's `version`. |
 | `GET /api/system/check` | The [system check](/docs/reference/troubleshooting/#the-system-check) from Settings. |
 | `GET /api/settings`, `PUT /api/settings` | Read or change [settings](/docs/reference/settings/). Secrets come back masked. |
 | `GET /api/keys`, `POST /api/keys`, `DELETE /api/keys/{id}` | Manage API keys. `POST` takes `{"name": "..."}` and returns the key once. |

@@ -6,6 +6,7 @@ import os
 import re
 import shutil
 import uuid
+from importlib.metadata import version as _version
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -13,7 +14,8 @@ from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
 from .. import addons, catalog, db, gpu, hub, imagefamilies, jobs, presets, readiness, samplers, streaming, training
-from ..config import MODELS_DIR, OUTPUTS_DIR, UPLOADS_DIR, load_settings, save_settings
+from ..config import (HOME, MODELS_DIR, MODELS_MARKER, OUTPUTS_DIR, UPLOADS_DIR, disk_free, is_models_root,
+                      load_settings, models_dir, save_settings)
 from ..downloads import manager as downloads
 from ..engines import llamacpp, sdcpp
 from ..workers.manager import LoadError, ModelNotFound, manager
@@ -37,8 +39,9 @@ def system():
                                  "gpu_help_url": sdcpp.GPU_HELP_URL}}
     info["loaded"] = loaded
     info["events"] = list(manager.events)[:20]
-    info["disk_free"] = shutil.disk_usage(MODELS_DIR).free
+    info["disk_free"] = disk_free(models_dir())
     info["tasks"] = hub.TASKS
+    info["version"] = _version("wanna")
     return info
 
 
@@ -236,8 +239,8 @@ def delete_model(model_id: str):
         except training.TrainError:
             pass
         return {"ok": True}
-    target = (MODELS_DIR / model_id).resolve()
-    if target.is_relative_to(MODELS_DIR.resolve()) and target != MODELS_DIR.resolve():
+    target = db.model_folder(m)
+    if target.name == model_id and is_models_root(target.parent):  # never a folder wanna.sh didn't make
         shutil.rmtree(target, ignore_errors=True)
     db.delete_model(model_id)
     for other in db.list_models():  # chat models trained from it run on their own copy, but shared its picture reader
@@ -406,7 +409,32 @@ def _public_settings(s: dict) -> dict:
     s["brave_api_key_set"] = bool(brave)
     env_hosts = os.environ.get("WANNA_ALLOWED_HOSTS", "")
     s["allowed_hosts_env"] = [h.strip().lower() for h in env_hosts.split(",") if h.strip()]
+    s["models_dir_default"] = str(MODELS_DIR)
+    s["models_dir_free"] = disk_free(models_dir())
     return s
+
+
+def _models_dir(value) -> str:
+    """A folder typed or pasted in Settings -> what to save: "" for the data folder's own, otherwise a full path to a
+    folder wanna.sh can save to (created if needed)."""
+    text = str(value or "").strip().strip('"').strip("'").strip()
+    if not text:
+        return ""
+    p = Path(text).expanduser()
+    if not p.is_absolute():
+        raise HTTPException(400, "Type the folder's full path, for example D:\\Models or /mnt/big/models.")
+    if p.resolve() == MODELS_DIR.resolve():
+        return ""
+    if p.resolve() == HOME.resolve():
+        raise HTTPException(400, "Choose a folder of its own, not wanna.sh's data folder itself.")
+    try:
+        p.mkdir(parents=True, exist_ok=True)
+        (p / MODELS_MARKER).write_text("wanna.sh saves models in this folder. Deleting a model in wanna.sh deletes its "
+                                       "folder here.\n")
+    except OSError as e:
+        raise HTTPException(400, f"Can't save models to {p}: {e.strerror or e}. Check the drive is connected and that "
+                                 "you can save files there.")
+    return str(p)
 
 
 @router.get("/settings")
@@ -446,6 +474,8 @@ def put_settings(patch: dict):
             patch.pop(k)  # unchanged masked value
     if "allowed_hosts" in patch:
         patch["allowed_hosts"] = _allowed_hosts(patch["allowed_hosts"])
+    if "models_dir" in patch:
+        patch["models_dir"] = _models_dir(patch["models_dir"])
     s = save_settings(patch)
     hub._model_info.cache_clear()
     return _public_settings(s)

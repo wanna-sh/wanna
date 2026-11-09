@@ -17,7 +17,7 @@ import uuid
 from pathlib import Path
 
 from . import awake, db, hub
-from .config import HOME, MODELS_DIR, hf_token
+from .config import HOME, MODELS_DIR, MODELS_MARKER, disk_free, hf_token, models_dir
 from .download_worker import download_files
 
 log = logging.getLogger("wanna.downloads")
@@ -102,7 +102,7 @@ class Download:
         self.error: str | None = None
         self.started_at = time.time()
         self.model_id = self._make_model_id()
-        self.dest = MODELS_DIR / self.model_id
+        self.dest = models_dir() / self.model_id
         self._proc = None
         self.interrupted = False
         # Hugging Face's Xet downloader is fast but can hang for good at the same point of a file, so after a stall
@@ -352,6 +352,14 @@ class DownloadManager:
         variant = next((v for v in variants if v["id"] == variant_id), None) if variant_id else None
         if variant is None:
             variant = next(v for v in variants if v["id"] == details["recommended"])
+        root = models_dir()
+        try:
+            root.mkdir(parents=True, exist_ok=True)
+            if root != MODELS_DIR and not (root / MODELS_MARKER).exists():
+                (root / MODELS_MARKER).write_text("wanna.sh saves models in this folder.\n")
+        except OSError as e:
+            raise ValueError(f"Can't save models to {root}: {e.strerror or e}. Check the drive is connected, or choose "
+                             "another folder in Settings → Models & memory.")
         with self._lock:
             for d in self._downloads.values():
                 if d.repo_id == repo_id and d.variant["id"] == variant["id"] and d.status in ("queued", "downloading"):
@@ -360,13 +368,12 @@ class DownloadManager:
             # Parts already downloaded (from an interrupted download) don't need the room again.
             # Unfinished files can't be resumed (see _clear_partials), so they don't count.
             missing = variant["size"] - (_dir_size(dl.dest, partials=False) if dl.dest.exists() else 0)
-            free = shutil.disk_usage(MODELS_DIR).free
+            free = disk_free(root)
             if missing > free:
                 raise ValueError(
                     f"Not enough free space: this version needs {missing / 1e9:.0f} GB more and the drive models are "
-                    f"saved to ({MODELS_DIR}) has {free / 1e9:.0f} GB free. Free some space, choose a smaller version, "
-                    "or move wanna.sh's data folder to a bigger drive with WANNA_HOME (see \"Files, folders and "
-                    "options\" in the guide)."
+                    f"saved to ({root}) has {free / 1e9:.0f} GB free. Free some space, choose a smaller version, "
+                    "or save models to a bigger drive in Settings → Models & memory."
                 )
             self._downloads[dl.id] = dl
         threading.Thread(target=dl.run, daemon=True, name=f"download-{dl.id}").start()

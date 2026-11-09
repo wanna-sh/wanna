@@ -2,6 +2,42 @@
 
 Each version's section becomes its GitHub release notes (see `.github/workflows/release.yml`).
 
+## 0.9.5 (2026-11-09)
+
+- **Choose where models are saved.** Settings → Models & memory has a new **Where models are saved** box: paste a
+  folder's full path, for example on a bigger drive, and new downloads go there. Models you already have stay where
+  they are and keep working, and deleting one frees space on the drive it's on. wanna.sh leaves a small
+  `.wanna-models` file in the folder and only ever deletes model folders next to one. If the drive isn't connected,
+  downloading says so instead of failing somewhere else. Moving the whole data folder with `WANNA_HOME` still works.
+- **Chat models on a graphics card use far less memory on Windows, and some write faster.** wanna.sh used to map
+  the model file into memory, and on Windows a mapped model stays in memory whole, even the parts copied to the
+  graphics card. Now the model is read instead: Qwen3.6-35B-A3B (17.7 GB, a few of its experts kept on the
+  processor) went from 16 GB of memory in use to 3.5 GB, and wrote 1.7 times faster (51 tokens per second, not 30),
+  as the experts on the processor no longer get paged out. Models that run only on the processor, or are read from
+  the drive, are still mapped, and nothing changes on Linux or a Mac.
+- **Links that open in a new tab work in the Windows app.** Join the Discord, GitHub, the API reference and the
+  other links that open in a new tab did nothing in the Windows app: Windows' WebView2 never told the app about them,
+  so it couldn't pass them to your browser. They now open in your default browser. In a browser they open a new tab
+  as before.
+- **The version is shown** at the bottom of the menu, next to Light mode, and links to its release notes. It's also in
+  `GET /api/system` as `version`.
+
+Tested on Windows 11 with two graphics cards (RTX 3070 8 GB and RTX 3060 12 GB): Qwen3.6-35B-A3B UD-IQ4_XS with a
+64K context, loaded from wanna.sh and with llama-server started by hand both ways (memory, speed and load time
+compared over several runs), and Gemma 4 E4B, which loads and answers as before. The command line was also checked for
+each kind of placement. Not tested on Linux or a Mac, where the command line is unchanged.
+
+The models folder was tested with a script on Windows 11 and on WSL (Debian 13): checking and saving the setting
+(full paths only, quotes removed, a missing drive refused), new downloads going to the chosen folder, a clear error
+when its drive is gone, finding and deleting models in both the old and the new folder, and never deleting a folder
+wanna.sh didn't make. The settings page was tried in Edge: saving a folder, the error for a relative path, and going
+back to the default. A real model (SmolLM2 135M, 145 MB) was downloaded into a chosen folder, installed from there
+and deleted. Not tested on a Mac or in Docker, or with a second physical drive.
+
+The links were tried in the Windows app with clicks like a person's: Join the Discord, the version and Report a
+problem each opened in the default browser (Brave), where before nothing happened. In Edge they still open a new tab,
+cut off from wanna.sh. Not tried in the Mac app.
+
 ## 0.9.4 (2026-11-09)
 
 - **Big downloads that stall now finish.** Hugging Face's Xet downloader can hang for good at the same point of a

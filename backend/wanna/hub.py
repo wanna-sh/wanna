@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import re
-import shutil
 from functools import lru_cache
 
 from huggingface_hub import HfApi
 
-from .config import MODELS_DIR, hf_token
+from .config import disk_free, hf_token, models_dir
 
 # Friendly task taxonomy shown in the UI.
 TASKS = {
@@ -263,7 +262,7 @@ def details(repo_id: str, read_headers: bool = True) -> dict:
     from .catalog import TESTED, budget, rate
 
     b = budget()
-    free = shutil.disk_usage(MODELS_DIR).free
+    free = disk_free(models_dir())
     for v in out["variants"]:
         if engine == "sdcpp":
             from .catalog import rate_split

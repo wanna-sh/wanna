@@ -258,6 +258,12 @@ def server_command(
                 cmd += ["--override-tensor", overrides]
         if len(gpus) > 1 and split:
             cmd += ["--split-mode", "layer", "--tensor-split", ",".join(str(s) for s in split)]
+        if os.name == "nt" and not from_drive:
+            # Read the model into memory instead of mapping it. On Windows a mapped model stays in memory whole,
+            # even the parts copied to the graphics card. Qwen3.6-35B-A3B (17.7 GB, a few experts on the processor)
+            # used 16 GB of memory mapped and 3.5 GB read, and wrote 1.7 times faster read (51 tokens/s, not 30),
+            # as the experts on the processor no longer got paged out.
+            cmd += ["--load-mode", "none"]
     else:
         env["CUDA_VISIBLE_DEVICES"] = ""
         cmd += ["--n-gpu-layers", "0"]

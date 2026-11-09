@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import threading
 from pathlib import Path
 
@@ -48,6 +49,8 @@ DEFAULT_SETTINGS = {
     "default_context": 8192,
     # Let chat models bigger than graphics and system memory together run by reading from the drive (very slow).
     "stream_from_drive": False,
+    # Where new model downloads are saved (a full path). Blank: the models folder in the data folder.
+    "models_dir": "",
 }
 
 _lock = threading.Lock()
@@ -76,3 +79,34 @@ def save_settings(patch: dict) -> dict:
 
 def hf_token() -> str | None:
     return load_settings()["hf_token"] or None
+
+
+# Left in every other folder models are saved to, so deleting a model only ever removes a folder wanna.sh made.
+MODELS_MARKER = ".wanna-models"
+
+
+def models_dir() -> Path:
+    """Where new downloads are saved: the folder chosen in Settings → Models & memory, or models/ in the data folder.
+
+    Models already downloaded stay where they are: the database has their paths.
+    """
+    chosen = str(load_settings().get("models_dir") or "").strip()
+    return Path(chosen).expanduser() if chosen else MODELS_DIR
+
+
+def is_models_root(folder: Path) -> bool:
+    """Whether wanna.sh saves (or once saved) models in this folder."""
+    try:
+        return folder.resolve() == MODELS_DIR.resolve() or (folder / MODELS_MARKER).is_file()
+    except OSError:
+        return False
+
+
+def disk_free(path: Path) -> int:
+    """Free space on the drive `path` is on (it needn't exist yet), or 0 if the drive isn't there (unplugged)."""
+    for p in (path, *path.parents):
+        try:
+            return shutil.disk_usage(p).free
+        except OSError:
+            continue
+    return 0

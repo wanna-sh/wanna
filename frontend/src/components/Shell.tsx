@@ -27,7 +27,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import type { AgentSummary, Download as DownloadT, Task } from "@/lib/api";
+import type { AgentSummary, Download as DownloadT, SystemInfo, Task } from "@/lib/api";
 import { usePoll, useSystem } from "@/lib/hooks";
 import { TASKS, TASK_ORDER } from "@/lib/tasks";
 import { gpuName, mem } from "@/lib/format";
@@ -56,9 +56,31 @@ const SYSTEM = [
   { href: "/settings/", label: "Settings", icon: Settings },
 ];
 
+/**
+ * Links that open in a new tab (target="_blank": Discord, GitHub, the docs, Code's previews) are opened with
+ * window.open instead. In the desktop app, Windows' WebView2 never reports a plain new-tab link to the app, so the link
+ * did nothing; a window.open call is reported, and the app opens it in the default browser. In a browser it opens a
+ * new tab as before, cut off from this page (opener cleared) as rel="noreferrer" did.
+ */
+function useNewTabLinks() {
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const a = (e.target as Element | null)?.closest?.("a[target=_blank]") as HTMLAnchorElement | null;
+      if (!a?.href || a.hasAttribute("download")) return;
+      e.preventDefault();
+      const w = window.open(a.href, "_blank");
+      if (w) w.opener = null;
+    };
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
+  }, []);
+}
+
 export default function Shell({ children }: { children: ReactNode }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
+  useNewTabLinks();
   const [lastPath, setLastPath] = useState(path);
   if (path !== lastPath) {
     // Close the mobile menu after navigating.
@@ -115,18 +137,7 @@ export default function Shell({ children }: { children: ReactNode }) {
               ))}
             </NavGroup>
           </nav>
-          <div className="mt-auto pt-8 flex flex-col gap-4">
-            <GpuMeters />
-            <a
-              href={DISCORD_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 px-3 text-[14px] text-slate hover:text-ink transition-colors"
-            >
-              <DiscordMark size={16} /> Join the Discord
-            </a>
-            <ThemeToggle />
-          </div>
+          <SidebarFooter />
         </div>
       </aside>
 
@@ -274,10 +285,42 @@ function ThemeToggle() {
   );
 }
 
+// --- sidebar footer: graphics cards, Discord, theme and version ---------------------
+
+function SidebarFooter() {
+  const { data, error } = useSystem(3000);
+  return (
+    <div className="mt-auto pt-8 flex flex-col gap-4">
+      <GpuMeters data={data} error={error} />
+      <a
+        href={DISCORD_URL}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex items-center gap-2 px-3 text-[14px] text-slate hover:text-ink transition-colors"
+      >
+        <DiscordMark size={16} /> Join the Discord
+      </a>
+      <div className="flex items-center justify-between gap-2">
+        <ThemeToggle />
+        {data?.version && (
+          <a
+            href={`https://github.com/wanna-sh/wanna/releases/tag/v${data.version}`}
+            target="_blank"
+            rel="noreferrer"
+            title="What's new in this version"
+            className="px-2.5 text-[12px] text-slate hover:text-ink tabular-nums"
+          >
+            v{data.version}
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // --- graphics card meters --------------------------------------------------------
 
-function GpuMeters() {
-  const { data, error } = useSystem(3000);
+function GpuMeters({ data, error }: { data: SystemInfo | null; error: string | null }) {
   if (error) return <p className="px-2.5 text-[12px] text-danger">Can&apos;t reach the wanna.sh server.</p>;
   if (!data) return null;
   if (!data.gpus.length)

@@ -29,7 +29,7 @@ from pathlib import Path
 import psutil
 
 from . import gpu
-from .config import HOME, MODELS_DIR, hf_token, load_settings
+from .config import HOME, hf_token, load_settings, models_dir
 
 log = logging.getLogger("wanna.streaming")
 
@@ -285,13 +285,18 @@ def _save_measured(patch: dict) -> None:
 
 
 def _device() -> int:
-    return os.stat(MODELS_DIR).st_dev
+    try:
+        return os.stat(models_dir()).st_dev
+    except OSError:  # the drive isn't there
+        return -1
 
 
-def windows_drive_under_wsl(path: Path = MODELS_DIR) -> bool:
-    """Whether this is WSL and `path` is on a Windows drive, which WSL reads through 9p file sharing: much slower."""
+def windows_drive_under_wsl(path: Path | None = None) -> bool:
+    """Whether this is WSL and `path` (default: where models are saved) is on a Windows drive, which WSL reads through
+    9p file sharing: much slower."""
     if not gpu.in_wsl():
         return False
+    path = path or models_dir()
     best, fstype = "", ""
     for part in psutil.disk_partitions(all=True):
         mount = part.mountpoint.rstrip("/") + "/"
@@ -319,7 +324,7 @@ def measure_drive_soon() -> None:
 
     def run():
         try:
-            _save_measured({"drive": {"device": _device(), **_measure_drive(MODELS_DIR), "at": time.time()}})
+            _save_measured({"drive": {"device": _device(), **_measure_drive(models_dir()), "at": time.time()}})
         except Exception as e:
             log.warning("Couldn't measure the drive: %s", e)
             _save_measured({"drive": {"device": _device(), "error": str(e), "at": time.time()}})

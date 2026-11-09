@@ -158,6 +158,16 @@ def _to_real(path: str | None, model_id: str) -> str | None:
     return str(MODELS_DIR / p.as_posix()[i + len("/models/"):]) if i >= 0 else path
 
 
+def model_folder(m: dict) -> Path:
+    """The folder holding a downloaded model's files: the one named after the model, in whichever models folder it was
+    saved to (see config.models_dir)."""
+    from .config import is_models_root
+
+    p = Path(m["path"])
+    named = [f for f in (p, *p.parents) if f.name == m["id"]]
+    return next((f for f in named if is_models_root(f.parent)), named[0] if named else MODELS_DIR / m["id"])
+
+
 def _model(d: dict | None) -> dict | None:
     if d is None:
         return None

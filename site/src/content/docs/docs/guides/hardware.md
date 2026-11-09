@@ -96,10 +96,9 @@ in spare memory, and reads the remainder from the drive when a token needs it.
   - From WSL's own disk it started in about a minute, but wrote only about 0.35 tokens a second.
 
   The Windows drive was likely faster once running because Windows' own memory keeps part of the model too.
-  wanna.sh says when your models are on a Windows drive. wanna.sh warns when
-  your models are on a Windows drive.
-- Your download needs room: big versions can take hundreds of gigabytes. To keep models on another drive, move your
-  [data folder](/docs/reference/files/) with `WANNA_HOME`.
+  wanna.sh warns when your models are on a Windows drive.
+- Your download needs room: big versions can take hundreds of gigabytes. To save models on another drive, choose a
+  folder there in **Settings → Models & memory → Where models are saved**.
 
 While one runs, **My models** says *reading the rest from your drive*, and its speed estimate is under **Options**.
 
