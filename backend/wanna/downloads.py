@@ -25,15 +25,35 @@ PENDING_FILE = HOME / "downloads.json"
 _ctx = mp.get_context("spawn")
 
 
-def _dir_size(path: Path) -> int:
+def _dir_size(path: Path, partials: bool = True) -> int:
     total = 0
     for root, _dirs, files in os.walk(path):
         for name in files:
+            if not partials and name.endswith(".incomplete"):
+                continue
             try:
                 total += os.path.getsize(os.path.join(root, name))
             except OSError:
                 pass
     return total
+
+
+def _clear_partials(path: Path) -> int:
+    """Delete half-downloaded files left by a stopped download process, and return how many bytes that freed.
+
+    huggingface_hub writes each file to a temporary name unique to the process and deletes it only when that process
+    ends normally, so a partial from a killed or crashed process can never be resumed: it just takes up disk space
+    and, as part of the folder's size, makes the download look further along than it is.
+    """
+    freed = 0
+    for f in path.rglob("*.incomplete") if path.exists() else []:
+        try:
+            size = f.stat().st_size
+            f.unlink()
+            freed += size
+        except OSError:
+            pass
+    return freed
 
 
 _DTYPE_BYTES = {"F64": 8, "F32": 4, "F16": 2, "BF16": 2, "I64": 8, "I32": 4, "I16": 2, "I8": 1, "U8": 1,
@@ -85,6 +105,9 @@ class Download:
         self.dest = MODELS_DIR / self.model_id
         self._proc = None
         self.interrupted = False
+        # Hugging Face's Xet downloader is fast but can hang for good at the same point of a file, so after a stall
+        # the download carries on over plain HTTPS.
+        self.xet = True
 
     def _make_model_id(self) -> str:
         base = _slug(self.repo_id.split("/")[-1].removesuffix("-GGUF").removesuffix("-gguf"))
@@ -117,7 +140,8 @@ class Download:
 
     def _spawn(self, q) -> None:
         self._proc = _ctx.Process(
-            target=download_files, args=(self.repo_id, self.files, str(self.dest), hf_token(), q), daemon=True
+            target=download_files, args=(self.repo_id, self.files, str(self.dest), hf_token(), q, self.xet),
+            daemon=True,
         )
         self._proc.start()
 
@@ -146,7 +170,7 @@ class Download:
         manager.save_pending()
 
     def _download(self) -> tuple[str, str | None] | None:
-        """Download, retrying after dropped connections; finished files and partial ones are reused each time."""
+        """Download, retrying after dropped connections; finished files are reused each time."""
         for wait in [*self.RETRY_WAITS, None]:
             result = self._attempt()
             if result is None or result[0] == "done" or self.interrupted or wait is None or not _retryable(result[1]):
@@ -160,6 +184,7 @@ class Download:
                 time.sleep(0.5)
 
     def _attempt(self) -> tuple[str, str | None] | None:
+        self._clear_partials()
         q = _ctx.Queue()
         self._spawn(q)
         last_bytes, last_t = _dir_size(self.dest), time.time()
@@ -194,19 +219,32 @@ class Download:
                 last_bytes, last_t = size, now
             self.done_bytes = size
             if now - last_progress > self.STALL_SECONDS:
-                # A connection can hang without erroring. Restart; finished files and partials are reused.
+                # A connection can hang without erroring. Restart; finished files are reused.
                 self._proc.kill()
                 self._proc.join(timeout=5)
                 if restarts >= self.MAX_RESTARTS:
                     result = ("error", "Stalled: the download stopped making progress.")
                     break
                 restarts += 1
-                log.warning("Download of %s stalled; restarting (%d/%d)", self.repo_id, restarts, self.MAX_RESTARTS)
+                how = "over plain HTTPS instead of Xet" if self.xet else "over plain HTTPS"
+                self.xet = False
+                log.warning("Download of %s stalled; restarting %s (%d/%d)", self.repo_id, how, restarts,
+                            self.MAX_RESTARTS)
+                self._clear_partials()
                 q = _ctx.Queue()
                 self._spawn(q)
                 last_progress = time.time()
         self._proc.join(timeout=5)
+        if result[0] == "error":
+            self._clear_partials()
         return result
+
+    def _clear_partials(self) -> None:
+        freed = _clear_partials(self.dest)
+        if freed:
+            size = f"{freed / 1e9:.1f} GB" if freed >= 1e9 else f"{freed / 1e6:.0f} MB"
+            log.info("Deleted %s of unfinished files from an earlier try of %s", size, self.repo_id)
+        self.done_bytes = _dir_size(self.dest)
 
     def _register(self) -> None:
         d, v = self.details, self.variant
@@ -320,7 +358,8 @@ class DownloadManager:
                     return d
             dl = Download(repo_id, variant, details)
             # Parts already downloaded (from an interrupted download) don't need the room again.
-            missing = variant["size"] - (_dir_size(dl.dest) if dl.dest.exists() else 0)
+            # Unfinished files can't be resumed (see _clear_partials), so they don't count.
+            missing = variant["size"] - (_dir_size(dl.dest, partials=False) if dl.dest.exists() else 0)
             free = shutil.disk_usage(MODELS_DIR).free
             if missing > free:
                 raise ValueError(

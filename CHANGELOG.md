@@ -2,6 +2,21 @@
 
 Each version's section becomes its GitHub release notes (see `.github/workflows/release.yml`).
 
+## 0.9.4 (2026-11-09)
+
+- **Big downloads that stall now finish.** Hugging Face's Xet downloader can hang for good at the same point of a
+  file: a 17.7 GB model stopped at 88% twice and failed after three restarts. After the first stall, wanna.sh now
+  carries on over plain HTTPS, which is slower but doesn't hang this way.
+- **Restarted downloads no longer fill the disk.** Each try saves to a new temporary file that can't be resumed, and a
+  stopped try left its file behind: the failed download above left 48 GB of them. wanna.sh now deletes them before
+  each try and when a download fails, and the progress bar no longer counts them (it showed 100% while nothing had
+  finished).
+
+Tested on Windows 11 with the Windows app's Python and on WSL (Debian 13): a stand-in download that hangs after
+writing part of a file was restarted over plain HTTPS and finished, with the part deleted, and one that kept hanging
+failed with nothing left behind. A real 657 MB Xet-stored model file downloaded in full both with and without Xet.
+Not tested on a Mac.
+
 ## 0.9.3 (2026-11-08)
 
 - **Code: when an edit doesn't match, the agent is told why.** "old_string wasn't found" now says what's wrong: the

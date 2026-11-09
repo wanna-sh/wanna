@@ -27,11 +27,14 @@ def local_path(ref: str) -> str:
     return os.path.join(companion_dir(repo), path)
 
 
-def download_files(repo_id: str, files: list[str], dest: str, token: str | None, q) -> None:
+def download_files(repo_id: str, files: list[str], dest: str, token: str | None, q, xet: bool = True) -> None:
     import time
 
-    from huggingface_hub import hf_hub_download
+    from huggingface_hub import constants, hf_hub_download
     from tqdm.auto import tqdm
+
+    if not xet:  # read when each file starts, so setting it here is enough
+        constants.HF_HUB_DISABLE_XET = True
 
     class Heartbeat(tqdm):
         """Tells the parent that bytes are arriving. Files can grow in bursts far apart (Hugging Face's Xet
