@@ -47,6 +47,9 @@ DEFAULT_SETTINGS = {
     "idle_unload_minutes": 0,
     # Default context length for chat models.
     "default_context": 8192,
+    # System memory (MB) each chat model may use to keep earlier prompts for reuse (llama-server's --cache-ram).
+    # llama.cpp's own default is 8192 per model. 0 turns it off.
+    "prompt_cache_mb": 2048,
     # Let chat models bigger than graphics and system memory together run by reading from the drive (very slow).
     "stream_from_drive": False,
     # Where new model downloads are saved (a full path). Blank: the models folder in the data folder.

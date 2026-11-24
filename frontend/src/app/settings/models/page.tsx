@@ -94,6 +94,22 @@ export default function ModelsMemoryPage() {
                   <option value={32768}>Very long (32K)</option>
                 </select>
               </Field>
+              <Field
+                label="Prompt cache"
+                hint="System memory each chat model can use to pick up a conversation faster. Applies when a model next starts."
+              >
+                <select
+                  className={`${inputClass} h-10 py-0`}
+                  value={s.prompt_cache_mb}
+                  onChange={(e) => save({ prompt_cache_mb: Number(e.target.value) })}
+                >
+                  <option value={0}>Off</option>
+                  <option value={1024}>1 GB</option>
+                  <option value={2048}>2 GB</option>
+                  <option value={4096}>4 GB</option>
+                  <option value={8192}>8 GB</option>
+                </select>
+              </Field>
             </div>
           </Panel>
           <BigModels on={s.stream_from_drive} onChange={(v) => save({ stream_from_drive: v })} />

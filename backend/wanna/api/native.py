@@ -476,6 +476,14 @@ def put_settings(patch: dict):
         patch["allowed_hosts"] = _allowed_hosts(patch["allowed_hosts"])
     if "models_dir" in patch:
         patch["models_dir"] = _models_dir(patch["models_dir"])
+    if "prompt_cache_mb" in patch:
+        try:
+            mb = int(patch["prompt_cache_mb"])
+        except (TypeError, ValueError):
+            raise HTTPException(400, "The prompt cache size must be a whole number of megabytes.")
+        if not 0 <= mb <= 65536:
+            raise HTTPException(400, "The prompt cache size must be between 0 (off) and 65536 MB.")
+        patch["prompt_cache_mb"] = mb
     s = save_settings(patch)
     hub._model_info.cache_clear()
     return _public_settings(s)

@@ -21,6 +21,9 @@ from ..config import ENGINES_DIR
 
 log = logging.getLogger("wanna.llamacpp")
 
+# Context checkpoints kept per slot; see server_command for the measurements behind 2.
+CTX_CHECKPOINTS = 2
+
 # Pinned, tested release. Override with WANNA_LLAMACPP_TAG to try a newer one.
 DEFAULT_TAG = os.environ.get("WANNA_LLAMACPP_TAG", "b11963")
 ROOT = ENGINES_DIR / "llamacpp"
@@ -221,7 +224,7 @@ def server_command(
     model_path: str, port: int, context: int, gpus: list[int], split: list[float] | None,
     mmproj: str | None = None, alias: str | None = None, extra: list[str] | None = None,
     gpu_layers: int | None = None, embedding: bool = False, pooling: str | None = None,
-    overrides: str | None = None, from_drive: bool = False,
+    overrides: str | None = None, from_drive: bool = False, prompt_cache_mb: int | None = None,
 ) -> tuple[list[str], dict]:
     """Build the llama-server command line and environment for a model placement."""
     cmd = [
@@ -235,6 +238,18 @@ def server_command(
     ]
     if alias:
         cmd += ["--alias", alias]
+    if not embedding:
+        # Bound the two things llama-server keeps in system memory as it answers, which on a model held entirely on
+        # the graphics card are most of what it uses. Measured with Gemma 4 12B on an RTX 3060 (8K context, four
+        # slots, 48 requests eight at a time): llama.cpp's defaults (an 8 GB prompt cache, 32 context checkpoints per
+        # slot) took it from 1.3 GB to 7-7.9 GB, in 124 s. The checkpoints were the bulk, about 310 MB each per slot
+        # for that model, and the prompt cache made no difference to speed there:
+        #   checkpoints 32: 7.9 GB, 124 s   4: 6.4 GB, 129 s   2: 3.9 GB, 130 s   0: 1.4 GB, 144 s
+        # Two checkpoints with a 2 GB prompt cache: 4.8 GB, 133 s. llama.cpp keeps checkpoints for models whose
+        # memory of a conversation can't simply be cut back, such as Gemma's sliding-window attention.
+        cmd += ["--ctx-checkpoints", str(CTX_CHECKPOINTS)]
+        if prompt_cache_mb is not None:
+            cmd += ["--cache-ram", str(prompt_cache_mb)]
     if mmproj:
         cmd += ["--mmproj", mmproj]
     if embedding:

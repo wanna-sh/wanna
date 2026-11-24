@@ -2,6 +2,25 @@
 
 Each version's section becomes its GitHub release notes (see `.github/workflows/release.yml`).
 
+## Unreleased
+
+- **Chat models on a graphics card use far less system memory as they answer.** llama.cpp keeps two things in
+  system memory while it works: earlier prompts it can reuse (up to 8 GB per model by default) and checkpoints of
+  each conversation (up to 32 per slot), and for a model held entirely on the graphics card these were most of the
+  memory it used. Gemma 4 12B on an RTX 3060 went from 1.3 GB to 7-7.9 GB over 48 requests made eight at a time;
+  with this change it peaks at 4.8 GB, and the same requests take 133 s rather than 124 s. Each chat model now
+  keeps two checkpoints per slot, which was most of the saving (3.9 GB, 130 s, against 1.4 GB but 144 s with none),
+  and the prompt cache defaults to 2 GB.
+- **Prompt cache setting.** Settings → Models & memory has a new **Prompt cache** choice: Off, 1, 2 (the default),
+  4 or 8 GB of system memory per chat model. Lower it if your computer runs short of memory with a model loaded. It
+  applies the next time a model starts.
+
+Tested on Windows 11 with an RTX 3060 12 GB: Gemma 4 12B QAT Q4_0 with an 8K context and four slots, with
+llama-server b11963 started by hand the way wanna.sh starts it (prompt cache 8 GB, 2 GB and off; 32, 4, 2 and 0
+checkpoints), measuring its memory and the time for 48 requests made eight at a time. The command line was checked
+for chat, embedding, prompt-cache-off and read-from-drive placements, and the setting's checks with good and bad
+values. Not tested through the desktop app, or on Linux or a Mac.
+
 ## 0.9.5 (2026-11-09)
 
 - **Choose where models are saved.** Settings → Models & memory has a new **Where models are saved** box: paste a

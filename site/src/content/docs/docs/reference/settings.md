@@ -27,6 +27,7 @@ searches through a private SearXNG instance on your computer. With one, Brave is
 | --- | --- | --- |
 | **Stop idle models after** | Never, 5 minutes, 15 minutes, 1 hour | Unloads models you haven't used for a while, freeing graphics memory. |
 | **Chat memory** | Short (4K), Standard (8K), Long (16K), Very long (32K) | How much of a conversation chat models remember, unless set per model in **My models → Options**. |
+| **Prompt cache** | Off, 1 GB, 2 GB (default), 4 GB, 8 GB | System memory each chat model can use to keep earlier prompts, so it picks up a conversation faster. Takes effect the next time a model starts. Lower it if your computer runs short of memory with a model loaded. |
 
 ## Models bigger than memory
 

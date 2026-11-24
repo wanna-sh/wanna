@@ -19,6 +19,8 @@ export interface Settings {
   allowed_hosts_env: string[];
   idle_unload_minutes: number;
   default_context: number;
+  /** System memory (MB) each chat model may keep earlier prompts in for reuse; 0 is off. */
+  prompt_cache_mb: number;
   stream_from_drive: boolean;
   /** Where new downloads are saved; blank means models_dir_default (the data folder's models folder). */
   models_dir: string;

@@ -124,6 +124,7 @@ class Worker:
                 self.gpus, self.split, mmproj=meta.get("mmproj"), alias=self.id,
                 gpu_layers=(self.plan or {}).get("gpu_layers") if self.plan else None,
                 overrides=(self.plan or {}).get("overrides"), from_drive=self.from_drive,
+                prompt_cache_mb=load_settings().get("prompt_cache_mb"),
                 embedding=self.task == "embed",
                 pooling=family(self.model["repo_id"])["pooling"] if self.task == "embed" else None,
                 # a chat model trained in wanna.sh: the same GGUF with its trained adapter (path kept relative to
