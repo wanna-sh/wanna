@@ -2,7 +2,7 @@
 
 Each version's section becomes its GitHub release notes (see `.github/workflows/release.yml`).
 
-## Unreleased
+## 0.9.6 (2026-11-24)
 
 - **Chat models on a graphics card use far less system memory as they answer.** llama.cpp keeps two things in
   system memory while it works: earlier prompts it can reuse (up to 8 GB per model by default) and checkpoints of
